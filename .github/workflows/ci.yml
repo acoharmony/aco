@@ -25,10 +25,17 @@ jobs:
         run: uv run coverage run -m pytest src/acoharmony/_test/ --no-cov -q --tb=short
 
       - name: Generate coverage report
+        id: coverage
         run: |
-          uv run coverage report --show-missing
+          uv run coverage report --show-missing | tee /tmp/coverage-report.txt
           uv run coverage xml -o .dev/coverage.xml
-          echo "Note: 100% coverage enforced locally (CI skips notebook/reconciliation tests that need local data)"
+          # Extract percentage for badge (idempotent — reads from report output)
+          COV_PCT=$(tail -1 /tmp/coverage-report.txt | awk '{print $NF}' | tr -d '%')
+          echo "pct=${COV_PCT}" >> "$GITHUB_OUTPUT"
+          if [ "$COV_PCT" = "100" ]; then echo "color=brightgreen" >> "$GITHUB_OUTPUT"
+          elif [ "$COV_PCT" -ge 90 ]; then echo "color=green" >> "$GITHUB_OUTPUT"
+          elif [ "$COV_PCT" -ge 80 ]; then echo "color=yellow" >> "$GITHUB_OUTPUT"
+          else echo "color=red" >> "$GITHUB_OUTPUT"; fi
 
       - name: Upload coverage to Codecov
         if: always()
@@ -39,12 +46,11 @@ jobs:
 
       - name: Coverage badge
         if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
-        continue-on-error: true
         uses: schneegans/dynamic-badges-action@v1.7.0
         with:
           auth: ${{ secrets.GIST_SECRET }}
           gistID: ${{ vars.COVERAGE_GIST_ID }}
           filename: coverage.json
           label: coverage
-          message: 100%
-          color: brightgreen
+          message: ${{ steps.coverage.outputs.pct }}%
+          color: ${{ steps.coverage.outputs.color }}
