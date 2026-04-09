@@ -19,7 +19,7 @@ jobs:
         run: uv python install 3.13
 
       - name: Install dependencies
-        run: uv sync
+        run: uv sync --all-extras
 
       - name: Run tests with coverage
         run: uv run coverage run -m pytest src/acoharmony/_test/ --no-cov -q --tb=short
