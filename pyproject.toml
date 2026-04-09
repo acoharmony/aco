@@ -1,10 +1,10 @@
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
 name = "acoharmony"
-version = "0.1.1"
+dynamic = ["version"]
 description = "ACO program data wrangling and healthcare data processing"
 readme = "README.md"
 requires-python = "==3.13.*"
@@ -72,7 +72,14 @@ Issues = "https://github.com/acoharmony/aco/issues"
 Source = "https://github.com/acoharmony/aco"
 
 [tool.hatch.version]
-path = "src/acoharmony/__init__.py"
+source = "vcs"
+
+[tool.hatch.version.raw-options]
+version_scheme = "guess-next-dev"
+local_scheme = "no-local-version"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "src/acoharmony/_version.py"
 
 [tool.hatch.build]
 exclude = [
@@ -463,6 +470,7 @@ managed = true
 
 [dependency-groups]
 dev = [
+    "hatch-vcs>=0.5.0",
     "pytest>=8.4.1",
     "pytest-cov>=7.1.0",
     "reportlab>=4.4.10",

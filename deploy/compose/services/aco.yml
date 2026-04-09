@@ -22,7 +22,7 @@ services:
       - uv
       - run
       - --with
-      - acoharmony==0.1.1
+      - acoharmony
       - aco
       - --help
     labels:

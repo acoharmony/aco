@@ -9,7 +9,10 @@ Built on Polars for high-performance data transformations.
 
 """
 
-__version__ = "2.1.0"
+try:
+    from ._version import __version__
+except ImportError:
+    __version__ = "0.0.0.dev0"
 
 # Initialize Polars environment variables BEFORE any imports
 # This ensures optimal thread pool size is set when Polars is first imported
