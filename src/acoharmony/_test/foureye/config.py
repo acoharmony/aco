@@ -166,6 +166,13 @@ class TestFourICLIConfigCredentials:
         config.working_dir = tmp_path / "working"
         config.working_dir.mkdir()
 
+        # Ensure the compose fallback config.txt exists (gitignored, may not be in CI)
+        project_root = Path(__file__).parent.parent.parent.parent
+        compose_config = project_root / "deploy" / "compose" / "conf" / "4icli" / "config.txt"
+        compose_config.parent.mkdir(parents=True, exist_ok=True)
+        if not compose_config.exists():
+            compose_config.write_text("dummy_config=true\n")
+
         # Should find config.txt (either in profile location or compose/conf/4icli)
         config_file = config.ensure_config_file()
 
@@ -331,6 +338,13 @@ class TestFourICLIConfigEdgeCases:
     @pytest.mark.unit
     def test_ensure_config_file_returns_existing_compose_config(self) -> None:
         """ensure_config_file returns compose config when it exists."""
+        # Ensure the compose fallback config.txt exists (gitignored, may not be in CI)
+        project_root = Path(__file__).parent.parent.parent.parent
+        compose_config = project_root / "deploy" / "compose" / "conf" / "4icli" / "config.txt"
+        compose_config.parent.mkdir(parents=True, exist_ok=True)
+        if not compose_config.exists():
+            compose_config.write_text("dummy_config=true\n")
+
         # This test relies on the actual config.txt from deploy/compose/conf/4icli
         # existing in the project. In from_profile, config is set.
         config = FourICLIConfig.from_profile("dev")

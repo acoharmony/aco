@@ -251,10 +251,20 @@ class TestSetupPluginsSetupProjectPath:
         src_path = str(Path("/home/care/acoharmony") / "src")
         # Temporarily remove src from sys.path if present, then verify it gets added
         original_path = sys.path[:]
+        original_exists = Path.exists
         try:
             # Remove all occurrences of src_path so the condition is True
             sys.path = [p for p in sys.path if p != src_path]
-            result = sp.setup_project_path()
+
+            # Mock Path.exists so the hardcoded /home/care/acoharmony passes
+            # the existence check even in CI where that path doesn't exist
+            def _patched_exists(self_path):
+                if str(self_path) == "/home/care/acoharmony":
+                    return True
+                return original_exists(self_path)
+
+            with patch.object(Path, "exists", _patched_exists):
+                result = sp.setup_project_path()
             assert isinstance(result, Path)
             assert src_path in sys.path
         finally:

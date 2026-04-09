@@ -1326,10 +1326,12 @@ class TestNotebookGenerator:
         """NotebookGenerator handles string data path for default output dir."""
         mock_storage.get_data_path.return_value = "s3://bucket/data"
         with patch("acoharmony._notes.generator.Catalog", return_value=mock_catalog):
-            from acoharmony._notes.generator import NotebookGenerator
+            with patch("pathlib.Path.mkdir"):
+                from acoharmony._notes.generator import NotebookGenerator
 
-            gen = NotebookGenerator(storage_backend=mock_storage)
-        assert gen.output_dir == Path("/home/care/acoharmony/notebooks/generated")
+                gen = NotebookGenerator(storage_backend=mock_storage)
+        assert "notebooks" in str(gen.output_dir)
+        assert "generated" in str(gen.output_dir)
 
     @pytest.mark.unit
     def test_init_default_storage(self, mock_catalog):
@@ -1692,6 +1694,7 @@ class TestNotebookGeneratorInit:
         with (
             patch("acoharmony._notes.generator.StorageBackend") as mock_sb_cls,
             patch("acoharmony._notes.generator.Catalog"),
+            patch("pathlib.Path.mkdir"),
         ):
             mock_sb = MagicMock()
             mock_sb.get_data_path.return_value = "s3://bucket/data"

@@ -70,3 +70,4 @@ docs/tsconfig.json
 .coverage_state/
 coverage.json
 
+coverage.xml

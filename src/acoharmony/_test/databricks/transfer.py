@@ -156,7 +156,7 @@ class TestFileSignature:
     """Tests for file signature methods."""
 
     @pytest.mark.unit
-    def test_get_file_signature(self):
+    def test_get_file_signature(self, tmp_path):
         """Test getting file signature."""
         with tempfile.NamedTemporaryFile(delete=False) as f:
             f.write(b"test data")
@@ -164,7 +164,9 @@ class TestFileSignature:
             path = Path(f.name)
 
         try:
-            manager = DatabricksTransferManager(source_dirs=[])
+            manager = DatabricksTransferManager(
+                source_dirs=[], dest_dir=tmp_path / "dest", tracking_dir=tmp_path / "tracking"
+            )
             sig = manager._get_file_signature(path)
 
             assert "mtime" in sig
@@ -175,7 +177,7 @@ class TestFileSignature:
             path.unlink()
 
     @pytest.mark.unit
-    def test_has_file_changed_new_file(self):
+    def test_has_file_changed_new_file(self, tmp_path):
         """Test change detection for new file."""
         with tempfile.NamedTemporaryFile(delete=False) as f:
             f.write(b"test data")
@@ -183,13 +185,15 @@ class TestFileSignature:
             path = Path(f.name)
 
         try:
-            manager = DatabricksTransferManager(source_dirs=[])
+            manager = DatabricksTransferManager(
+                source_dirs=[], dest_dir=tmp_path / "dest", tracking_dir=tmp_path / "tracking"
+            )
             assert manager._has_file_changed(path) is True
         finally:
             path.unlink()
 
     @pytest.mark.unit
-    def test_has_file_changed_unchanged_file(self):
+    def test_has_file_changed_unchanged_file(self, tmp_path):
         """Test change detection for unchanged file."""
         with tempfile.NamedTemporaryFile(delete=False) as f:
             f.write(b"test data")
@@ -197,7 +201,9 @@ class TestFileSignature:
             path = Path(f.name)
 
         try:
-            manager = DatabricksTransferManager(source_dirs=[])
+            manager = DatabricksTransferManager(
+                source_dirs=[], dest_dir=tmp_path / "dest", tracking_dir=tmp_path / "tracking"
+            )
 
             # Record the signature
             sig = manager._get_file_signature(path)
@@ -209,7 +215,7 @@ class TestFileSignature:
             path.unlink()
 
     @pytest.mark.unit
-    def test_has_file_changed_modified_file(self):
+    def test_has_file_changed_modified_file(self, tmp_path):
         """Test change detection for modified file."""
         with tempfile.NamedTemporaryFile(mode="w", delete=False) as f:
             f.write("original")
@@ -217,7 +223,9 @@ class TestFileSignature:
             path = Path(f.name)
 
         try:
-            manager = DatabricksTransferManager(source_dirs=[])
+            manager = DatabricksTransferManager(
+                source_dirs=[], dest_dir=tmp_path / "dest", tracking_dir=tmp_path / "tracking"
+            )
 
             # Record original signature
             sig = manager._get_file_signature(path)
@@ -240,7 +248,7 @@ class TestParquetCodec:
     """Tests for parquet codec detection."""
 
     @pytest.mark.unit
-    def test_get_parquet_codec(self):
+    def test_get_parquet_codec(self, tmp_path):
         """Test getting compression codec from parquet file."""
         with tempfile.NamedTemporaryFile(suffix=".parquet", delete=False) as f:
             path = Path(f.name)
@@ -250,7 +258,9 @@ class TestParquetCodec:
             df = pl.DataFrame({"a": [1, 2, 3], "b": ["x", "y", "z"]})
             df.write_parquet(path, compression="snappy")
 
-            manager = DatabricksTransferManager(source_dirs=[])
+            manager = DatabricksTransferManager(
+                source_dirs=[], dest_dir=tmp_path / "dest", tracking_dir=tmp_path / "tracking"
+            )
             codec = manager._get_parquet_codec(path)
 
             assert codec == "SNAPPY"
@@ -258,14 +268,16 @@ class TestParquetCodec:
             path.unlink()
 
     @pytest.mark.unit
-    def test_get_parquet_codec_error(self):
+    def test_get_parquet_codec_error(self, tmp_path):
         """Test codec detection with invalid file."""
         with tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as f:
             f.write(b"not a parquet file")
             path = Path(f.name)
 
         try:
-            manager = DatabricksTransferManager(source_dirs=[])
+            manager = DatabricksTransferManager(
+                source_dirs=[], dest_dir=tmp_path / "dest", tracking_dir=tmp_path / "tracking"
+            )
             codec = manager._get_parquet_codec(path)
 
             assert codec == "ERROR"
@@ -304,20 +316,20 @@ class TestConvertAndTransfer:
             assert codec == "SNAPPY"
 
     @pytest.mark.unit
-    def test_convert_and_transfer_error(self):
+    def test_convert_and_transfer_error(self, tmp_path):
         """Test conversion with invalid source file."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            tmppath = Path(tmpdir)
-            source_file = tmppath / "invalid.parquet"
-            dest_file = tmppath / "dest.parquet"
+        source_file = tmp_path / "invalid.parquet"
+        dest_file = tmp_path / "dest.parquet"
 
-            # Create invalid parquet file
-            source_file.write_text("invalid data")
+        # Create invalid parquet file
+        source_file.write_text("invalid data")
 
-            manager = DatabricksTransferManager(source_dirs=[])
-            result = manager._convert_and_transfer(source_file, dest_file)
+        manager = DatabricksTransferManager(
+            source_dirs=[], dest_dir=tmp_path / "dest", tracking_dir=tmp_path / "tracking"
+        )
+        result = manager._convert_and_transfer(source_file, dest_file)
 
-            assert result is False
+        assert result is False
 
 
 class TestTransfer:
@@ -655,7 +667,9 @@ class TestTransferEdgeCases:
     @pytest.mark.unit
     def test_save_state_exception(self, tmp_path):
         """Cover lines 75-76: _save_state fails gracefully."""
-        manager = DatabricksTransferManager(source_dirs=[])
+        manager = DatabricksTransferManager(
+            source_dirs=[], dest_dir=tmp_path / "dest", tracking_dir=tmp_path / "tracking"
+        )
         manager.state_file = tmp_path / "readonly" / "state.json"
         # Parent doesn't exist → writing fails
         manager._save_state()  # Should log error but not raise
@@ -671,7 +685,9 @@ class TestTransferEdgeCases:
         table = pa.table({"a": pa.array([], type=pa.int64())})
         pq.write_table(table, path)
 
-        manager = DatabricksTransferManager(source_dirs=[])
+        manager = DatabricksTransferManager(
+            source_dirs=[], dest_dir=tmp_path / "dest", tracking_dir=tmp_path / "tracking"
+        )
         codec = manager._get_parquet_codec(path)
         # Empty table may still have 1 row group; if not, returns UNKNOWN
         assert codec in ("UNKNOWN", "SNAPPY", "NONE", "UNCOMPRESSED")
@@ -709,7 +725,11 @@ class TestDatabricksSourceDirNotExists:
     def test_databricks_source_dir_not_exists(self, tmp_path):
         """173->172: source_dir.exists() is False."""
         from acoharmony._databricks._transfer import DatabricksTransferManager
-        mgr = DatabricksTransferManager(source_dirs=[tmp_path / "nonexistent"])
+        mgr = DatabricksTransferManager(
+            source_dirs=[tmp_path / "nonexistent"],
+            dest_dir=tmp_path / "dest",
+            tracking_dir=tmp_path / "tracking",
+        )
         stats = mgr.transfer()
         assert stats["total_files"] == 0
 
@@ -723,7 +743,9 @@ class TestGetParquetCodecZeroRowGroups:
         from unittest.mock import MagicMock, patch as _patch
         from acoharmony._databricks._transfer import DatabricksTransferManager
 
-        manager = DatabricksTransferManager(source_dirs=[])
+        manager = DatabricksTransferManager(
+            source_dirs=[], dest_dir=tmp_path / "dest", tracking_dir=tmp_path / "tracking"
+        )
         fake_path = tmp_path / "empty.parquet"
         fake_path.write_bytes(b"fake")
 

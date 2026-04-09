@@ -27,13 +27,13 @@ jobs:
       - name: Generate coverage report
         run: |
           uv run coverage report --show-missing --fail-under=100
-          uv run coverage xml -o coverage.xml
+          uv run coverage xml -o .dev/coverage.xml
 
       - name: Upload coverage to Codecov
         if: always()
         uses: codecov/codecov-action@v5
         with:
-          files: coverage.xml
+          files: .dev/coverage.xml
           fail_ci_if_error: false
 
       - name: Coverage badge

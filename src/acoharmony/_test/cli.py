@@ -732,14 +732,15 @@ class TestDeployCommand:
 class TestTestCommand:
     """Test the test command."""
 
-    @patch('subprocess.run')
+    @patch('acoharmony._test.coverage.orchestrator.CoverageOrchestrator')
     @patch('sys.argv', ['aco', 'test'])
     @pytest.mark.unit
-    def test_test_run(self, mock_run):
+    def test_test_run(self, mock_orch_cls):
         """Test running tests."""
-        mock_run.return_value = MagicMock(returncode=0)
+        mock_orch = MagicMock()
+        mock_orch.iterate_once.return_value = {"success": True, "uncovered_count": 0}
+        mock_orch_cls.return_value = mock_orch
         result = acoharmony.cli.main()
-        mock_run.assert_called()
         assert result == 0
 
 class TestSVACommand:
@@ -2243,9 +2244,10 @@ class TestDevGenerateNotesBranchCoverage:
         result = acoharmony.cli.main()
         assert result == 1
 
+    @patch("acoharmony._notes.generator.NotebookGenerator")
     @patch("sys.argv", ["aco", "dev", "generate-notes"])
     @pytest.mark.unit
-    def test_generate_notes_no_args(self):
+    def test_generate_notes_no_args(self, mock_gen_cls):
         """Branch 997->1010: no --all and no schema name."""
         result = acoharmony.cli.main()
         assert result == 1

@@ -514,17 +514,30 @@ class TestExportNotebookToHtml:
 
         notebook = tmp_path / "my_notebook.py"
         notebook.write_text("# marimo notebook")
-        expected_dir = Path("/home/care/kcorwin/Downloads")
+        # Use tmp_path so the test works on any machine
+        fallback_dir = tmp_path / "Downloads"
 
         def create_html_side_effect(*args, **kwargs):
-            expected_dir.mkdir(parents=True, exist_ok=True)
-            out = expected_dir / "my_notebook.html"
+            cmd = args[0]
+            out_idx = cmd.index("-o") + 1
+            out = Path(cmd[out_idx])
+            out.parent.mkdir(parents=True, exist_ok=True)
             out.write_text("<html><head></head><body></body></html>")
             return Mock(returncode=0, stdout="", stderr="")
 
         mock_run.side_effect = create_html_side_effect
 
-        result = export_notebook_to_html(notebook)
+        # Patch Path inside the module so the hardcoded default dir
+        # points to tmp_path instead of /home/care/kcorwin/Downloads
+        _real_path = Path
+        def _path_factory(*a, **kw):
+            p = _real_path(*a, **kw)
+            if str(p) == "/home/care/kcorwin/Downloads":
+                return _real_path(fallback_dir)
+            return p
+
+        with patch("acoharmony._utils.export_notebook.Path", side_effect=_path_factory):
+            result = export_notebook_to_html(notebook)
         assert result.name == "my_notebook.html"
         # Clean up
         if result.exists():
