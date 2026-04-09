@@ -29,8 +29,8 @@ jobs:
         run: |
           uv run coverage report --show-missing | tee /tmp/coverage-report.txt
           uv run coverage xml -o .dev/coverage.xml
-          # Extract percentage for badge (idempotent — reads from report output)
-          COV_PCT=$(tail -1 /tmp/coverage-report.txt | awk '{print $NF}' | tr -d '%')
+          # Extract percentage for badge from TOTAL line (not the last line which may be "N empty files skipped.")
+          COV_PCT=$(grep '^TOTAL' /tmp/coverage-report.txt | awk '{print $NF}' | tr -d '%')
           echo "pct=${COV_PCT}" >> "$GITHUB_OUTPUT"
           if [ "$COV_PCT" = "100" ]; then echo "color=brightgreen" >> "$GITHUB_OUTPUT"
           elif [ "$COV_PCT" -ge 90 ]; then echo "color=green" >> "$GITHUB_OUTPUT"
