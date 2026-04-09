@@ -71,3 +71,4 @@ docs/tsconfig.json
 coverage.json
 
 coverage.xml
+src/acoharmony/_version.py
