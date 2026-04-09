@@ -202,7 +202,7 @@ CUSTOMIZATION_SCRIPT=$(cat <<'EOFSCRIPT'
               tilesSection.innerHTML = \`
                   <h2 style="color: #2E3254; border-bottom: 3px solid #1EDAC9; padding-bottom: 0.5rem; margin-bottom: 1.25rem; font-size: 1.5rem; font-weight: 600;">Quick Access</h2>
                   <div class="aco-tiles-grid">
-                      <a href="https://github.com/acoharmony/acoharmony" class="aco-tile" target="_blank">
+                      <a href="https://github.com/acoharmony/aco" class="aco-tile" target="_blank">
                           <div class="aco-tile-header">
                               <div class="aco-tile-icon">🔧</div>
                               <div class="aco-tile-title">GitHub</div>
@@ -259,7 +259,7 @@ CUSTOMIZATION_SCRIPT=$(cat <<'EOFSCRIPT'
                                       HarmonyCares OS Launch
                                   </div>
                               </div>
-                              <a href="https://github.com/acoharmony/acoharmony" target="_blank" style="padding: 0.5rem 1rem; background: linear-gradient(135deg, #2E3254 0%, #434A80 100%); color: white; border-radius: 6px; text-decoration: none; font-weight: 500; transition: all 0.3s ease;">
+                              <a href="https://github.com/acoharmony/aco" target="_blank" style="padding: 0.5rem 1rem; background: linear-gradient(135deg, #2E3254 0%, #434A80 100%); color: white; border-radius: 6px; text-decoration: none; font-weight: 500; transition: all 0.3s ease;">
                                   View on GitHub →
                               </a>
                           </div>

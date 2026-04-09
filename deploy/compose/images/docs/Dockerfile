@@ -1,7 +1,7 @@
 # Simple single-stage build using official Node.js image
 FROM node:22-slim
 
-LABEL org.opencontainers.image.source=https://github.com/acoharmony/acoharmony
+LABEL org.opencontainers.image.source=https://github.com/acoharmony/aco
 
 # Set working directory
 WORKDIR /home/care/acoharmony/docs

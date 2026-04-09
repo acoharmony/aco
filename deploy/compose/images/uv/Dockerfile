@@ -3,7 +3,7 @@
 # Purpose: Mirror external image to local registry with metadata
 FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim
 
-LABEL org.opencontainers.image.source=https://github.com/acoharmony/acoharmony \
+LABEL org.opencontainers.image.source=https://github.com/acoharmony/aco \
       aco.type="runtime" \
       aco.source="ghcr.io/astral-sh/uv:python3.13-bookworm-slim" \
       aco.build-date="${BUILD_DATE}" \

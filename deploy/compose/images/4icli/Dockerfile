@@ -4,7 +4,7 @@
 
 FROM docker.io/ubuntu:22.04
 
-LABEL org.opencontainers.image.source=https://github.com/acoharmony/acoharmony \
+LABEL org.opencontainers.image.source=https://github.com/acoharmony/aco \
       aco.type="cli" \
       aco.source="docker.io/ubuntu:22.04" \
       aco.build-date="${BUILD_DATE}" \

@@ -1,6 +1,6 @@
 FROM alpine:latest
 
-LABEL org.opencontainers.image.source=https://github.com/acoharmony/acoharmony
+LABEL org.opencontainers.image.source=https://github.com/acoharmony/aco
 
 RUN apk add --no-cache \
     openssl \

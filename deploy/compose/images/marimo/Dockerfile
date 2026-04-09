@@ -1,7 +1,7 @@
 # Use uv base image with Python 3.13
 FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim
 
-LABEL org.opencontainers.image.source=https://github.com/acoharmony/acoharmony
+LABEL org.opencontainers.image.source=https://github.com/acoharmony/aco
 
 # Create care group and user with matching IDs from host
 RUN groupadd -g 1002 care && \

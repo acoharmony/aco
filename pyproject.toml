@@ -67,9 +67,9 @@ aco = "acoharmony.cli:main"
 aco-4icli = "acoharmony._4icli.cli:main"
 
 [project.urls]
-Documentation = "https://github.com/acoharmony/acoharmony#readme"
-Issues = "https://github.com/acoharmony/acoharmony/issues"
-Source = "https://github.com/acoharmony/acoharmony"
+Documentation = "https://github.com/acoharmony/aco#readme"
+Issues = "https://github.com/acoharmony/aco/issues"
+Source = "https://github.com/acoharmony/aco"
 
 [tool.hatch.version]
 path = "src/acoharmony/__init__.py"
