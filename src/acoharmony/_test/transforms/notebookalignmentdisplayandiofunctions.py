@@ -33,7 +33,11 @@ sys.path.insert(0, str(Path("/opt/s3/data/notebooks")))
 
 # Import the notebook module
 
-import consolidated_alignments
+try:
+    import consolidated_alignments
+except ModuleNotFoundError:
+    import pytest
+    pytest.skip("consolidated_alignments notebook not on path", allow_module_level=True)
 
 
 @pytest.fixture(scope="module")

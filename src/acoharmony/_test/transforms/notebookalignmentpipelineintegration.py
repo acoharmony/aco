@@ -24,7 +24,11 @@ class _:
 import sys
 from pathlib import Path
 
-import consolidated_alignments
+try:
+    import consolidated_alignments
+except ModuleNotFoundError:
+    import pytest
+    pytest.skip("consolidated_alignments notebook not on path", allow_module_level=True)
 import pytest
 import acoharmony
 
