@@ -1,0 +1,361 @@
+version: 2
+name: cclf5
+description: CCLF5 Part B Physicians File - Fixed-width file containing Part B physician and supplier claims
+storage:
+  tier: bronze
+  file_patterns:
+    mssp: P.A*.ACO.ZC5Y*.D*.T*
+    reach: P.D*.ACO.ZC5Y*.D*.T*
+    mssp_regular: P.A*.ACO.ZC5Y*.D*.T*
+    mssp_runout: P.A*.ACO.ZC5R*.D*.T*
+    reach_monthly: P.D*.ACO.ZC5Y*.D*.T*
+    reach_runout: P.D*.ACO.ZC5R*.D*.T*
+    mssp_weekly: P.A*.ACO.ZC5WY*.D*.T*
+  silver:
+    output_name: cclf5.parquet
+    refresh_frequency: weekly
+    last_updated_by: scripts/process_raw_to_parquet.py
+  gold:
+    output_name: null
+    refresh_frequency: null
+    last_updated_by: null
+file_format:
+  type: fixed_width
+  encoding: utf-8
+  record_length: 388
+columns:
+- name: cur_clm_uniq_id
+  description: Current Claim Unique Identifier - A unique identification number assigned to the claim
+  data_type: string
+  start_pos: 1
+  end_pos: 13
+  length: 13
+  required: true
+- name: clm_line_num
+  description: Claim Line Number - A sequential number that identifies a specific claim line within a given claim
+  data_type: string
+  start_pos: 14
+  end_pos: 23
+  length: 10
+  required: true
+- name: bene_mbi_id
+  description: Medicare Beneficiary Identifier - A Medicare Beneficiary Identifier assigned to a beneficiary
+  data_type: string
+  start_pos: 24
+  end_pos: 34
+  length: 11
+  required: true
+- name: bene_hic_num
+  description: Beneficiary HIC Number - Legacy Beneficiary HICN field
+  data_type: string
+  start_pos: 35
+  end_pos: 45
+  length: 11
+- name: clm_type_cd
+  description: Claim Type Code - Type of claim (71=RIC O local carrier non-DMEPOS, 72=RIC O local carrier DMEPOS)
+  data_type: string
+  start_pos: 46
+  end_pos: 47
+  length: 2
+- name: clm_from_dt
+  description: Claim From Date - First day on billing statement (Statement Covers From Date)
+  data_type: date
+  start_pos: 48
+  end_pos: 57
+  length: 10
+  date_format: '%Y-%m-%d'
+- name: clm_thru_dt
+  description: Claim Thru Date - Last day on billing statement (Statement Covers Through Date)
+  data_type: date
+  start_pos: 58
+  end_pos: 67
+  length: 10
+  date_format: '%Y-%m-%d'
+- name: rndrg_prvdr_type_cd
+  description: Rendering Provider Type Code - Type of provider (0=Clinics/groups, 1=Solo practitioners, 2=Suppliers, etc.)
+  data_type: string
+  start_pos: 68
+  end_pos: 70
+  length: 3
+- name: rndrg_prvdr_fips_st_cd
+  description: Rendering Provider FIPS State Code - State where provider is located
+  data_type: string
+  start_pos: 71
+  end_pos: 72
+  length: 2
+- name: clm_prvdr_spclty_cd
+  description: Claim-Line Provider Specialty Code - CMS specialty code for pricing
+  data_type: string
+  start_pos: 73
+  end_pos: 74
+  length: 2
+- name: clm_fed_type_srvc_cd
+  description: Claim Federal Type Service Code - Type of service provided (consultation, surgery, etc.)
+  data_type: string
+  start_pos: 75
+  end_pos: 75
+  length: 1
+- name: clm_pos_cd
+  description: Claim Place of Service Code - Where service was provided (ambulance, school, etc.)
+  data_type: string
+  start_pos: 76
+  end_pos: 77
+  length: 2
+- name: clm_line_from_dt
+  description: Claim Line From Date - Date service began for this line item
+  data_type: date
+  start_pos: 78
+  end_pos: 87
+  length: 10
+  date_format: '%Y-%m-%d'
+- name: clm_line_thru_dt
+  description: Claim Line Thru Date - Date service ended for this line item
+  data_type: date
+  start_pos: 88
+  end_pos: 97
+  length: 10
+  date_format: '%Y-%m-%d'
+- name: clm_line_hcpcs_cd
+  description: HCPCS Code - Procedure/supply/product/service code
+  data_type: string
+  start_pos: 98
+  end_pos: 102
+  length: 5
+- name: clm_line_cvrd_pd_amt
+  description: Claim Line NCH Payment Amount - Medicare payment after deductible and coinsurance
+  data_type: decimal
+  start_pos: 103
+  end_pos: 117
+  length: 15
+  precision: 2
+- name: clm_line_prmry_pyr_cd
+  description: Claim Primary Payer Code - Primary payer if not Medicare (blank=Medicare is primary)
+  data_type: string
+  start_pos: 118
+  end_pos: 118
+  length: 1
+- name: clm_line_dgns_cd
+  description: Diagnosis Code - ICD-9/10 diagnosis for principal illness or disability
+  data_type: string
+  start_pos: 119
+  end_pos: 125
+  length: 7
+- name: clm_rndrg_prvdr_tax_num
+  description: Claim Provider Tax Number - SSN or EIN of provider receiving payment
+  data_type: string
+  start_pos: 126
+  end_pos: 135
+  length: 10
+- name: rndrg_prvdr_npi_num
+  description: Rendering Provider NPI Number - NPI of provider rendering service from PECOS
+  data_type: string
+  start_pos: 136
+  end_pos: 145
+  length: 10
+- name: clm_carr_pmt_dnl_cd
+  description: Claim Carrier Payment Denial Code - To whom payment made or if denied
+  data_type: string
+  start_pos: 146
+  end_pos: 147
+  length: 2
+- name: clm_prcsg_ind_cd
+  description: Claim-Line Processing Indicator Code - If service allowed or reason denied
+  data_type: string
+  start_pos: 148
+  end_pos: 149
+  length: 2
+- name: clm_adjsmt_type_cd
+  description: Claim Adjustment Type Code - 0=Original, 1=Cancellation, 2=Adjustment
+  data_type: string
+  start_pos: 150
+  end_pos: 151
+  length: 2
+- name: clm_efctv_dt
+  description: Claim Effective Date - Date claim processed/added to NCH (Weekly Processing Date)
+  data_type: date
+  start_pos: 152
+  end_pos: 161
+  length: 10
+  date_format: '%Y-%m-%d'
+- name: clm_idr_ld_dt
+  description: Claim IDR Load Date - When claim was loaded into IDR
+  data_type: date
+  start_pos: 162
+  end_pos: 171
+  length: 10
+  date_format: '%Y-%m-%d'
+- name: clm_cntl_num
+  description: Claim Control Number - Unique number assigned by Medicare carrier
+  data_type: string
+  start_pos: 172
+  end_pos: 211
+  length: 40
+- name: bene_eqtbl_bic_hicn_num
+  description: Beneficiary Equitable BIC HICN Number - Legacy field, blank as of January 1, 2020
+  data_type: string
+  start_pos: 212
+  end_pos: 222
+  length: 11
+- name: clm_line_alowd_chrg_amt
+  description: Claim Line Allowed Charges Amount - Amount Medicare approved for payment
+  data_type: decimal
+  start_pos: 223
+  end_pos: 239
+  length: 17
+  precision: 2
+- name: clm_line_srvc_unit_qty
+  description: Claim Line Service Unit Quantity - Count of units for services needing unit reporting
+  data_type: decimal
+  start_pos: 240
+  end_pos: 263
+  length: 24
+  precision: 4
+- name: hcpcs_1_mdfr_cd
+  description: HCPCS First Modifier Code - First modifier for HCPCS procedure code
+  data_type: string
+  start_pos: 264
+  end_pos: 265
+  length: 2
+- name: hcpcs_2_mdfr_cd
+  description: HCPCS Second Modifier Code - Second modifier for HCPCS procedure code
+  data_type: string
+  start_pos: 266
+  end_pos: 267
+  length: 2
+- name: hcpcs_3_mdfr_cd
+  description: HCPCS Third Modifier Code - Third modifier for HCPCS procedure code
+  data_type: string
+  start_pos: 268
+  end_pos: 269
+  length: 2
+- name: hcpcs_4_mdfr_cd
+  description: HCPCS Fourth Modifier Code - Fourth modifier for HCPCS procedure code
+  data_type: string
+  start_pos: 270
+  end_pos: 271
+  length: 2
+- name: hcpcs_5_mdfr_cd
+  description: HCPCS Fifth Modifier Code - Fifth modifier for HCPCS procedure code
+  data_type: string
+  start_pos: 272
+  end_pos: 273
+  length: 2
+- name: clm_disp_cd
+  description: Claim Disposition Code - Payment actions (01=Debit accepted, 02=Auto adjustment, 03=Cancel accepted)
+  data_type: string
+  start_pos: 274
+  end_pos: 275
+  length: 2
+- name: clm_dgns_1_cd
+  description: Claim Diagnosis First Code - First of 12 ICD-9/10 diagnosis codes
+  data_type: string
+  start_pos: 276
+  end_pos: 282
+  length: 7
+- name: clm_dgns_2_cd
+  description: Claim Diagnosis Second Code - Second of 12 ICD-9/10 diagnosis codes
+  data_type: string
+  start_pos: 283
+  end_pos: 289
+  length: 7
+- name: clm_dgns_3_cd
+  description: Claim Diagnosis Third Code - Third of 12 ICD-9/10 diagnosis codes
+  data_type: string
+  start_pos: 290
+  end_pos: 296
+  length: 7
+- name: clm_dgns_4_cd
+  description: Claim Diagnosis Fourth Code - Fourth of 12 ICD-9/10 diagnosis codes
+  data_type: string
+  start_pos: 297
+  end_pos: 303
+  length: 7
+- name: clm_dgns_5_cd
+  description: Claim Diagnosis Fifth Code - Fifth of 12 ICD-9/10 diagnosis codes
+  data_type: string
+  start_pos: 304
+  end_pos: 310
+  length: 7
+- name: clm_dgns_6_cd
+  description: Claim Diagnosis Sixth Code - Sixth of 12 ICD-9/10 diagnosis codes
+  data_type: string
+  start_pos: 311
+  end_pos: 317
+  length: 7
+- name: clm_dgns_7_cd
+  description: Claim Diagnosis Seventh Code - Seventh of 12 ICD-9/10 diagnosis codes
+  data_type: string
+  start_pos: 318
+  end_pos: 324
+  length: 7
+- name: clm_dgns_8_cd
+  description: Claim Diagnosis Eighth Code - Eighth of 12 ICD-9/10 diagnosis codes
+  data_type: string
+  start_pos: 325
+  end_pos: 331
+  length: 7
+- name: dgns_prcdr_icd_ind
+  description: ICD Version Indicator - 9=ICD-9, 0=ICD-10, U=any other value
+  data_type: string
+  start_pos: 332
+  end_pos: 332
+  length: 1
+- name: clm_dgns_9_cd
+  description: Claim Diagnosis Ninth Code - Ninth of 12 ICD-9/10 diagnosis codes
+  data_type: string
+  start_pos: 333
+  end_pos: 339
+  length: 7
+- name: clm_dgns_10_cd
+  description: Claim Diagnosis Tenth Code - Tenth of 12 ICD-9/10 diagnosis codes
+  data_type: string
+  start_pos: 340
+  end_pos: 346
+  length: 7
+- name: clm_dgns_11_cd
+  description: Claim Diagnosis Eleventh Code - Eleventh of 12 ICD-9/10 diagnosis codes
+  data_type: string
+  start_pos: 347
+  end_pos: 353
+  length: 7
+- name: clm_dgns_12_cd
+  description: Claim Diagnosis Twelfth Code - Twelfth of 12 ICD-9/10 diagnosis codes
+  data_type: string
+  start_pos: 354
+  end_pos: 360
+  length: 7
+- name: hcpcs_betos_cd
+  description: HCPCS BETOS Code - Berenson-Eggers Type of Service clinical category code
+  data_type: string
+  start_pos: 361
+  end_pos: 363
+  length: 3
+- name: clm_rndrg_prvdr_npi_num
+  description: Claim Rendering Provider NPI Number - NPI from claims processing system (as of Jan 2022)
+  data_type: string
+  start_pos: 364
+  end_pos: 373
+  length: 10
+- name: clm_rfrg_prvdr_npi_num
+  description: Claim Referring Provider NPI Number - NPI of provider who referred the service
+  data_type: string
+  start_pos: 374
+  end_pos: 383
+  length: 10
+- name: clm_cntrctor_num
+  description: Claim contractor number - CMS assigned MAC number authorized to process claims
+  data_type: string
+  start_pos: 384
+  end_pos: 388
+  length: 5
+medallion_layer: bronze
+unity_catalog: main
+fourIcli:
+  category: Claim and Claim Line Feed (CCLF) Files
+  fileTypeCode: 113
+  filePattern: P.?????.ACO.ZC*??.D??????.T*.zip, P.?????.ACO.ZCWY??.S??????.E??????.D??????.T*.zip, P.?????.ACO.ZC*Y??.D??????.T*,
+    P.?????.ACO.ZC*WY??.D??????.T*, P.?????.ACO.ZC*R??.D??????.T*
+  extractZip: true
+  refreshFrequency: weekly
+  defaultDateFilter:
+    createdWithinLastWeek: true

@@ -1,0 +1,691 @@
+version: 2
+name: census
+description: Monthly census tracking patient lifecycle, engagement, and attribution
+storage:
+  tier: bronze
+  file_patterns:
+    main: census*.csv
+  silver:
+    output_name: census.parquet
+    refresh_frequency: monthly
+    last_updated_by: aco transform census
+  gold:
+    output_name: null
+    refresh_frequency: null
+    last_updated_by: null
+file_format:
+  type: csv
+  encoding: utf-8
+columns:
+- name: hcmpi
+  output_name: hcmpi
+  description: HarmonyCares Master Patient Index identifier
+  data_type: string
+  required: true
+- name: monthyear
+  output_name: monthyear
+  description: Census month and year
+  data_type: date
+  required: true
+- name: first_status
+  output_name: first_status
+  description: Date of first status
+  data_type: date
+- name: inactivation_dt
+  output_name: inactivation_dt
+  description: Date of inactivation
+  data_type: date
+- name: lc_status_current
+  output_name: lc_status_current
+  description: Current lifecycle status
+  data_type: string
+- name: lifecycle_status
+  output_name: lifecycle_status
+  description: Lifecycle status
+  data_type: string
+- name: lc_status
+  output_name: lc_status
+  description: Lifecycle status code
+  data_type: string
+- name: lc_substatus
+  output_name: lc_substatus
+  description: Lifecycle substatus
+  data_type: string
+- name: lc_substatus_detail
+  output_name: lc_substatus_detail
+  description: Lifecycle substatus detail
+  data_type: string
+- name: lc_prev_status
+  output_name: lc_prev_status
+  description: Previous lifecycle status
+  data_type: string
+- name: lc_created_at
+  output_name: lc_created_at
+  description: Lifecycle record creation timestamp
+  data_type: timestamp
+- name: lc_inactive_at
+  output_name: lc_inactive_at
+  description: Lifecycle inactivation timestamp
+  data_type: timestamp
+- name: lc_changed_by_source
+  output_name: lc_changed_by_source
+  description: Source of lifecycle status change
+  data_type: string
+- name: status_monthdays
+  output_name: status_monthdays
+  description: Number of days in status during month
+  data_type: long
+- name: status_monthstart
+  output_name: status_monthstart
+  description: Status at start of month
+  data_type: string
+- name: status_monthend
+  output_name: status_monthend
+  description: Status at end of month
+  data_type: string
+- name: active_weight
+  output_name: active_weight
+  description: Active status weighting factor
+  data_type: decimal(14,4)
+- name: prospect_weight
+  output_name: prospect_weight
+  description: Prospect status weighting factor
+  data_type: decimal(14,4)
+- name: lc_last_updated_dttm
+  output_name: lc_last_updated_dttm
+  description: Lifecycle last updated timestamp
+  data_type: timestamp
+- name: primary_provider_npi_current
+  output_name: primary_provider_npi_current
+  description: Current primary provider NPI
+  data_type: string
+- name: primary_provider_id
+  output_name: primary_provider_id
+  description: Primary provider identifier
+  data_type: string
+- name: primary_provider_npi
+  output_name: primary_provider_npi
+  description: Primary provider NPI
+  data_type: string
+- name: pri_prov_eff_dt
+  output_name: pri_prov_eff_dt
+  description: Primary provider effective date
+  data_type: string
+- name: pri_prov_term_dt
+  output_name: pri_prov_term_dt
+  description: Primary provider termination date
+  data_type: date
+- name: pri_prov_days_in_month
+  output_name: pri_prov_days_in_month
+  description: Primary provider days active in month
+  data_type: long
+- name: department_id
+  output_name: department_id
+  description: Department identifier
+  data_type: string
+- name: office_name
+  output_name: office_name
+  description: Office name
+  data_type: string
+- name: payer_type
+  output_name: payer_type
+  description: Payer type classification
+  data_type: string
+- name: payer
+  output_name: payer
+  description: Payer name
+  data_type: string
+- name: pri_insurance_group
+  output_name: pri_insurance_group
+  description: Primary insurance group
+  data_type: string
+- name: assigned_insurance_nm
+  output_name: assigned_insurance_nm
+  description: Assigned insurance name
+  data_type: string
+- name: assigned_ins_reporting_group
+  output_name: assigned_ins_reporting_group
+  description: Assigned insurance reporting group
+  data_type: string
+- name: assigned_insurance_package_id
+  output_name: assigned_insurance_package_id
+  description: Assigned insurance package identifier
+  data_type: decimal(21,0)
+- name: payer_current
+  output_name: payer_current
+  description: Current payer
+  data_type: string
+- name: payer_type_current
+  output_name: payer_type_current
+  description: Current payer type
+  data_type: string
+- name: first_engagement_dt
+  output_name: first_engagement_dt
+  description: First engagement date
+  data_type: date
+- name: latest_engagement_dt
+  output_name: latest_engagement_dt
+  description: Most recent engagement date
+  data_type: date
+- name: first_EM_dt
+  output_name: first_em_dt
+  description: First evaluation and management service date
+  data_type: date
+- name: latest_EM_dt
+  output_name: latest_em_dt
+  description: Most recent evaluation and management service date
+  data_type: date
+- name: last_priprocedure_cd
+  output_name: last_priprocedure_cd
+  description: Last primary procedure code
+  data_type: string
+- name: last_pricharge_id
+  output_name: last_pricharge_id
+  description: Last primary charge identifier
+  data_type: string
+- name: last_pricharge_dt
+  output_name: last_pricharge_dt
+  description: Last primary charge date
+  data_type: date
+- name: engaged_contract
+  output_name: engaged_contract
+  description: Engaged in contract (0=No, 1=Yes)
+  data_type: integer
+- name: engaged_clinical
+  output_name: engaged_clinical
+  description: Engaged clinically (0=No, 1=Yes)
+  data_type: integer
+- name: homebased_touches
+  output_name: homebased_touches
+  description: Home-based touch points in month
+  data_type: long
+- name: inperson_touches
+  output_name: inperson_touches
+  description: In-person touch points in month
+  data_type: long
+- name: EM_touches
+  output_name: em_touches
+  description: E&M touch points in month
+  data_type: long
+- name: homebased_touches_enc
+  output_name: homebased_touches_enc
+  description: Home-based encounters in month
+  data_type: long
+- name: inperson_touches_enc
+  output_name: inperson_touches_enc
+  description: In-person encounters in month
+  data_type: long
+- name: homebased_touches_chg
+  output_name: homebased_touches_chg
+  description: Home-based charges in month
+  data_type: long
+- name: inperson_touches_chg
+  output_name: inperson_touches_chg
+  description: In-person charges in month
+  data_type: long
+- name: EM_touches_enc
+  output_name: em_touches_enc
+  description: E&M encounters in month
+  data_type: long
+- name: roll3_homebased
+  output_name: roll3_homebased
+  description: Rolling 3-month home-based touches
+  data_type: long
+- name: roll6_homebased
+  output_name: roll6_homebased
+  description: Rolling 6-month home-based touches
+  data_type: long
+- name: roll12_homebased
+  output_name: roll12_homebased
+  description: Rolling 12-month home-based touches
+  data_type: long
+- name: YTD_homebased
+  output_name: ytd_homebased
+  description: Year-to-date home-based touches
+  data_type: long
+- name: roll3_inperson
+  output_name: roll3_inperson
+  description: Rolling 3-month in-person touches
+  data_type: long
+- name: roll6_inperson
+  output_name: roll6_inperson
+  description: Rolling 6-month in-person touches
+  data_type: long
+- name: roll12_inperson
+  output_name: roll12_inperson
+  description: Rolling 12-month in-person touches
+  data_type: long
+- name: YTD_inperson
+  output_name: ytd_inperson
+  description: Year-to-date in-person touches
+  data_type: long
+- name: roll3_homebased_enc
+  output_name: roll3_homebased_enc
+  description: Rolling 3-month home-based encounters
+  data_type: long
+- name: roll6_homebased_enc
+  output_name: roll6_homebased_enc
+  description: Rolling 6-month home-based encounters
+  data_type: long
+- name: roll12_homebased_enc
+  output_name: roll12_homebased_enc
+  description: Rolling 12-month home-based encounters
+  data_type: long
+- name: YTD_homebased_enc
+  output_name: ytd_homebased_enc
+  description: Year-to-date home-based encounters
+  data_type: long
+- name: roll3_inperson_enc
+  output_name: roll3_inperson_enc
+  description: Rolling 3-month in-person encounters
+  data_type: long
+- name: roll6_inperson_enc
+  output_name: roll6_inperson_enc
+  description: Rolling 6-month in-person encounters
+  data_type: long
+- name: roll12_inperson_enc
+  output_name: roll12_inperson_enc
+  description: Rolling 12-month in-person encounters
+  data_type: long
+- name: YTD_inperson_enc
+  output_name: ytd_inperson_enc
+  description: Year-to-date in-person encounters
+  data_type: long
+- name: roll3_EM
+  output_name: roll3_em
+  description: Rolling 3-month E&M touches
+  data_type: long
+- name: roll6_EM
+  output_name: roll6_em
+  description: Rolling 6-month E&M touches
+  data_type: long
+- name: roll12_EM
+  output_name: roll12_em
+  description: Rolling 12-month E&M touches
+  data_type: long
+- name: YTD_EM
+  output_name: ytd_em
+  description: Year-to-date E&M touches
+  data_type: long
+- name: roll3_MSSP_qual_chg
+  output_name: roll3_mssp_qual_chg
+  description: Rolling 3-month MSSP qualifying charges
+  data_type: long
+- name: roll6_MSSP_qual_chg
+  output_name: roll6_mssp_qual_chg
+  description: Rolling 6-month MSSP qualifying charges
+  data_type: long
+- name: roll12_MSSP_qual_chg
+  output_name: roll12_mssp_qual_chg
+  description: Rolling 12-month MSSP qualifying charges
+  data_type: long
+- name: YTD_MSSP_qual_chg
+  output_name: ytd_mssp_qual_chg
+  description: Year-to-date MSSP qualifying charges
+  data_type: long
+- name: roll3_AWV_enc
+  output_name: roll3_awv_enc
+  description: Rolling 3-month Annual Wellness Visit encounters
+  data_type: long
+- name: roll6_AWV_enc
+  output_name: roll6_awv_enc
+  description: Rolling 6-month Annual Wellness Visit encounters
+  data_type: long
+- name: roll12_AWV_enc
+  output_name: roll12_awv_enc
+  description: Rolling 12-month Annual Wellness Visit encounters
+  data_type: long
+- name: YTD_AWV_enc
+  output_name: ytd_awv_enc
+  description: Year-to-date Annual Wellness Visit encounters
+  data_type: long
+- name: roll3_AWV_chg
+  output_name: roll3_awv_chg
+  description: Rolling 3-month Annual Wellness Visit charges
+  data_type: long
+- name: roll6_AWV_chg
+  output_name: roll6_awv_chg
+  description: Rolling 6-month Annual Wellness Visit charges
+  data_type: long
+- name: roll12_AWV_chg
+  output_name: roll12_awv_chg
+  description: Rolling 12-month Annual Wellness Visit charges
+  data_type: long
+- name: YTD_AWV_chg
+  output_name: ytd_awv_chg
+  description: Year-to-date Annual Wellness Visit charges
+  data_type: long
+- name: AWV_status
+  output_name: awv_status
+  description: Annual Wellness Visit status
+  data_type: string
+- name: last_AWV_dt
+  output_name: last_awv_dt
+  description: Last Annual Wellness Visit date
+  data_type: date
+- name: roll3_PCV_enc
+  output_name: roll3_pcv_enc
+  description: Rolling 3-month preventive care visit encounters
+  data_type: long
+- name: roll6_PCV_enc
+  output_name: roll6_pcv_enc
+  description: Rolling 6-month preventive care visit encounters
+  data_type: long
+- name: roll12_PCV_enc
+  output_name: roll12_pcv_enc
+  description: Rolling 12-month preventive care visit encounters
+  data_type: long
+- name: YTD_PCV_enc
+  output_name: ytd_pcv_enc
+  description: Year-to-date preventive care visit encounters
+  data_type: long
+- name: roll3_PCV_chg
+  output_name: roll3_pcv_chg
+  description: Rolling 3-month preventive care visit charges
+  data_type: long
+- name: roll6_PCV_chg
+  output_name: roll6_pcv_chg
+  description: Rolling 6-month preventive care visit charges
+  data_type: long
+- name: roll12_PCV_chg
+  output_name: roll12_pcv_chg
+  description: Rolling 12-month preventive care visit charges
+  data_type: long
+- name: YTD_PCV_chg
+  output_name: ytd_pcv_chg
+  description: Year-to-date preventive care visit charges
+  data_type: long
+- name: PCV_status
+  output_name: pcv_status
+  description: Preventive care visit status
+  data_type: string
+- name: roll3_UC_enc
+  output_name: roll3_uc_enc
+  description: Rolling 3-month urgent care encounters
+  data_type: long
+- name: roll6_UC_enc
+  output_name: roll6_uc_enc
+  description: Rolling 6-month urgent care encounters
+  data_type: long
+- name: roll12_UC_enc
+  output_name: roll12_uc_enc
+  description: Rolling 12-month urgent care encounters
+  data_type: long
+- name: YTD_UC_enc
+  output_name: ytd_uc_enc
+  description: Year-to-date urgent care encounters
+  data_type: long
+- name: roll3_Pharm_enc
+  output_name: roll3_pharm_enc
+  description: Rolling 3-month pharmacy encounters
+  data_type: long
+- name: roll6_Pharm_enc
+  output_name: roll6_pharm_enc
+  description: Rolling 6-month pharmacy encounters
+  data_type: long
+- name: roll12_Pharm_enc
+  output_name: roll12_pharm_enc
+  description: Rolling 12-month pharmacy encounters
+  data_type: long
+- name: YTD_Pharm_enc
+  output_name: ytd_pharm_enc
+  description: Year-to-date pharmacy encounters
+  data_type: long
+- name: roll3_CSW_enc
+  output_name: roll3_csw_enc
+  description: Rolling 3-month clinical social worker encounters
+  data_type: long
+- name: roll6_CSW_enc
+  output_name: roll6_csw_enc
+  description: Rolling 6-month clinical social worker encounters
+  data_type: long
+- name: roll12_CSW_enc
+  output_name: roll12_csw_enc
+  description: Rolling 12-month clinical social worker encounters
+  data_type: long
+- name: YTD_CSW_enc
+  output_name: ytd_csw_enc
+  description: Year-to-date clinical social worker encounters
+  data_type: long
+- name: roll3_CSW_chg
+  output_name: roll3_csw_chg
+  description: Rolling 3-month clinical social worker charges
+  data_type: long
+- name: roll6_CSW_chg
+  output_name: roll6_csw_chg
+  description: Rolling 6-month clinical social worker charges
+  data_type: long
+- name: roll12_CSW_chg
+  output_name: roll12_csw_chg
+  description: Rolling 12-month clinical social worker charges
+  data_type: long
+- name: YTD_CSW_chg
+  output_name: ytd_csw_chg
+  description: Year-to-date clinical social worker charges
+  data_type: long
+- name: roll3_CSW_cme
+  output_name: roll3_csw_cme
+  description: Rolling 3-month clinical social worker care management episodes
+  data_type: long
+- name: roll6_CSW_cme
+  output_name: roll6_csw_cme
+  description: Rolling 6-month clinical social worker care management episodes
+  data_type: long
+- name: roll12_CSW_cme
+  output_name: roll12_csw_cme
+  description: Rolling 12-month clinical social worker care management episodes
+  data_type: long
+- name: YTD_CSW_cme
+  output_name: ytd_csw_cme
+  description: Year-to-date clinical social worker care management episodes
+  data_type: long
+- name: roll3_WC_nurse_enc
+  output_name: roll3_wc_nurse_enc
+  description: Rolling 3-month wound care nurse encounters
+  data_type: long
+- name: roll6_WC_nurse_enc
+  output_name: roll6_wc_nurse_enc
+  description: Rolling 6-month wound care nurse encounters
+  data_type: long
+- name: roll12_WC_nurse_enc
+  output_name: roll12_wc_nurse_enc
+  description: Rolling 12-month wound care nurse encounters
+  data_type: long
+- name: YTD_WC_nurse_enc
+  output_name: ytd_wc_nurse_enc
+  description: Year-to-date wound care nurse encounters
+  data_type: long
+- name: roll3_NCM_chg
+  output_name: roll3_ncm_chg
+  description: Rolling 3-month nurse care management charges
+  data_type: long
+- name: roll6_NCM_chg
+  output_name: roll6_ncm_chg
+  description: Rolling 6-month nurse care management charges
+  data_type: long
+- name: roll12_NCM_chg
+  output_name: roll12_ncm_chg
+  description: Rolling 12-month nurse care management charges
+  data_type: long
+- name: YTD_NCM_chg
+  output_name: ytd_ncm_chg
+  description: Year-to-date nurse care management charges
+  data_type: long
+- name: roll3_NCM_cme
+  output_name: roll3_ncm_cme
+  description: Rolling 3-month nurse care management episodes
+  data_type: long
+- name: roll6_NCM_cme
+  output_name: roll6_ncm_cme
+  description: Rolling 6-month nurse care management episodes
+  data_type: long
+- name: roll12_NCM_cme
+  output_name: roll12_ncm_cme
+  description: Rolling 12-month nurse care management episodes
+  data_type: long
+- name: YTD_NCM_cme
+  output_name: ytd_ncm_cme
+  description: Year-to-date nurse care management episodes
+  data_type: long
+- name: roll3_PHC_chg
+  output_name: roll3_phc_chg
+  description: Rolling 3-month patient health coaching charges
+  data_type: long
+- name: roll6_PHC_chg
+  output_name: roll6_phc_chg
+  description: Rolling 6-month patient health coaching charges
+  data_type: long
+- name: roll12_PHC_chg
+  output_name: roll12_phc_chg
+  description: Rolling 12-month patient health coaching charges
+  data_type: long
+- name: YTD_PHC_chg
+  output_name: ytd_phc_chg
+  description: Year-to-date patient health coaching charges
+  data_type: long
+- name: roll3_PHC_cme
+  output_name: roll3_phc_cme
+  description: Rolling 3-month patient health coaching episodes
+  data_type: long
+- name: roll6_PHC_cme
+  output_name: roll6_phc_cme
+  description: Rolling 6-month patient health coaching episodes
+  data_type: long
+- name: roll12_PHC_cme
+  output_name: roll12_phc_cme
+  description: Rolling 12-month patient health coaching episodes
+  data_type: long
+- name: YTD_PHC_cme
+  output_name: ytd_phc_cme
+  description: Year-to-date patient health coaching episodes
+  data_type: long
+- name: roll3_Other_cme
+  output_name: roll3_other_cme
+  description: Rolling 3-month other care management episodes
+  data_type: long
+- name: roll6_Other_cme
+  output_name: roll6_other_cme
+  description: Rolling 6-month other care management episodes
+  data_type: long
+- name: roll12_Other_cme
+  output_name: roll12_other_cme
+  description: Rolling 12-month other care management episodes
+  data_type: long
+- name: YTD_Other_cme
+  output_name: ytd_other_cme
+  description: Year-to-date other care management episodes
+  data_type: long
+- name: roll3_PES_touch
+  output_name: roll3_pes_touch
+  description: Rolling 3-month patient engagement specialist touches
+  data_type: long
+- name: roll6_PES_touch
+  output_name: roll6_pes_touch
+  description: Rolling 6-month patient engagement specialist touches
+  data_type: long
+- name: roll12_PES_touch
+  output_name: roll12_pes_touch
+  description: Rolling 12-month patient engagement specialist touches
+  data_type: long
+- name: YTD_PES_touch
+  output_name: ytd_pes_touch
+  description: Year-to-date patient engagement specialist touches
+  data_type: long
+- name: attr_start_dt
+  output_name: attr_start_dt
+  description: Attribution start date
+  data_type: date
+- name: attr_end_dt
+  output_name: attr_end_dt
+  description: Attribution end timestamp
+  data_type: timestamp
+- name: disenroll_rcvd_dt
+  output_name: disenroll_rcvd_dt
+  description: Disenrollment received date
+  data_type: date
+- name: disenroll_reason
+  output_name: disenroll_reason
+  description: Disenrollment reason
+  data_type: string
+- name: payer_attribution_type
+  output_name: payer_attribution_type
+  description: Payer attribution type (prospective, retrospective, etc.)
+  data_type: string
+- name: payer_attribution
+  output_name: payer_attribution
+  description: Payer attribution flag (0=No, 1=Yes)
+  data_type: integer
+- name: riskpayer_datasource
+  output_name: riskpayer_datasource
+  description: Risk payer data source
+  data_type: string
+- name: product
+  output_name: product
+  description: Insurance product
+  data_type: string
+- name: cohort_name
+  output_name: cohort_name
+  description: Patient cohort name
+  data_type: string
+- name: program_nm
+  output_name: program_nm
+  description: Program name
+  data_type: string
+- name: hospice
+  output_name: hospice
+  description: Hospice flag (0=No, 1=Yes)
+  data_type: integer
+- name: Intake
+  output_name: intake
+  description: Intake flag (0=No, 1=Yes)
+  data_type: integer
+- name: reactivated
+  output_name: reactivated
+  description: Reactivated flag (0=No, 1=Yes)
+  data_type: integer
+- name: admit
+  output_name: admit
+  description: Admit flag (0=No, 1=Yes)
+  data_type: integer
+- name: cancelled
+  output_name: cancelled
+  description: Cancelled flag (0=No, 1=Yes)
+  data_type: integer
+- name: inactivated
+  output_name: inactivated
+  description: Inactivated flag (0=No, 1=Yes)
+  data_type: integer
+- name: censusflag_prov
+  output_name: censusflag_prov
+  description: Census flag for provider (0=No, 1=Yes)
+  data_type: integer
+- name: censusflag_clinicalT1
+  output_name: censusflag_clinicalt1
+  description: Census flag for clinical tier 1 (0=No, 1=Yes)
+  data_type: integer
+- name: censusflag_clinicalT2
+  output_name: censusflag_clinicalt2
+  description: Census flag for clinical tier 2 (0=No, 1=Yes)
+  data_type: integer
+- name: censusflag_operational
+  output_name: censusflag_operational
+  description: Census flag for operational (0=No, 1=Yes)
+  data_type: integer
+- name: censusflag_contract
+  output_name: censusflag_contract
+  description: Census flag for contract (0=No, 1=Yes)
+  data_type: integer
+- name: census_PayerEligible
+  output_name: census_payereligible
+  description: Census payer eligible flag (0=No, 1=Yes)
+  data_type: integer
+- name: census_prov_grace_flg
+  output_name: census_prov_grace_flg
+  description: Census provider grace period flag (0=No, 1=Yes)
+  data_type: integer
+- name: UpdateDateTime
+  output_name: updatedatetime
+  description: Record update timestamp
+  data_type: timestamp
+medallion_layer: silver
+unity_catalog: main

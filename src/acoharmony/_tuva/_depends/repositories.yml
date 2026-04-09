@@ -1,0 +1,14 @@
+# Tuva Health external dependencies
+# These repositories are cloned into repos/ directory (not tracked in git)
+# Run: python -m acoharmony._tuva._depends.setup to clone/update
+
+repositories:
+  - name: tuva
+    url: https://github.com/tuva-health/tuva.git
+    branch: main
+    description: Core Tuva Health transformation logic
+
+  - name: cclf_connector
+    url: https://github.com/tuva-health/medicare_cclf_connector.git
+    branch: main
+    description: Medicare CCLF connector for Tuva

@@ -1,0 +1,101 @@
+version: 2
+name: gcm
+description: Gift Card Management tracking for ACO patient incentive program based on AWV completion
+storage:
+  tier: bronze
+  file_patterns:
+    main: gift_card_management*.csv
+  silver:
+    output_name: gcm.parquet
+    refresh_frequency: monthly
+    last_updated_by: aco transform gcm
+  gold:
+    output_name: null
+    refresh_frequency: null
+    last_updated_by: null
+file_format:
+  type: csv
+  encoding: utf-8
+columns:
+- name: total_count
+  output_name: total_count
+  description: Total count of eligible patients
+  data_type: integer
+  required: true
+- name: hcmpi
+  output_name: hcmpi
+  description: Harmony Care Master Patient Index identifier
+  data_type: string
+  required: true
+- name: payer_current
+  output_name: payer_current
+  description: Current payer designation
+  data_type: string
+  required: true
+- name: payer
+  output_name: payer
+  description: Primary payer for the patient
+  data_type: string
+  required: true
+- name: roll12_AWV_enc
+  output_name: roll12_awv_enc
+  description: Rolling 12-month Annual Wellness Visit encounter count
+  data_type: integer
+  required: true
+- name: AWV_status
+  output_name: awv_status
+  description: Status of Annual Wellness Visit completion
+  data_type: string
+  required: true
+- name: roll12_EM
+  output_name: roll12_em
+  description: Rolling 12-month Evaluation and Management visit count
+  data_type: integer
+  required: true
+- name: lc_status_current
+  output_name: lc_status_current
+  description: Current lifecycle status of the patient
+  data_type: string
+  required: true
+- name: AWV_date
+  output_name: awv_date
+  description: Date of the Annual Wellness Visit
+  data_type: date
+  required: true
+- name: mbi
+  output_name: mbi
+  description: Medicare Beneficiary Identifier
+  data_type: string
+  required: true
+- name: patientaddress
+  output_name: patientaddress
+  description: Patient street address line 1
+  data_type: string
+  required: false
+- name: patientaddress2
+  output_name: patientaddress2
+  description: Patient street address line 2
+  data_type: string
+  required: false
+- name: patientcity
+  output_name: patientcity
+  description: Patient city
+  data_type: string
+  required: false
+- name: patientstate
+  output_name: patientstate
+  description: Patient state abbreviation
+  data_type: string
+  required: false
+- name: patientzip
+  output_name: patientzip
+  description: Patient ZIP code
+  data_type: string
+  required: false
+- name: gift_card_status
+  output_name: gift_card_status
+  description: Gift card eligibility and processing status
+  data_type: string
+  required: true
+medallion_layer: bronze
+unity_catalog: main

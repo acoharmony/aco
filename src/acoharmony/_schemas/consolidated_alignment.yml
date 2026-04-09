@@ -1,0 +1,536 @@
+version: 3
+name: consolidated_alignment
+description: 'Consolidated beneficiary alignment across MSSP and REACH programs with
+  idempotent temporal processing and comprehensive data lineage tracking. Key Features:
+  - Idempotent processing based on file temporality, not "today" - Proper reconciliation
+  vs current file handling - Death date truncation of enrollment periods - Voluntary
+  alignment with signature validity tracking - Complete data lineage for audit and
+  debugging '
+file_format:
+  type: parquet
+  compression: snappy
+storage:
+  tier: gold
+  staged_from: aco_alignment
+  gold:
+    output_name: consolidated_alignment.parquet
+    refresh_frequency: continuous
+    last_updated_by: aco pipeline aco_alignment
+  tracking:
+    enable_state: true
+    track_processed_files: true
+columns:
+- name: bene_mbi
+  output_name: bene_mbi
+  description: Medicare Beneficiary Identifier (primary key)
+  data_type: string
+  required: true
+- name: bene_first_name
+  output_name: bene_first_name
+  description: Beneficiary first name
+  data_type: string
+- name: bene_last_name
+  output_name: bene_last_name
+  description: Beneficiary last name
+  data_type: string
+- name: bene_middle_initial
+  output_name: bene_middle_initial
+  description: Beneficiary middle initial
+  data_type: string
+- name: bene_state
+  output_name: bene_state
+  description: Beneficiary state code (FIPS)
+  data_type: string
+- name: bene_zip_5
+  output_name: bene_zip_5
+  description: Beneficiary 5-digit ZIP code
+  data_type: string
+- name: bene_county
+  output_name: bene_county
+  description: Beneficiary county code (FIPS)
+  data_type: string
+- name: office_location
+  output_name: office_location
+  description: Office location/market assigned based on beneficiary ZIP code
+  data_type: string
+- name: bene_death_date
+  output_name: bene_death_date
+  description: Beneficiary date of death (from BAR, ALR, or CCLF8)
+  data_type: date
+- name: enrollment_blocks
+  output_name: enrollment_blocks
+  description: List of monthly enrollment blocks covered by this record
+  data_type: list<struct>
+  required: true
+- name: block_year
+  output_name: block_year
+  description: Year of the enrollment block
+  data_type: int32
+- name: block_month
+  output_name: block_month
+  description: Month of the enrollment block (1-12)
+  data_type: int32
+- name: block_year_month
+  output_name: block_year_month
+  description: Year-month identifier for the block (YYYY-MM)
+  data_type: string
+- name: block_start
+  output_name: block_start
+  description: First day of the enrollment block
+  data_type: date
+  required: true
+- name: block_end
+  output_name: block_end
+  description: Last day of the enrollment block (may be truncated by death)
+  data_type: date
+  required: true
+- name: enrollment_start
+  output_name: enrollment_start
+  description: Start of continuous enrollment period
+  data_type: date
+- name: enrollment_end
+  output_name: enrollment_end
+  description: End of continuous enrollment period
+  data_type: date
+- name: current_program
+  output_name: current_program
+  description: Current or most recent program (MSSP or REACH)
+  data_type: string
+  required: true
+- name: current_source_type
+  output_name: current_source_type
+  description: Type of current alignment source (BAR/ALR/etc)
+  data_type: string
+- name: file_temporal
+  output_name: file_temporal
+  description: Structured temporal metadata from source file
+  data_type: struct
+- name: source_file_type
+  output_name: source_file_type
+  description: File type classification (reconciliation/current)
+  data_type: string
+- name: source_period
+  output_name: source_period
+  description: Temporal period from file (annual/Q1-Q4/M01-M12)
+  data_type: string
+- name: blocks_per_file
+  output_name: blocks_per_file
+  description: Number of monthly blocks provided by source file type
+  data_type: int32
+- name: current_alignment_source
+  output_name: current_alignment_source
+  description: Filename of current alignment source
+  data_type: string
+- name: is_currently_aligned
+  output_name: is_currently_aligned
+  description: Whether beneficiary is currently aligned (enrollment_end is null)
+  data_type: boolean
+  required: true
+- name: reach_attribution_type
+  output_name: reach_attribution_type
+  description: REACH attribution type (Claims-based, Voluntary, etc.)
+  data_type: string
+- name: reach_tin
+  output_name: reach_tin
+  description: REACH Tax Identification Number
+  data_type: string
+- name: reach_npi
+  output_name: reach_npi
+  description: REACH National Provider Identifier
+  data_type: string
+- name: reach_provider_name
+  output_name: reach_provider_name
+  description: REACH provider/practice name
+  data_type: string
+- name: mssp_tin
+  output_name: mssp_tin
+  description: MSSP Tax Identification Number
+  data_type: string
+- name: mssp_npi
+  output_name: mssp_npi
+  description: MSSP National Provider Identifier
+  data_type: string
+- name: mssp_provider_name
+  output_name: mssp_provider_name
+  description: MSSP provider/practice name
+  data_type: string
+- name: has_voluntary_alignment
+  output_name: has_voluntary_alignment
+  description: Whether beneficiary has any voluntary alignment
+  data_type: boolean
+- name: has_valid_voluntary_alignment
+  output_name: has_valid_voluntary_alignment
+  description: Whether beneficiary has valid voluntary alignment
+  data_type: boolean
+- name: voluntary_alignment_date
+  output_name: voluntary_alignment_date
+  description: Most recent voluntary alignment date
+  data_type: date
+- name: voluntary_alignment_type
+  output_name: voluntary_alignment_type
+  description: Type of voluntary alignment (PALMR, PBVAR, SVA)
+  data_type: string
+- name: voluntary_provider_npi
+  output_name: voluntary_provider_npi
+  description: NPI from voluntary alignment
+  data_type: string
+- name: voluntary_provider_tin
+  output_name: voluntary_provider_tin
+  description: TIN from voluntary alignment
+  data_type: string
+- name: voluntary_provider_name
+  output_name: voluntary_provider_name
+  description: Provider name from voluntary alignment
+  data_type: string
+- name: first_valid_signature_date
+  output_name: first_valid_signature_date
+  description: First valid SVA signature date
+  data_type: date
+- name: last_valid_signature_date
+  output_name: last_valid_signature_date
+  description: Most recent valid SVA signature date
+  data_type: date
+- name: last_signature_expiry_date
+  output_name: last_signature_expiry_date
+  description: Expiry date of last signature (Jan 1 of signature year + 3)
+  data_type: date
+- name: signature_expiry_date
+  output_name: signature_expiry_date
+  description: Calculated signature expiry (Jan 1 of year X+3)
+  data_type: date
+- name: signature_validity
+  output_name: signature_validity
+  description: Structured signature validity information per block
+  data_type: struct
+- name: signature_valid_for_block
+  output_name: signature_valid_for_block
+  description: Whether signature is valid for this specific enrollment block
+  data_type: boolean
+- name: first_sva_submission_date
+  output_name: first_sva_submission_date
+  description: First SVA submission date
+  data_type: date
+- name: last_sva_submission_date
+  output_name: last_sva_submission_date
+  description: Most recent SVA submission date
+  data_type: date
+- name: last_sva_provider_name
+  output_name: last_sva_provider_name
+  description: Provider name from last SVA
+  data_type: string
+- name: last_sva_provider_npi
+  output_name: last_sva_provider_npi
+  description: Provider NPI from last SVA
+  data_type: string
+- name: last_sva_provider_tin
+  output_name: last_sva_provider_tin
+  description: Provider TIN from last SVA
+  data_type: string
+- name: aligned_practitioner_name
+  output_name: aligned_practitioner_name
+  description: Name of aligned practitioner
+  data_type: string
+- name: aligned_provider_tin
+  output_name: aligned_provider_tin
+  description: TIN of aligned provider
+  data_type: string
+- name: aligned_provider_npi
+  output_name: aligned_provider_npi
+  description: NPI of aligned provider
+  data_type: string
+- name: aligned_provider_org
+  output_name: aligned_provider_org
+  description: Organization name of aligned provider
+  data_type: string
+- name: response_code_list
+  output_name: response_code_list
+  description: All unique SVA response codes received (A0/A1/A2 accepted, V0-V2 validation,
+    P0-P2 precedence, E0-E5 eligibility)
+  data_type: string
+- name: latest_response_codes
+  output_name: latest_response_codes
+  description: Most recent SVA response code for tracking current status
+  data_type: string
+- name: latest_response_detail
+  output_name: latest_response_detail
+  description: Human-readable interpretation of latest response code
+  data_type: string
+- name: error_category
+  output_name: error_category
+  description: Primary issue category (eligibility_issues/precedence_issues/validation_errors)
+  data_type: string
+- name: eligibility_issues
+  output_name: eligibility_issues
+  description: 'Comma-separated list of eligibility problems (E-codes: deceased/not_enrolled/medicare_advantage/outside_area)'
+  data_type: string
+- name: precedence_issues
+  output_name: precedence_issues
+  description: 'Comma-separated list of precedence problems (P-codes: duplicate/superseded/in_another_model)'
+  data_type: string
+- name: previous_invalids
+  output_name: previous_invalids
+  description: Historical invalid response codes for audit trail
+  data_type: string
+- name: previous_program
+  output_name: previous_program
+  description: Previous ACO program if transitioned
+  data_type: string
+- name: enrollment_transition_date
+  output_name: enrollment_transition_date
+  description: Date of transition between programs
+  data_type: date
+- name: previous_source_type
+  output_name: previous_source_type
+  description: Type of previous alignment source
+  data_type: string
+- name: previous_alignment_source
+  output_name: previous_alignment_source
+  description: Filename of previous alignment source
+  data_type: string
+- name: program_transitions
+  output_name: program_transitions
+  description: Number of program transitions
+  data_type: integer
+- name: transition_history
+  output_name: transition_history
+  description: JSON string of program transition history
+  data_type: string
+- name: days_in_current_program
+  output_name: days_in_current_program
+  description: Days in current/most recent program
+  data_type: integer
+- name: total_days_aligned
+  output_name: total_days_aligned
+  description: Total days aligned across all programs
+  data_type: integer
+- name: alignment_days
+  output_name: alignment_days
+  description: Total days of alignment
+  data_type: int64
+- name: current_program_days
+  output_name: current_program_days
+  description: Days in current program
+  data_type: int64
+- name: previous_program_days
+  output_name: previous_program_days
+  description: Days in previous program
+  data_type: int64
+- name: reach_months
+  output_name: reach_months
+  description: Number of months aligned to REACH
+  data_type: uint32
+- name: mssp_months
+  output_name: mssp_months
+  description: Number of months aligned to MSSP
+  data_type: uint32
+- name: first_reach_date
+  output_name: first_reach_date
+  description: First month beneficiary was aligned to REACH
+  data_type: date
+- name: last_reach_date
+  output_name: last_reach_date
+  description: Last month beneficiary was aligned to REACH
+  data_type: date
+- name: first_mssp_date
+  output_name: first_mssp_date
+  description: First month beneficiary was aligned to MSSP
+  data_type: date
+- name: last_mssp_date
+  output_name: last_mssp_date
+  description: Last month beneficiary was aligned to MSSP
+  data_type: date
+- name: total_aligned_months
+  output_name: total_aligned_months
+  description: Total months aligned across all programs
+  data_type: uint32
+- name: latest_aco_id
+  output_name: latest_aco_id
+  description: Latest ACO identifier
+  data_type: string
+- name: source_files
+  output_name: source_files
+  description: List of source files contributing to this record
+  data_type: string
+- name: num_source_files
+  output_name: num_source_files
+  description: Number of source files contributing to record
+  data_type: uint32
+- name: most_recent_file
+  output_name: most_recent_file
+  description: Most recent source file
+  data_type: string
+- name: data_as_of_date
+  output_name: data_as_of_date
+  description: Latest data date from source files (not processing date)
+  data_type: date
+- name: last_updated
+  output_name: last_updated
+  description: Timestamp of last update
+  data_type: timestamp
+- name: lineage_source
+  output_name: lineage_source
+  description: Complete source file identification with temporal context
+  data_type: string
+- name: lineage_processed_at
+  output_name: lineage_processed_at
+  description: ISO timestamp when this record was processed
+  data_type: string
+- name: lineage_transform
+  output_name: lineage_transform
+  description: Transform version that created this record
+  data_type: string
+- name: temporal_context
+  output_name: temporal_context
+  description: Structured temporal metadata for the record
+  data_type: struct
+- name: transition_info
+  output_name: transition_info
+  description: Structured info about program transitions and gaps
+  data_type: struct
+- name: gap_months
+  output_name: gap_months
+  description: Number of months between enrollment blocks
+  data_type: float64
+- name: is_transition
+  output_name: is_transition
+  description: Whether this block represents a program transition
+  data_type: boolean
+- name: continuous_enrollment
+  output_name: continuous_enrollment
+  description: Continuous enrollment span information
+  data_type: struct
+- name: enrollment_span_id
+  output_name: enrollment_span_id
+  description: ID for continuous enrollment span
+  data_type: int32
+- name: reconciliation_info
+  output_name: reconciliation_info
+  description: Information for reconciling overlapping enrollments
+  data_type: struct
+- name: precedence_score
+  output_name: precedence_score
+  description: Precedence for overlapping enrollments (lower=higher priority)
+  data_type: int32
+- name: max_observable_date
+  output_name: max_observable_date
+  description: Maximum date we can observe from available data (idempotent)
+  data_type: date
+- name: max_recon_date
+  output_name: max_recon_date
+  description: Maximum date from reconciliation files
+  data_type: date
+- name: max_current_date
+  output_name: max_current_date
+  description: Maximum date from current files
+  data_type: date
+- name: sva_tin_match
+  output_name: sva_tin_match
+  description: Whether SVA TIN matches alignment
+  data_type: boolean
+- name: sva_npi_match
+  output_name: sva_npi_match
+  description: Whether SVA NPI matches alignment
+  data_type: boolean
+- name: provider_on_current_list
+  output_name: provider_on_current_list
+  description: Whether SVA TIN/NPI combination exists in current provider list (required
+    for valid attribution)
+  data_type: boolean
+- name: needs_provider_refresh
+  output_name: needs_provider_refresh
+  description: Flag indicating SVA has valid response code but provider is no longer
+    on list, requiring re-submission
+  data_type: boolean
+- name: invalid_provider_count
+  output_name: invalid_provider_count
+  description: Count of SVA submissions with providers not on current list
+  data_type: integer
+- name: prvs_num
+  output_name: prvs_num
+  description: Previous Beneficiary MBI
+  data_type: string
+- name: mapping_type
+  output_name: mapping_type
+  description: Type of MBI mapping used; xref means a mapping, direct means no crosswalk
+    needed from new to old
+  data_type: string
+- name: hcmpi
+  output_name: hcmpi
+  description: Healthcare member patient identifier
+  data_type: string
+- name: has_multiple_prvs_mbi
+  output_name: has_multiple_prvs_mbi
+  description: Whether beneficiary has multiple provider MBI mappings
+  data_type: boolean
+- name: sva_submitted_after_pbvar
+  output_name: sva_submitted_after_pbvar
+  description: Whether our SVA submission is more recent than PBVAR report (true means
+    PBVAR response may be stale)
+  data_type: boolean
+- name: needs_sva_refresh_from_pbvar
+  output_name: needs_sva_refresh_from_pbvar
+  description: PBVAR shows response but no SVA submitted after that report, indicating
+    need for refresh submission
+  data_type: boolean
+- name: pbvar_report_date
+  output_name: pbvar_report_date
+  description: Date of PBVAR report for temporal comparison with SVA submissions
+  data_type: date
+- name: pbvar_response_codes
+  output_name: pbvar_response_codes
+  description: Response codes from PBVAR (may differ from our submitted SVA if timing
+    misaligned)
+  data_type: string
+- name: signature_valid_for_current_py
+  output_name: signature_valid_for_current_py
+  description: Whether signature is valid for current Performance Year (within 2-year
+    lookback)
+  data_type: boolean
+- name: days_until_signature_expiry
+  output_name: days_until_signature_expiry
+  description: Days remaining until signature expires (Jan 1 of year X+3 per Section
+    5.02)
+  data_type: integer
+- name: sva_outreach_priority
+  output_name: sva_outreach_priority
+  description: Outreach prioritization based on signature expiry (expired/urgent/upcoming/active/no_signature)
+  data_type: string
+- name: signature_valid_for_pys
+  output_name: signature_valid_for_pys
+  description: Performance Years covered by current signature (e.g., "2024-2025")
+  data_type: string
+- name: mssp_sva_recruitment_target
+  output_name: mssp_sva_recruitment_target
+  description: MSSP beneficiary without valid SVA, eligible for REACH recruitment
+  data_type: boolean
+- name: mssp_to_reach_status
+  output_name: mssp_to_reach_status
+  description: MSSP beneficiary's readiness for REACH transition (ready_for_reach/needs_renewal/needs_initial_sva)
+  data_type: string
+- name: sva_action_needed
+  output_name: sva_action_needed
+  description: Primary action needed for SVA (provider_not_on_list/pbvar_indicates_refresh/has_a2_code/expiring_soon/mssp_recruitment)
+  data_type: string
+- name: has_ineligible_alignment
+  output_name: has_ineligible_alignment
+  description: Has A2 response code (accepted but remains ineligible for performance
+    year)
+  data_type: boolean
+- name: sva_used_crosswalk
+  output_name: sva_used_crosswalk
+  description: Whether SVA MBI was resolved through crosswalk (important for validation
+    accuracy)
+  data_type: boolean
+- name: crosswalked_sva_count
+  output_name: crosswalked_sva_count
+  description: Number of SVA records that used MBI crosswalk for resolution
+  data_type: integer
+xref:
+  description: Ensure current MBI is applied
+  table: beneficiary_xref
+  join_key: bene_mbi
+  xref_key: prvs_num
+  current_column: crnt_num
+  output_column: current_bene_mbi_id
+medallion_layer: silver
+unity_catalog: main

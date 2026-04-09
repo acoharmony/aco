@@ -1,0 +1,52 @@
+version: 2
+name: pe_inputs_supplies
+description: Practice Expense Supply Inputs - Medical supply cost inputs for practice expense calculations
+storage:
+  tier: bronze
+  silver:
+    output_name: pe_inputs_supplies.parquet
+    refresh_frequency: annual
+    last_updated_by: aco transform pe_inputs_supplies
+  file_patterns:
+    annual: '*PE_SUPPLIES*.csv'
+    annual_xlsx: '*PE_SUPPLIES*.xlsx'
+file_format:
+  type: csv
+  delimiter: ','
+  encoding: utf-8
+  header: true
+columns:
+- name: hcpcs
+  description: HCPCS Code
+  data_type: string
+  required: true
+- name: source
+  description: Source of supply data (CMS or RUC)
+  data_type: string
+  required: true
+- name: category
+  description: Supply Category
+  data_type: string
+- name: cms_code
+  description: CMS Supply Code
+  data_type: string
+- name: description
+  description: Supply Description
+  data_type: string
+- name: unit
+  description: Unit of Measure (item, pair, kit, ml, oz, pack, box, foot)
+  data_type: string
+- name: price
+  description: Unit Price
+  data_type: float
+- name: nf_quantity
+  description: Non-Facility Quantity Used
+  data_type: float
+- name: f_quantity
+  description: Facility Quantity Used
+  data_type: float
+- name: global_period
+  description: Global Period
+  data_type: string
+medallion_layer: bronze
+unity_catalog: main

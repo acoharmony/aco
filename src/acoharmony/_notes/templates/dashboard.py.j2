@@ -1,0 +1,269 @@
+import marimo
+
+__generated_with = "{{ marimo_version | default('0.16.2') }}"
+app = marimo.App(
+    width="{{ config.app_width }}",
+    html_head_file="{{ config.html_head_file }}",
+)
+
+with app.setup(hide_code={{ config.hide_code }}):
+    import polars as pl
+    import marimo as mo
+    import sys
+    import json
+    from pathlib import Path
+    from datetime import datetime
+    from typing import List, Dict, Optional, Tuple
+
+    # Add src to path for ACOHarmony imports
+    sys.path.insert(0, str(Path("/home/care/acoharmony/src")))
+
+    # Import ACOHarmony modules
+    from acoharmony._storage import StorageBackend
+    from acoharmony import Catalog
+    from acoharmony.tracking import TransformTracker
+
+    # Initialize storage and catalog
+    storage = StorageBackend()
+    catalog = Catalog()
+
+    # Load the {{ config.schema_name }} data
+    data_path = Path("{{ config.data_path }}")
+    if data_path.exists():
+        df_{{ config.schema_name }} = pl.read_parquet(data_path)
+    else:
+        df_{{ config.schema_name }} = pl.DataFrame()
+
+
+{% for table in config.tables %}
+@app.function(hide_code=True)
+def get_{{ table.name }}(
+    df: pl.DataFrame,
+    {% for filter in table.filters %}{{ filter }}: Optional[str] = None,
+    {% endfor %}top_n: int = {{ table.page_size }}
+) -> pl.DataFrame:
+    """Get {{ table.description }}"""
+    query = df
+
+    {% for filter in table.filters %}
+    if {{ filter }}:
+        query = query.filter(pl.col("{{ filter }}") == {{ filter }})
+    {% endfor %}
+
+    return query.select([
+        {% for col in table.columns %}"{{ col }}",
+        {% endfor %}
+    ]){% if table.sort_by %}.sort("{{ table.sort_by }}", descending={{ table.sort_descending }}){% endif %}.head(top_n)
+{% endfor %}
+
+
+@app.function(hide_code=True)
+def get_data_overview(df: pl.DataFrame, mo) -> mo.Html:
+    """Generate data overview HTML"""
+    if df.height > 0:
+        {% for metric in config.metrics %}
+        {% if metric.aggregation == 'count' %}
+        metric_{{ loop.index }} = df.height
+        {% elif metric.aggregation == 'sum' %}
+        metric_{{ loop.index }} = df["{{ metric.column }}"].sum()
+        {% elif metric.aggregation == 'mean' %}
+        metric_{{ loop.index }} = df["{{ metric.column }}"].mean()
+        {% elif metric.aggregation == 'n_unique' %}
+        metric_{{ loop.index }} = df["{{ metric.column }}"].n_unique()
+        {% endif %}
+        {% endfor %}
+
+        overview_html = f"""
+        ## {{ config.schema_description }}
+
+        <div style="display: grid; grid-template-columns: repeat({{ config.metrics | length }}, 1fr); gap: 1rem; margin: 2rem 0;">
+            {% for metric in config.metrics %}
+            <div style="padding: 1rem; background: {{ metric.color }}20; border-radius: 8px; text-align: center;">
+                <h3 style="margin: 0; color: {{ metric.color }}; font-size: 0.875rem;">{{ metric.label }}</h3>
+                <p style="margin: 0.5rem 0 0 0; font-size: 2rem; font-weight: 700; color: {{ metric.color }};">
+                    {% if metric.format == 'currency' %}${% raw %}{metric_{% endraw %}{{ loop.index }}{% raw %}:,.0f}{% endraw %}
+                    {% else %}{% raw %}{metric_{% endraw %}{{ loop.index }}{% raw %}:,}{% endraw %}
+                    {% endif %}
+                </p>
+            </div>
+            {% endfor %}
+        </div>
+        """
+        return mo.md(overview_html)
+    else:
+        return mo.md("**No {{ config.schema_name }} data found. Please run the transform first.**")
+
+
+@app.function(hide_code=True)
+def create_filter_controls(df: pl.DataFrame, mo):
+    """Create filter controls based on data"""
+    if df.height > 0:
+        filters = {}
+
+        {% for filter in config.filters %}
+        {% if filter.widget_type == 'dropdown' %}
+        # {{ filter.label }}
+        unique_values = df["{{ filter.column }}"].unique().to_list()
+        unique_values = [v for v in unique_values if v is not None]
+        filters["{{ filter.column }}"] = mo.ui.dropdown(
+            options=["All"] + sorted(unique_values),
+            value="All",
+            label="{{ filter.label }}"
+        )
+        {% elif filter.widget_type == 'range_slider' %}
+        # {{ filter.label }}
+        min_val = df["{{ filter.column }}"].min() or 0
+        max_val = df["{{ filter.column }}"].max() or 1000000
+        filters["{{ filter.column }}"] = mo.ui.range_slider(
+            start=min_val,
+            stop=max_val,
+            step=(max_val - min_val) / 100,
+            value=[min_val, max_val],
+            label="{{ filter.label }}"
+        )
+        {% elif filter.widget_type == 'slider' %}
+        # {{ filter.label }}
+        filters["{{ filter.column }}"] = mo.ui.slider(
+            start={{ filter.params.get('min', 0) }},
+            stop={{ filter.params.get('max', 20) }},
+            step=1,
+            value=0,
+            label="{{ filter.label }}"
+        )
+        {% endif %}
+        {% endfor %}
+
+        filter_controls = mo.vstack([
+            mo.md("## 🔍 Filter Controls"),
+            mo.hstack(list(filters.values()))
+        ])
+
+        return {
+            "controls": filter_controls,
+            **filters
+        }
+    else:
+        return {
+            "controls": mo.md("**Filters not available - no data loaded**"),
+        }
+
+
+{% if config.show_footer %}
+@app.cell(hide_code=True)
+def create_footer():
+    # Use TransformTracker to get the log data
+    tracker = TransformTracker('{{ config.schema_name }}')
+
+    if df_{{ config.schema_name }}.height > 0:
+        # Get state from the tracker
+        state = tracker.state
+
+        # Format dates
+        last_run = datetime.fromisoformat(state.last_run).strftime("%Y-%m-%d %H:%M") if state.last_run else "Never"
+        last_success = datetime.fromisoformat(state.last_success).strftime("%Y-%m-%d %H:%M") if state.last_success else "Never"
+
+        # Get the processed files
+        files_processed = state.files_processed.get("processed", [])
+        source_file = Path(files_processed[0]).name if files_processed else "N/A"
+
+        footer_html = f"""
+        ---
+        <div style="text-align: center; color: #6B7280; font-size: 0.875rem; margin-top: 2rem;">
+            <img src="{{ config.logo_url }}" alt="HarmonyCares" style="height: 40px; margin-bottom: 1rem; display: block; margin-left: auto; margin-right: auto;">
+            <p style="font-weight: 600; margin-bottom: 0.5rem;">{{ config.schema_description }} Dashboard</p>
+            <p style="margin-bottom: 1rem;">Generated using ACOHarmony Data Platform</p>
+
+            {% if config.show_tracking %}
+            <div style="background: #F9FAFB; border-radius: 8px; padding: 1rem; margin: 1rem auto; max-width: 600px; text-align: left;">
+                <p style="font-size: 0.75rem; margin: 0.25rem 0;">
+                    <strong>Source File:</strong> {% raw %}{source_file}{% endraw %}
+                </p>
+                <p style="font-size: 0.75rem; margin: 0.25rem 0;">
+                    <strong>Last Transform:</strong> {% raw %}{last_run}{% endraw %} | <strong>Last Success:</strong> {% raw %}{last_success}{% endraw %}
+                </p>
+                <p style="font-size: 0.75rem; margin: 0.25rem 0;">
+                    <strong>Records:</strong> {% raw %}{state.metadata.get('last_run_records', 0):,}{% endraw %} |
+                    <strong>Runs:</strong> {% raw %}{state.total_runs}{% endraw %} ({% raw %}{state.successful_runs}{% endraw %} successful, {% raw %}{state.failed_runs}{% endraw %} failed)
+                </p>
+            </div>
+            {% endif %}
+        </div>
+        """
+    else:
+        footer_html = """
+        ---
+        <div style="text-align: center; color: #6B7280; font-size: 0.875rem; margin-top: 2rem;">
+            <img src="{{ config.logo_url }}" alt="HarmonyCares" style="height: 40px; margin-bottom: 1rem; display: block; margin-left: auto; margin-right: auto;">
+            <p>{{ config.schema_description }} Dashboard</p>
+            <p>Generated using ACOHarmony Data Platform</p>
+            <p style="font-size: 0.75rem;">No data loaded</p>
+        </div>
+        """
+
+    footer = mo.md(footer_html)
+    return (footer,)
+{% endif %}
+
+
+@app.cell(hide_code=True)
+def display_overview():
+    overview = get_data_overview(df_{{ config.schema_name }}, mo)
+    return (overview,)
+
+
+@app.cell(hide_code=True)
+def display_filters():
+    filters = create_filter_controls(df_{{ config.schema_name }}, mo)
+    filter_controls = filters["controls"]
+    return (filter_controls, filters)
+
+
+{% for table in config.tables %}
+@app.cell(hide_code=True)
+def display_{{ table.name }}_table(filters):
+    if df_{{ config.schema_name }}.height > 0:
+        # Apply filters
+        {% for filter in table.filters %}
+        {{ filter }}_value = filters.get("{{ filter }}").value if "{{ filter }}" in filters else None
+        {% endfor %}
+
+        {{ table.name }}_data = get_{{ table.name }}(
+            df_{{ config.schema_name }},
+            {% for filter in table.filters %}{{ filter }}={{ filter }}_value if {{ filter }}_value != "All" else None,
+            {% endfor %}top_n={{ table.page_size }}
+        )
+
+        {{ table.name }}_table = mo.vstack([
+            mo.md("## {{ table.title }}"),
+            mo.ui.table(
+                {{ table.name }}_data.to_dicts(),
+                pagination=True,
+                page_size={{ table.page_size }}
+            )
+        ])
+    else:
+        {{ table.name }}_table = mo.md("**No data to display**")
+
+    return ({{ table.name }}_table,)
+{% endfor %}
+
+
+@app.cell(hide_code=True)
+def display_dashboard(
+    overview,
+    filter_controls,
+    {% for table in config.tables %}{{ table.name }}_table,
+    {% endfor %}{% if config.show_footer %}footer,
+    {% endif %}mo
+):
+    mo.vstack([
+        overview,
+        filter_controls,
+        {% for table in config.tables %}{{ table.name }}_table,
+        {% endfor %}{% if config.show_footer %}footer{% endif %}
+    ])
+    return
+
+
+if __name__ == "__main__":
+    app.run()

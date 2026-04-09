@@ -1,0 +1,4 @@
+# Exclude dev tools and generated files with syntax errors
+src/acoharmony/_dev/
+src/acoharmony/_docs/
+src/acoharmony/_mcp/servers/acoharmony.py

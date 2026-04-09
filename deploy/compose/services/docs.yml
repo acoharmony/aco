@@ -1,0 +1,76 @@
+services:
+  docs:
+    build:
+      context: ../../..  # Repo root (from services/ dir): /home/care/acoharmony
+      dockerfile: deploy/compose/images/docs/Dockerfile
+    image: ghcr.io/acoharmony/docusaurus:latest
+    pull_policy: build  # Always build locally
+    container_name: docs
+    user: "1002:1002"
+    stdin_open: true
+    tty: true
+    networks:
+      - acoharmony-internal  # For service communication
+      - acoharmony-external  # For host port exposure
+    ports:
+      - "0.0.0.0:10013:3000"  # Map dashboard port 10013 to Docusaurus port 3000
+    volumes:
+      # Mount source files for hot reload (not node_modules - those are in the image)
+      # NOTE: Only mount necessary directories - notebooks/ directory is explicitly excluded
+      - /home/care/acoharmony/docs/docs:/home/care/acoharmony/docs/docs:ro
+      - /home/care/acoharmony/docs/src:/home/care/acoharmony/docs/src:ro
+      - /home/care/acoharmony/docs/static:/home/care/acoharmony/docs/static:ro
+      - /home/care/acoharmony/docs/docusaurus.config.ts:/home/care/acoharmony/docs/docusaurus.config.ts:ro
+      - /home/care/acoharmony/docs/sidebars.ts:/home/care/acoharmony/docs/sidebars.ts:ro
+      - /home/care/acoharmony/docs/babel.config.js:/home/care/acoharmony/docs/babel.config.js:ro
+      - /home/care/acoharmony/docs/tsconfig.json:/home/care/acoharmony/docs/tsconfig.json:ro
+      - /home/care/acoharmony/docs/package.json:/home/care/acoharmony/docs/package.json:ro
+      # Build cache in volume (writable)
+      - docs_build_cache:/home/care/acoharmony/docs/.docusaurus
+    environment:
+      - NODE_ENV=development
+      - PORT=3000  # Docusaurus port
+    labels:
+      - "aco.network=bridge"  # Uses bridge networks
+      - "aco.type=gui"  # GUI service exposed to host
+
+  docs-builder:
+    build:
+      context: ../../..  # Repo root (from services/ dir): /home/care/acoharmony
+      dockerfile: deploy/compose/images/docs/Dockerfile
+    image: ghcr.io/acoharmony/docusaurus:latest
+    pull_policy: build  # Always build locally
+    container_name: docs-builder
+    user: "1002:1002"
+    profiles:
+      - builder  # Only start when explicitly requested
+    networks:
+      - acoharmony-internal
+    volumes:
+      # Mount source files for build (not node_modules - those are in the image)
+      # NOTE: Only mount necessary directories - notebooks/ directory is explicitly excluded
+      - /home/care/acoharmony/docs/docs:/home/care/acoharmony/docs/docs:ro
+      - /home/care/acoharmony/docs/src:/home/care/acoharmony/docs/src:ro
+      - /home/care/acoharmony/docs/static:/home/care/acoharmony/docs/static:ro
+      - /home/care/acoharmony/docs/docusaurus.config.ts:/home/care/acoharmony/docs/docusaurus.config.ts:ro
+      - /home/care/acoharmony/docs/sidebars.ts:/home/care/acoharmony/docs/sidebars.ts:ro
+      - /home/care/acoharmony/docs/babel.config.js:/home/care/acoharmony/docs/babel.config.js:ro
+      - /home/care/acoharmony/docs/tsconfig.json:/home/care/acoharmony/docs/tsconfig.json:ro
+      - /home/care/acoharmony/docs/package.json:/home/care/acoharmony/docs/package.json:ro
+      # Build cache and output in volumes (writable)
+      - docs_build_cache:/home/care/acoharmony/docs/.docusaurus  # Docusaurus build cache
+      - docs_static_build:/home/care/acoharmony/docs/build  # Production build output
+    environment:
+      - NODE_ENV=production
+    command: ["npm", "run", "build"]
+    labels:
+      - "aco.network=bridge"
+      - "aco.type=builder"  # Builder service
+
+volumes:
+  docs_build_cache:
+    name: docs_build_cache
+    external: true
+  docs_static_build:
+    name: docs_static_build
+    external: true

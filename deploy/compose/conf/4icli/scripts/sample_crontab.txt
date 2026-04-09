@@ -1,0 +1,30 @@
+
+ # Sample crontab configuration for processing incoming files
+ # Run three times a day: morning, afternoon, and evening
+ # Only processes if WSL is running and there are new files
+ 
+ # Morning run at 9:30 AM (after business hours start)
+ 30 9 * * * /home/care/4icli/scripts/cron_process_incoming.sh >/dev/null 2>&1
+ 
+ # Afternoon run at 2:30 PM (mid-day check)
+ 30 14 * * * /home/care/4icli/scripts/cron_process_incoming.sh >/dev/null 2>&1
+ 
+ # Evening run at 6:30 PM (end of business day)
+ 30 18 * * * /home/care/4icli/scripts/cron_process_incoming.sh >/dev/null 2>&1
+ 
+ # To install this crontab:
+ # 1. Copy the three lines above (without the comments)
+ # 2. Run: crontab -e
+ # 3. Paste the lines and save
+ #
+ # To view current crontab: crontab -l
+ # To remove crontab: crontab -r
+ #
+ # The script will automatically:
+ # - Check if WSL is running properly
+ # - Check if reach_reports_25 is mounted (and mount if needed)
+ # - Use 4icli view to check for new files remotely
+ # - Only download and process if new files are found
+ # - Skip processing if no new files or if another instance is running
+ # - Log all activities to /home/care/4icli/cron_process.log
+

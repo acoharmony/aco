@@ -1,0 +1,221 @@
+version: 2
+name: annual_beneficiary_level_quality_report
+description: 'Annual Beneficiary Level Quality Report'
+storage:
+  tier: bronze
+  file_patterns:
+    reach:
+    - '*BLAQR*'
+  silver:
+    output_name: annual_beneficiary_level_quality_report.parquet
+    refresh_frequency: monthly
+file_format:
+  type: csv
+  # Note: BLAQR files come in multiple measure-specific CSVs (ACR, DAH, UAMCC, Exclusions)
+  # Each measure type has different columns. Schema below represents ACR/DAH/UAMCC variants.
+  # Exclusions file has aggregate counts only (see columns marked with measure_type).
+columns:
+  # Common columns across all measure types
+  - name: ACO_ID
+    data_type: String
+    description: ACO Identifier
+
+  # ACR (All-Cause Readmission) specific columns
+  - name: BENE_ID
+    data_type: Int64
+    description: Beneficiary ID (ACR, DAH, UAMCC)
+    measure_type: [acr, dah, uamcc]
+  - name: INDEX_ADMIT_DATE
+    data_type: String  # MM/DD/YYYY format
+    description: Index admission date (ACR only)
+    measure_type: [acr]
+  - name: INDEX_DISCH_DATE
+    data_type: String  # MM/DD/YYYY format
+    description: Index discharge date (ACR only)
+    measure_type: [acr]
+  - name: RADM30_FLAG
+    data_type: Int64
+    description: 30-day readmission flag (ACR only)
+    measure_type: [acr]
+  - name: RADM30_ADMIT_DATE
+    data_type: String  # MM/DD/YYYY format
+    description: Readmission admit date (ACR only)
+    measure_type: [acr]
+  - name: RADM30_DISCH_DATE
+    data_type: String  # MM/DD/YYYY format
+    description: Readmission discharge date (ACR only)
+    measure_type: [acr]
+  - name: INDEX_COHORT
+    data_type: String
+    description: Index cohort type (ACR only)
+    measure_type: [acr]
+
+  # DAH (Days at Home) specific columns
+  - name: SURVIVAL_DAYS
+    data_type: Int64
+    description: Number of survival days (DAH only)
+    measure_type: [dah]
+  - name: OBSERVED_DAH
+    data_type: Int64
+    description: Observed days at home (DAH only)
+    measure_type: [dah]
+  - name: OBSERVED_DIC
+    data_type: Int64
+    description: Observed days in care (DAH only)
+    measure_type: [dah]
+  - name: NH_TRANS_DT
+    data_type: String  # MM/DD/YYYY format
+    description: Nursing home transfer date (DAH only)
+    measure_type: [dah]
+
+  # UAMCC (Unplanned Admissions for Multiple Chronic Conditions) specific columns
+  - name: FIRST_VISIT_DATE
+    data_type: String  # MM/DD/YYYY format
+    description: First visit date (UAMCC only)
+    measure_type: [uamcc]
+  - name: HOSPICE_DATE
+    data_type: String  # MM/DD/YYYY format
+    description: Hospice date (UAMCC only)
+    measure_type: [uamcc]
+  - name: CONDITION_AMI
+    data_type: Int64
+    description: Acute myocardial infarction condition flag (UAMCC only)
+    measure_type: [uamcc]
+  - name: CONDITION_ALZ
+    data_type: Int64
+    description: Alzheimer's condition flag (UAMCC only)
+    measure_type: [uamcc]
+  - name: CONDITION_AFIB
+    data_type: Int64
+    description: Atrial fibrillation condition flag (UAMCC only)
+    measure_type: [uamcc]
+  - name: CONDITION_CKD
+    data_type: Int64
+    description: Chronic kidney disease condition flag (UAMCC only)
+    measure_type: [uamcc]
+  - name: CONDITION_COPD
+    data_type: Int64
+    description: COPD condition flag (UAMCC only)
+    measure_type: [uamcc]
+  - name: CONDITION_DEPRESS
+    data_type: Int64
+    description: Depression condition flag (UAMCC only)
+    measure_type: [uamcc]
+  - name: CONDITION_HF
+    data_type: Int64
+    description: Heart failure condition flag (UAMCC only)
+    measure_type: [uamcc]
+  - name: CONDITION_STROKE_TIA
+    data_type: Int64
+    description: Stroke/TIA condition flag (UAMCC only)
+    measure_type: [uamcc]
+  - name: CONDITION_DIAB
+    data_type: Int64
+    description: Diabetes condition flag (UAMCC only)
+    measure_type: [uamcc]
+  - name: COUNT_UNPLANNED_ADM
+    data_type: Int64
+    description: Count of unplanned admissions (UAMCC only)
+    measure_type: [uamcc]
+
+  # Exclusions file specific columns (aggregate counts)
+  - name: CT_BENES_ACR
+    data_type: Int64
+    description: Count of beneficiaries for ACR (Exclusions only)
+    measure_type: [exclusions]
+  - name: CT_BENES_UAMCC
+    data_type: Int64
+    description: Count of beneficiaries for UAMCC (Exclusions only)
+    measure_type: [exclusions]
+  - name: CT_BENES_DAH
+    data_type: Int64
+    description: Count of beneficiaries for DAH (Exclusions only)
+    measure_type: [exclusions]
+  - name: CT_BENES_TOTAL
+    data_type: Int64
+    description: Total count of beneficiaries (Exclusions only)
+    measure_type: [exclusions]
+  - name: CT_OPTING_OUT_ACR
+    data_type: Int64
+    description: Count opting out for ACR (Exclusions only)
+    measure_type: [exclusions]
+  - name: CT_OPTING_OUT_UAMCC
+    data_type: Int64
+    description: Count opting out for UAMCC (Exclusions only)
+    measure_type: [exclusions]
+  - name: CT_OPTING_OUT_DAH
+    data_type: Int64
+    description: Count opting out for DAH (Exclusions only)
+    measure_type: [exclusions]
+  - name: PC_OPTING_OUT_ACR
+    data_type: Float64
+    description: Percent opting out for ACR (Exclusions only)
+    measure_type: [exclusions]
+  - name: PC_OPTING_OUT_UAMCC
+    data_type: Float64
+    description: Percent opting out for UAMCC (Exclusions only)
+    measure_type: [exclusions]
+  - name: PC_OPTING_OUT_DAH
+    data_type: Float64
+    description: Percent opting out for DAH (Exclusions only)
+    measure_type: [exclusions]
+  - name: CT_OPTING_OUT_TOTAL
+    data_type: Int64
+    description: Total count opting out (Exclusions only)
+    measure_type: [exclusions]
+  - name: PC_OPTING_OUT_TOTAL
+    data_type: Float64
+    description: Total percent opting out (Exclusions only)
+    measure_type: [exclusions]
+  - name: CT_ELIG_PRIOR_ACR
+    data_type: Int64
+    description: Count eligible prior for ACR (Exclusions only)
+    measure_type: [exclusions]
+  - name: CT_ELIG_PRIOR_UAMCC
+    data_type: Int64
+    description: Count eligible prior for UAMCC (Exclusions only)
+    measure_type: [exclusions]
+  - name: CT_ELIG_PRIOR_DAH
+    data_type: Int64
+    description: Count eligible prior for DAH (Exclusions only)
+    measure_type: [exclusions]
+  - name: PC_ELIG_PRIOR_ACR
+    data_type: Float64
+    description: Percent eligible prior for ACR (Exclusions only)
+    measure_type: [exclusions]
+  - name: PC_ELIG_PRIOR_UAMCC
+    data_type: Float64
+    description: Percent eligible prior for UAMCC (Exclusions only)
+    measure_type: [exclusions]
+  - name: PC_ELIG_PRIOR_DAH
+    data_type: Float64
+    description: Percent eligible prior for DAH (Exclusions only)
+    measure_type: [exclusions]
+  - name: CT_ELIG_PRIOR_TOTAL
+    data_type: Int64
+    description: Total count eligible prior (Exclusions only)
+    measure_type: [exclusions]
+  - name: PC_ELIG_PRIOR_TOTAL
+    data_type: Float64
+    description: Total percent eligible prior (Exclusions only)
+    measure_type: [exclusions]
+
+  # Common columns across all measure types
+  - name: DOB
+    data_type: String  # MM/DD/YYYY format
+    description: Date of birth (ACR, DAH, UAMCC)
+    measure_type: [acr, dah, uamcc]
+  - name: DOD
+    data_type: String  # MM/DD/YYYY format
+    description: Date of death (ACR, DAH, UAMCC)
+    measure_type: [acr, dah, uamcc]
+  - name: MBI
+    data_type: String
+    description: Medicare Beneficiary Identifier (ACR, DAH, UAMCC)
+    measure_type: [acr, dah, uamcc]
+fourIcli:
+  category: Reports
+  fileTypeCode: 269
+  extractZip: false
+  refreshFrequency: monthly
+  filePattern: D????.BLAQR.PY????.D??????.T*.zip

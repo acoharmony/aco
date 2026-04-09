@@ -1,0 +1,169 @@
+name: emails
+description: ACO email campaign tracking and engagement metrics
+version: 1.0.0
+file_format:
+  type: json
+  encoding: utf-8
+storage:
+  tier: bronze
+  file_patterns:
+    main: all_sent_emails*.json
+  silver:
+    output_name: emails.parquet
+    refresh_frequency: monthly
+    last_updated_by: aco transform emails
+deduplication:
+  enabled: true
+  key:
+  - email_id
+  - patient_id
+  - send_datetime
+  sort_by:
+  - file_date
+  keep: last
+transformations:
+- type: parse_datetime
+  field: send_datetime
+  format: '%B %d, %Y, %I:%M %p'
+  output_field: send_date
+  output_format: '%Y-%m-%d'
+- type: parse_datetime
+  field: send_datetime
+  format: '%B %d, %Y, %I:%M %p'
+  output_field: send_timestamp
+  output_format: '%Y-%m-%d %H:%M:%S'
+- type: boolean_conversion
+  field: has_been_opened
+  output_field: opened_flag
+  true_values:
+  - 'true'
+  - 'True'
+  false_values:
+  - 'false'
+  - 'False'
+- type: boolean_conversion
+  field: has_been_clicked
+  output_field: clicked_flag
+  true_values:
+  - 'true'
+  - 'True'
+  false_values:
+  - 'false'
+  - 'False'
+- type: extract_year_month
+  field: send_datetime
+  pattern: (\w+) \d+, (\d{4})
+  output_fields:
+  - send_month
+  - send_year
+output:
+  format: parquet
+  partition_by:
+  - send_year
+  - send_month
+  - campaign
+  compression: snappy
+metadata:
+  tags:
+  - compliance
+  - email-campaigns
+  - patient-engagement
+  - cahps
+  business_owner: ACO Compliance Team
+  data_classification: PHI
+  refresh_frequency: monthly
+medallion_layer: bronze
+unity_catalog: main
+columns:
+- name: aco_id
+  source_name: ACO ID
+  type: string
+  description: ACO identifier
+  required: true
+- name: campaign
+  source_name: Campaign
+  type: string
+  description: Email campaign name (e.g., "CAHPS Reminder")
+  required: true
+- name: email_id
+  source_name: Email ID
+  type: string
+  description: Unique email identifier (UUID)
+  required: true
+  primary_key: true
+- name: has_been_clicked
+  source_name: Has Been Clicked
+  type: string
+  description: Whether email links were clicked
+  required: true
+- name: has_been_opened
+  source_name: Has Been Opened
+  type: string
+  description: Whether email was opened
+  required: true
+- name: mbi
+  source_name: MBI
+  type: string
+  description: Medicare Beneficiary Identifier
+  required: false
+  pii: true
+- name: network_id
+  source_name: Network ID
+  type: string
+  description: Network identifier (UUID)
+  required: true
+- name: network_name
+  source_name: Network Name
+  type: string
+  description: Network/ACO name
+  required: true
+- name: patient_id
+  source_name: Patient ID
+  type: string
+  description: Patient identifier (UUID)
+  required: true
+  pii: true
+- name: patient_name
+  source_name: Patient Name
+  type: string
+  description: Patient full name
+  required: true
+  pii: true
+- name: practice
+  source_name: Practice
+  type: string
+  description: Medical practice name
+  required: true
+- name: send_datetime
+  source_name: Send Datetime
+  type: string
+  description: Email send timestamp (formatted as "Month DD, YYYY, H:MM AM/PM")
+  required: true
+- name: status
+  source_name: Status
+  type: string
+  description: Delivery status (Delivered, Opened, Failed, etc.)
+  required: true
+  enum:
+  - Delivered
+  - Opened
+  - Failed
+  - Bounced
+  - Pending
+  - Clicked
+- name: send_date
+  type: date
+  description: Parsed send date
+  required: true
+- name: send_timestamp
+  type: datetime
+  description: Parsed send timestamp
+  required: true
+- name: opened_flag
+  type: boolean
+  description: Whether email was opened
+  required: true
+- name: clicked_flag
+  type: boolean
+  description: Whether email links were clicked
+  required: true

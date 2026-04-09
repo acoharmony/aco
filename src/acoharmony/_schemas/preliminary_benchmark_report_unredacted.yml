@@ -1,0 +1,20 @@
+version: 2
+name: preliminary_benchmark_report_unredacted
+description: 'Preliminary Benchmark Report Unredacted'
+storage:
+  tier: bronze
+  file_patterns:
+    reach:
+    - '*PRBRU*'
+  silver:
+    output_name: preliminary_benchmark_report_unredacted.parquet
+    refresh_frequency: monthly
+file_format:
+  type: excel
+columns: []
+fourIcli:
+  category: Reports
+  fileTypeCode: 219
+  extractZip: false
+  refreshFrequency: monthly
+  filePattern: REACH.D????.PRBRU.PY????.D??????.T*.xlsx

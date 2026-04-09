@@ -1,0 +1,62 @@
+version: 2
+name: bnex
+description: Beneficiary Data Sharing Opt-Out Files (BNEX) - XML file containing beneficiaries who have opted out of data sharing under MSSP
+storage:
+  tier: bronze
+  file_patterns:
+    mssp:
+    - 'P.A*.BNEX.Y*.D*.T*.xml'
+  silver:
+    output_name: bnex.parquet
+    refresh_frequency: monthly
+    last_updated_by: aco transform bnex
+  gold:
+    output_name: null
+    refresh_frequency: null
+    last_updated_by: null
+file_format:
+  type: xml
+  encoding: utf-8
+  row_tag: Beneficiary
+columns:
+- name: MBI
+  description: Medicare Beneficiary Identifier
+  output_name: bene_mbi
+  data_type: string
+  required: true
+- name: HICN
+  description: Health Insurance Claim Number (legacy identifier, often empty)
+  output_name: hicn
+  data_type: string
+  required: false
+- name: FirstName
+  description: Beneficiary first name
+  output_name: bene_first_name
+  data_type: string
+  required: true
+- name: MiddleName
+  description: Beneficiary middle name or initial (can be empty)
+  output_name: bene_middle_name
+  data_type: string
+  required: false
+- name: LastName
+  description: Beneficiary last name
+  output_name: bene_last_name
+  data_type: string
+  required: true
+- name: DOB
+  description: Date of birth in YYYYMMDD format
+  output_name: bene_date_of_birth
+  data_type: string
+  required: true
+- name: Gender
+  description: Beneficiary gender (M or F)
+  output_name: bene_gender
+  data_type: string
+  required: true
+- name: BeneExcReason
+  description: Beneficiary exclusion reason code (PC=Patient Choice, BD=Beneficiary Death, etc.)
+  output_name: bnex_reason
+  data_type: string
+  required: true
+

@@ -1,0 +1,952 @@
+version: 2
+name: sbmhh
+description: 'Shadow Bundles Monthly Home Health'
+storage:
+  tier: bronze
+  file_patterns:
+    reach:
+    - 'D????.PY????.??.SBMHH.D??????.T*.csv'
+  silver:
+    output_name: sbmhh.parquet
+    refresh_frequency: monthly
+file_format:
+  type: csv
+  delimiter: ','
+  has_header: true
+columns:
+  - name: episode_id
+    data_type: string
+    description: Episode identifier
+  - name: curhic_uneq
+    data_type: string
+    description: Current HIC unique identifier
+  - name: mbi_id
+    data_type: string
+    description: Medicare Beneficiary Identifier
+  - name: claimno
+    data_type: string
+    description: Claim number
+  - name: sgmt_num
+    data_type: integer
+    description: Segment number
+  - name: from_dt
+    data_type: date
+    description: Service from date
+  - name: thru_dt
+    data_type: date
+    description: Service through date
+  - name: provider
+    data_type: string
+    description: Provider number
+  - name: hcpscd01
+    data_type: string
+    description: HCPCS code 1
+  - name: hcpscd02
+    data_type: string
+    description: HCPCS code 2
+  - name: hcpscd03
+    data_type: string
+    description: HCPCS code 3
+  - name: hcpscd04
+    data_type: string
+    description: HCPCS code 4
+  - name: hcpscd05
+    data_type: string
+    description: HCPCS code 5
+  - name: hcpscd06
+    data_type: string
+    description: HCPCS code 6
+  - name: hcpscd07
+    data_type: string
+    description: HCPCS code 7
+  - name: hcpscd08
+    data_type: string
+    description: HCPCS code 8
+  - name: hcpscd09
+    data_type: string
+    description: HCPCS code 9
+  - name: hcpscd10
+    data_type: string
+    description: HCPCS code 10
+  - name: hcpscd11
+    data_type: string
+    description: HCPCS code 11
+  - name: hcpscd12
+    data_type: string
+    description: HCPCS code 12
+  - name: hcpscd13
+    data_type: string
+    description: HCPCS code 13
+  - name: hcpscd14
+    data_type: string
+    description: HCPCS code 14
+  - name: hcpscd15
+    data_type: string
+    description: HCPCS code 15
+  - name: hcpscd16
+    data_type: string
+    description: HCPCS code 16
+  - name: hcpscd17
+    data_type: string
+    description: HCPCS code 17
+  - name: hcpscd18
+    data_type: string
+    description: HCPCS code 18
+  - name: hcpscd19
+    data_type: string
+    description: HCPCS code 19
+  - name: hcpscd20
+    data_type: string
+    description: HCPCS code 20
+  - name: hcpscd21
+    data_type: string
+    description: HCPCS code 21
+  - name: hcpscd22
+    data_type: string
+    description: HCPCS code 22
+  - name: hcpscd23
+    data_type: string
+    description: HCPCS code 23
+  - name: hcpscd24
+    data_type: string
+    description: HCPCS code 24
+  - name: hcpscd25
+    data_type: string
+    description: HCPCS code 25
+  - name: hcpscd26
+    data_type: string
+    description: HCPCS code 26
+  - name: hcpscd27
+    data_type: string
+    description: HCPCS code 27
+  - name: hcpscd28
+    data_type: string
+    description: HCPCS code 28
+  - name: hcpscd29
+    data_type: string
+    description: HCPCS code 29
+  - name: hcpscd30
+    data_type: string
+    description: HCPCS code 30
+  - name: hcpscd31
+    data_type: string
+    description: HCPCS code 31
+  - name: hcpscd32
+    data_type: string
+    description: HCPCS code 32
+  - name: hcpscd33
+    data_type: string
+    description: HCPCS code 33
+  - name: hcpscd34
+    data_type: string
+    description: HCPCS code 34
+  - name: hcpscd35
+    data_type: string
+    description: HCPCS code 35
+  - name: hcpscd36
+    data_type: string
+    description: HCPCS code 36
+  - name: hcpscd37
+    data_type: string
+    description: HCPCS code 37
+  - name: hcpscd38
+    data_type: string
+    description: HCPCS code 38
+  - name: hcpscd39
+    data_type: string
+    description: HCPCS code 39
+  - name: hcpscd40
+    data_type: string
+    description: HCPCS code 40
+  - name: hcpscd41
+    data_type: string
+    description: HCPCS code 41
+  - name: hcpscd42
+    data_type: string
+    description: HCPCS code 42
+  - name: hcpscd43
+    data_type: string
+    description: HCPCS code 43
+  - name: hcpscd44
+    data_type: string
+    description: HCPCS code 44
+  - name: hcpscd45
+    data_type: string
+    description: HCPCS code 45
+  - name: pmt_amt
+    data_type: decimal
+    description: Payment amount
+  - name: prpayamt
+    data_type: decimal
+    description: Primary payer amount
+  - name: rvncvr01
+    data_type: string
+    description: Revenue center code 1
+  - name: rvncvr02
+    data_type: string
+    description: Revenue center code 2
+  - name: rvncvr03
+    data_type: string
+    description: Revenue center code 3
+  - name: rvncvr04
+    data_type: string
+    description: Revenue center code 4
+  - name: rvncvr05
+    data_type: string
+    description: Revenue center code 5
+  - name: rvncvr06
+    data_type: string
+    description: Revenue center code 6
+  - name: rvncvr07
+    data_type: string
+    description: Revenue center code 7
+  - name: rvncvr08
+    data_type: string
+    description: Revenue center code 8
+  - name: rvncvr09
+    data_type: string
+    description: Revenue center code 9
+  - name: rvncvr10
+    data_type: string
+    description: Revenue center code 10
+  - name: rvncvr11
+    data_type: string
+    description: Revenue center code 11
+  - name: rvncvr12
+    data_type: string
+    description: Revenue center code 12
+  - name: rvncvr13
+    data_type: string
+    description: Revenue center code 13
+  - name: rvncvr14
+    data_type: string
+    description: Revenue center code 14
+  - name: rvncvr15
+    data_type: string
+    description: Revenue center code 15
+  - name: rvncvr16
+    data_type: string
+    description: Revenue center code 16
+  - name: rvncvr17
+    data_type: string
+    description: Revenue center code 17
+  - name: rvncvr18
+    data_type: string
+    description: Revenue center code 18
+  - name: rvncvr19
+    data_type: string
+    description: Revenue center code 19
+  - name: rvncvr20
+    data_type: string
+    description: Revenue center code 20
+  - name: rvncvr21
+    data_type: string
+    description: Revenue center code 21
+  - name: rvncvr22
+    data_type: string
+    description: Revenue center code 22
+  - name: rvncvr23
+    data_type: string
+    description: Revenue center code 23
+  - name: rvncvr24
+    data_type: string
+    description: Revenue center code 24
+  - name: rvncvr25
+    data_type: string
+    description: Revenue center code 25
+  - name: rvncvr26
+    data_type: string
+    description: Revenue center code 26
+  - name: rvncvr27
+    data_type: string
+    description: Revenue center code 27
+  - name: rvncvr28
+    data_type: string
+    description: Revenue center code 28
+  - name: rvncvr29
+    data_type: string
+    description: Revenue center code 29
+  - name: rvncvr30
+    data_type: string
+    description: Revenue center code 30
+  - name: rvncvr31
+    data_type: string
+    description: Revenue center code 31
+  - name: rvncvr32
+    data_type: string
+    description: Revenue center code 32
+  - name: rvncvr33
+    data_type: string
+    description: Revenue center code 33
+  - name: rvncvr34
+    data_type: string
+    description: Revenue center code 34
+  - name: rvncvr35
+    data_type: string
+    description: Revenue center code 35
+  - name: rvncvr36
+    data_type: string
+    description: Revenue center code 36
+  - name: rvncvr37
+    data_type: string
+    description: Revenue center code 37
+  - name: rvncvr38
+    data_type: string
+    description: Revenue center code 38
+  - name: rvncvr39
+    data_type: string
+    description: Revenue center code 39
+  - name: rvncvr40
+    data_type: string
+    description: Revenue center code 40
+  - name: rvncvr41
+    data_type: string
+    description: Revenue center code 41
+  - name: rvncvr42
+    data_type: string
+    description: Revenue center code 42
+  - name: rvncvr43
+    data_type: string
+    description: Revenue center code 43
+  - name: rvncvr44
+    data_type: string
+    description: Revenue center code 44
+  - name: rvncvr45
+    data_type: string
+    description: Revenue center code 45
+  - name: rvchrg01
+    data_type: decimal
+    description: Revenue charge amount 1
+  - name: rvchrg02
+    data_type: decimal
+    description: Revenue charge amount 2
+  - name: rvchrg03
+    data_type: decimal
+    description: Revenue charge amount 3
+  - name: rvchrg04
+    data_type: decimal
+    description: Revenue charge amount 4
+  - name: rvchrg05
+    data_type: decimal
+    description: Revenue charge amount 5
+  - name: rvchrg06
+    data_type: decimal
+    description: Revenue charge amount 6
+  - name: rvchrg07
+    data_type: decimal
+    description: Revenue charge amount 7
+  - name: rvchrg08
+    data_type: decimal
+    description: Revenue charge amount 8
+  - name: rvchrg09
+    data_type: decimal
+    description: Revenue charge amount 9
+  - name: rvchrg10
+    data_type: decimal
+    description: Revenue charge amount 10
+  - name: rvchrg11
+    data_type: decimal
+    description: Revenue charge amount 11
+  - name: rvchrg12
+    data_type: decimal
+    description: Revenue charge amount 12
+  - name: rvchrg13
+    data_type: decimal
+    description: Revenue charge amount 13
+  - name: rvchrg14
+    data_type: decimal
+    description: Revenue charge amount 14
+  - name: rvchrg15
+    data_type: decimal
+    description: Revenue charge amount 15
+  - name: rvchrg16
+    data_type: decimal
+    description: Revenue charge amount 16
+  - name: rvchrg17
+    data_type: decimal
+    description: Revenue charge amount 17
+  - name: rvchrg18
+    data_type: decimal
+    description: Revenue charge amount 18
+  - name: rvchrg19
+    data_type: decimal
+    description: Revenue charge amount 19
+  - name: rvchrg20
+    data_type: decimal
+    description: Revenue charge amount 20
+  - name: rvchrg21
+    data_type: decimal
+    description: Revenue charge amount 21
+  - name: rvchrg22
+    data_type: decimal
+    description: Revenue charge amount 22
+  - name: rvchrg23
+    data_type: decimal
+    description: Revenue charge amount 23
+  - name: rvchrg24
+    data_type: decimal
+    description: Revenue charge amount 24
+  - name: rvchrg25
+    data_type: decimal
+    description: Revenue charge amount 25
+  - name: rvchrg26
+    data_type: decimal
+    description: Revenue charge amount 26
+  - name: rvchrg27
+    data_type: decimal
+    description: Revenue charge amount 27
+  - name: rvchrg28
+    data_type: decimal
+    description: Revenue charge amount 28
+  - name: rvchrg29
+    data_type: decimal
+    description: Revenue charge amount 29
+  - name: rvchrg30
+    data_type: decimal
+    description: Revenue charge amount 30
+  - name: rvchrg31
+    data_type: decimal
+    description: Revenue charge amount 31
+  - name: rvchrg32
+    data_type: decimal
+    description: Revenue charge amount 32
+  - name: rvchrg33
+    data_type: decimal
+    description: Revenue charge amount 33
+  - name: rvchrg34
+    data_type: decimal
+    description: Revenue charge amount 34
+  - name: rvchrg35
+    data_type: decimal
+    description: Revenue charge amount 35
+  - name: rvchrg36
+    data_type: decimal
+    description: Revenue charge amount 36
+  - name: rvchrg37
+    data_type: decimal
+    description: Revenue charge amount 37
+  - name: rvchrg38
+    data_type: decimal
+    description: Revenue charge amount 38
+  - name: rvchrg39
+    data_type: decimal
+    description: Revenue charge amount 39
+  - name: rvchrg40
+    data_type: decimal
+    description: Revenue charge amount 40
+  - name: rvchrg41
+    data_type: decimal
+    description: Revenue charge amount 41
+  - name: rvchrg42
+    data_type: decimal
+    description: Revenue charge amount 42
+  - name: rvchrg43
+    data_type: decimal
+    description: Revenue charge amount 43
+  - name: rvchrg44
+    data_type: decimal
+    description: Revenue charge amount 44
+  - name: rvchrg45
+    data_type: decimal
+    description: Revenue charge amount 45
+  - name: rvcntr01
+    data_type: string
+    description: Revenue center count 1
+  - name: rvcntr02
+    data_type: string
+    description: Revenue center count 2
+  - name: rvcntr03
+    data_type: string
+    description: Revenue center count 3
+  - name: rvcntr04
+    data_type: string
+    description: Revenue center count 4
+  - name: rvcntr05
+    data_type: string
+    description: Revenue center count 5
+  - name: rvcntr06
+    data_type: string
+    description: Revenue center count 6
+  - name: rvcntr07
+    data_type: string
+    description: Revenue center count 7
+  - name: rvcntr08
+    data_type: string
+    description: Revenue center count 8
+  - name: rvcntr09
+    data_type: string
+    description: Revenue center count 9
+  - name: rvcntr10
+    data_type: string
+    description: Revenue center count 10
+  - name: rvcntr11
+    data_type: string
+    description: Revenue center count 11
+  - name: rvcntr12
+    data_type: string
+    description: Revenue center count 12
+  - name: rvcntr13
+    data_type: string
+    description: Revenue center count 13
+  - name: rvcntr14
+    data_type: string
+    description: Revenue center count 14
+  - name: rvcntr15
+    data_type: string
+    description: Revenue center count 15
+  - name: rvcntr16
+    data_type: string
+    description: Revenue center count 16
+  - name: rvcntr17
+    data_type: string
+    description: Revenue center count 17
+  - name: rvcntr18
+    data_type: string
+    description: Revenue center count 18
+  - name: rvcntr19
+    data_type: string
+    description: Revenue center count 19
+  - name: rvcntr20
+    data_type: string
+    description: Revenue center count 20
+  - name: rvcntr21
+    data_type: string
+    description: Revenue center count 21
+  - name: rvcntr22
+    data_type: string
+    description: Revenue center count 22
+  - name: rvcntr23
+    data_type: string
+    description: Revenue center count 23
+  - name: rvcntr24
+    data_type: string
+    description: Revenue center count 24
+  - name: rvcntr25
+    data_type: string
+    description: Revenue center count 25
+  - name: rvcntr26
+    data_type: string
+    description: Revenue center count 26
+  - name: rvcntr27
+    data_type: string
+    description: Revenue center count 27
+  - name: rvcntr28
+    data_type: string
+    description: Revenue center count 28
+  - name: rvcntr29
+    data_type: string
+    description: Revenue center count 29
+  - name: rvcntr30
+    data_type: string
+    description: Revenue center count 30
+  - name: rvcntr31
+    data_type: string
+    description: Revenue center count 31
+  - name: rvcntr32
+    data_type: string
+    description: Revenue center count 32
+  - name: rvcntr33
+    data_type: string
+    description: Revenue center count 33
+  - name: rvcntr34
+    data_type: string
+    description: Revenue center count 34
+  - name: rvcntr35
+    data_type: string
+    description: Revenue center count 35
+  - name: rvcntr36
+    data_type: string
+    description: Revenue center count 36
+  - name: rvcntr37
+    data_type: string
+    description: Revenue center count 37
+  - name: rvcntr38
+    data_type: string
+    description: Revenue center count 38
+  - name: rvcntr39
+    data_type: string
+    description: Revenue center count 39
+  - name: rvcntr40
+    data_type: string
+    description: Revenue center count 40
+  - name: rvcntr41
+    data_type: string
+    description: Revenue center count 41
+  - name: rvcntr42
+    data_type: string
+    description: Revenue center count 42
+  - name: rvcntr43
+    data_type: string
+    description: Revenue center count 43
+  - name: rvcntr44
+    data_type: string
+    description: Revenue center count 44
+  - name: rvcntr45
+    data_type: string
+    description: Revenue center count 45
+  - name: rev_dt01
+    data_type: date
+    description: Revenue date 1
+  - name: rev_dt02
+    data_type: date
+    description: Revenue date 2
+  - name: rev_dt03
+    data_type: date
+    description: Revenue date 3
+  - name: rev_dt04
+    data_type: date
+    description: Revenue date 4
+  - name: rev_dt05
+    data_type: date
+    description: Revenue date 5
+  - name: rev_dt06
+    data_type: date
+    description: Revenue date 6
+  - name: rev_dt07
+    data_type: date
+    description: Revenue date 7
+  - name: rev_dt08
+    data_type: date
+    description: Revenue date 8
+  - name: rev_dt09
+    data_type: date
+    description: Revenue date 9
+  - name: rev_dt10
+    data_type: date
+    description: Revenue date 10
+  - name: rev_dt11
+    data_type: date
+    description: Revenue date 11
+  - name: rev_dt12
+    data_type: date
+    description: Revenue date 12
+  - name: rev_dt13
+    data_type: date
+    description: Revenue date 13
+  - name: rev_dt14
+    data_type: date
+    description: Revenue date 14
+  - name: rev_dt15
+    data_type: date
+    description: Revenue date 15
+  - name: rev_dt16
+    data_type: date
+    description: Revenue date 16
+  - name: rev_dt17
+    data_type: date
+    description: Revenue date 17
+  - name: rev_dt18
+    data_type: date
+    description: Revenue date 18
+  - name: rev_dt19
+    data_type: date
+    description: Revenue date 19
+  - name: rev_dt20
+    data_type: date
+    description: Revenue date 20
+  - name: rev_dt21
+    data_type: date
+    description: Revenue date 21
+  - name: rev_dt22
+    data_type: date
+    description: Revenue date 22
+  - name: rev_dt23
+    data_type: date
+    description: Revenue date 23
+  - name: rev_dt24
+    data_type: date
+    description: Revenue date 24
+  - name: rev_dt25
+    data_type: date
+    description: Revenue date 25
+  - name: rev_dt26
+    data_type: date
+    description: Revenue date 26
+  - name: rev_dt27
+    data_type: date
+    description: Revenue date 27
+  - name: rev_dt28
+    data_type: date
+    description: Revenue date 28
+  - name: rev_dt29
+    data_type: date
+    description: Revenue date 29
+  - name: rev_dt30
+    data_type: date
+    description: Revenue date 30
+  - name: rev_dt31
+    data_type: date
+    description: Revenue date 31
+  - name: rev_dt32
+    data_type: date
+    description: Revenue date 32
+  - name: rev_dt33
+    data_type: date
+    description: Revenue date 33
+  - name: rev_dt34
+    data_type: date
+    description: Revenue date 34
+  - name: rev_dt35
+    data_type: date
+    description: Revenue date 35
+  - name: rev_dt36
+    data_type: date
+    description: Revenue date 36
+  - name: rev_dt37
+    data_type: date
+    description: Revenue date 37
+  - name: rev_dt38
+    data_type: date
+    description: Revenue date 38
+  - name: rev_dt39
+    data_type: date
+    description: Revenue date 39
+  - name: rev_dt40
+    data_type: date
+    description: Revenue date 40
+  - name: rev_dt41
+    data_type: date
+    description: Revenue date 41
+  - name: rev_dt42
+    data_type: date
+    description: Revenue date 42
+  - name: rev_dt43
+    data_type: date
+    description: Revenue date 43
+  - name: rev_dt44
+    data_type: date
+    description: Revenue date 44
+  - name: rev_dt45
+    data_type: date
+    description: Revenue date 45
+  - name: rvunt01
+    data_type: integer
+    description: Revenue unit 1
+  - name: rvunt02
+    data_type: integer
+    description: Revenue unit 2
+  - name: rvunt03
+    data_type: integer
+    description: Revenue unit 3
+  - name: rvunt04
+    data_type: integer
+    description: Revenue unit 4
+  - name: rvunt05
+    data_type: integer
+    description: Revenue unit 5
+  - name: rvunt06
+    data_type: integer
+    description: Revenue unit 6
+  - name: rvunt07
+    data_type: integer
+    description: Revenue unit 7
+  - name: rvunt08
+    data_type: integer
+    description: Revenue unit 8
+  - name: rvunt09
+    data_type: integer
+    description: Revenue unit 9
+  - name: rvunt10
+    data_type: integer
+    description: Revenue unit 10
+  - name: rvunt11
+    data_type: integer
+    description: Revenue unit 11
+  - name: rvunt12
+    data_type: integer
+    description: Revenue unit 12
+  - name: rvunt13
+    data_type: integer
+    description: Revenue unit 13
+  - name: rvunt14
+    data_type: integer
+    description: Revenue unit 14
+  - name: rvunt15
+    data_type: integer
+    description: Revenue unit 15
+  - name: rvunt16
+    data_type: integer
+    description: Revenue unit 16
+  - name: rvunt17
+    data_type: integer
+    description: Revenue unit 17
+  - name: rvunt18
+    data_type: integer
+    description: Revenue unit 18
+  - name: rvunt19
+    data_type: integer
+    description: Revenue unit 19
+  - name: rvunt20
+    data_type: integer
+    description: Revenue unit 20
+  - name: rvunt21
+    data_type: integer
+    description: Revenue unit 21
+  - name: rvunt22
+    data_type: integer
+    description: Revenue unit 22
+  - name: rvunt23
+    data_type: integer
+    description: Revenue unit 23
+  - name: rvunt24
+    data_type: integer
+    description: Revenue unit 24
+  - name: rvunt25
+    data_type: integer
+    description: Revenue unit 25
+  - name: rvunt26
+    data_type: integer
+    description: Revenue unit 26
+  - name: rvunt27
+    data_type: integer
+    description: Revenue unit 27
+  - name: rvunt28
+    data_type: integer
+    description: Revenue unit 28
+  - name: rvunt29
+    data_type: integer
+    description: Revenue unit 29
+  - name: rvunt30
+    data_type: integer
+    description: Revenue unit 30
+  - name: rvunt31
+    data_type: integer
+    description: Revenue unit 31
+  - name: rvunt32
+    data_type: integer
+    description: Revenue unit 32
+  - name: rvunt33
+    data_type: integer
+    description: Revenue unit 33
+  - name: rvunt34
+    data_type: integer
+    description: Revenue unit 34
+  - name: rvunt35
+    data_type: integer
+    description: Revenue unit 35
+  - name: rvunt36
+    data_type: integer
+    description: Revenue unit 36
+  - name: rvunt37
+    data_type: integer
+    description: Revenue unit 37
+  - name: rvunt38
+    data_type: integer
+    description: Revenue unit 38
+  - name: rvunt39
+    data_type: integer
+    description: Revenue unit 39
+  - name: rvunt40
+    data_type: integer
+    description: Revenue unit 40
+  - name: rvunt41
+    data_type: integer
+    description: Revenue unit 41
+  - name: rvunt42
+    data_type: integer
+    description: Revenue unit 42
+  - name: rvunt43
+    data_type: integer
+    description: Revenue unit 43
+  - name: rvunt44
+    data_type: integer
+    description: Revenue unit 44
+  - name: rvunt45
+    data_type: integer
+    description: Revenue unit 45
+  - name: lupaind
+    data_type: string
+    description: LUPA indicator
+  - name: prcrrtrn
+    data_type: string
+    description: Procedure return
+  - name: clm_allowed
+    data_type: decimal
+    description: Claim allowed amount
+  - name: std_allowed
+    data_type: decimal
+    description: Standardized allowed amount
+  - name: std_cost_epi_total
+    data_type: decimal
+    description: Standardized cost episode total
+  - name: dgnscd01
+    data_type: string
+    description: Diagnosis code 1
+  - name: dgnscd02
+    data_type: string
+    description: Diagnosis code 2
+  - name: dgnscd03
+    data_type: string
+    description: Diagnosis code 3
+  - name: dgnscd04
+    data_type: string
+    description: Diagnosis code 4
+  - name: dgnscd05
+    data_type: string
+    description: Diagnosis code 5
+  - name: dgnscd06
+    data_type: string
+    description: Diagnosis code 6
+  - name: dgnscd07
+    data_type: string
+    description: Diagnosis code 7
+  - name: dgnscd08
+    data_type: string
+    description: Diagnosis code 8
+  - name: dgnscd09
+    data_type: string
+    description: Diagnosis code 9
+  - name: dgnscd10
+    data_type: string
+    description: Diagnosis code 10
+  - name: dgnscd11
+    data_type: string
+    description: Diagnosis code 11
+  - name: dgnscd12
+    data_type: string
+    description: Diagnosis code 12
+  - name: dgnscd13
+    data_type: string
+    description: Diagnosis code 13
+  - name: dgnscd14
+    data_type: string
+    description: Diagnosis code 14
+  - name: dgnscd15
+    data_type: string
+    description: Diagnosis code 15
+  - name: dgnscd16
+    data_type: string
+    description: Diagnosis code 16
+  - name: dgnscd17
+    data_type: string
+    description: Diagnosis code 17
+  - name: dgnscd18
+    data_type: string
+    description: Diagnosis code 18
+  - name: dgnscd19
+    data_type: string
+    description: Diagnosis code 19
+  - name: dgnscd20
+    data_type: string
+    description: Diagnosis code 20
+  - name: dgnscd21
+    data_type: string
+    description: Diagnosis code 21
+  - name: dgnscd22
+    data_type: string
+    description: Diagnosis code 22
+  - name: dgnscd23
+    data_type: string
+    description: Diagnosis code 23
+  - name: dgnscd24
+    data_type: string
+    description: Diagnosis code 24
+  - name: dgnscd25
+    data_type: string
+    description: Diagnosis code 25
+fourIcli:
+  category: Reports
+  fileTypeCode: 243
+  extractZip: false
+  refreshFrequency: monthly
+  filePattern: D????.PY????.??.SBMHH.D??????.T*.csv

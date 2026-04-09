@@ -1,0 +1,12 @@
+networks:
+  acoharmony-internal:
+    name: acoharmony-internal
+    driver: bridge
+    internal: true  # Prevents host access entirely
+    attachable: true  # Required for multi-network container attachment
+
+  acoharmony-external:
+    name: acoharmony-external
+    driver: bridge
+    internal: false  # Allows host access via published ports
+    attachable: true

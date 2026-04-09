@@ -1,0 +1,120 @@
+#!/usr/bin/env bash
+# Run full test suite with coverage → save results to .coverage_state/
+# Usage: .githooks/run-coverage [--json-only]
+set -euo pipefail
+
+STATE_DIR=".coverage_state"
+mkdir -p "$STATE_DIR"
+
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+NC='\033[0m'
+
+info()  { echo -e "${GREEN}[coverage]${NC} $*"; }
+fail()  { echo -e "${RED}[coverage]${NC} $*"; exit 1; }
+
+COVRC=$(mktemp)
+cat > "$COVRC" <<'COVEOF'
+[run]
+branch = true
+parallel = true
+data_file = .coverage_state/.coverage
+omit =
+    */test_*
+    */_test/*
+    */_dev/*
+    */_docs/*
+
+[report]
+exclude_lines =
+    no cov
+    pragma: no cover
+    if __name__ == .__main__.:
+    if TYPE_CHECKING:
+    raise NotImplementedError
+    \.\.\.
+COVEOF
+
+info "Erasing previous coverage data for a clean baseline..."
+COVERAGE_RCFILE="$COVRC" uv run coverage erase 2>/dev/null || true
+
+info "Running full test suite with coverage..."
+
+COVERAGE_RCFILE="$COVRC" uv run coverage run -m pytest src/acoharmony/_test \
+    --no-cov \
+    -v \
+    "$@" || {
+    rm -f "$COVRC"
+    fail "Tests failed."
+}
+
+info "Combining coverage data and generating reports..."
+COVERAGE_RCFILE="$COVRC" uv run coverage combine
+COVERAGE_RCFILE="$COVRC" uv run coverage json -o "$STATE_DIR/coverage.json"
+COVERAGE_RCFILE="$COVRC" uv run coverage report --show-missing --skip-covered
+
+# Also copy to .test-state/ so the orchestrator picks it up
+mkdir -p .test-state
+cp "$STATE_DIR/coverage.json" .test-state/coverage.json 2>/dev/null || true
+
+rm -f "$COVRC"
+
+# Parse coverage JSON → per-module state files
+info "Saving per-module coverage state..."
+
+python3 -c "
+import json, hashlib, os, subprocess
+
+with open('$STATE_DIR/coverage.json') as f:
+    data = json.load(f)
+
+# Group files by top-level module
+modules = {}
+for path, info in data.get('files', {}).items():
+    if not path.startswith('src/acoharmony/'):
+        continue
+    rel = path[len('src/acoharmony/'):]
+    if '/' in rel:
+        mod = rel.split('/')[0]
+    else:
+        mod = rel.removesuffix('.py')
+
+    if mod not in modules:
+        modules[mod] = {'missing_lines': 0, 'missing_branches': 0, 'files': []}
+    modules[mod]['missing_lines'] += len(info.get('missing_lines', []))
+    modules[mod]['missing_branches'] += len(info.get('missing_branches', []))
+    modules[mod]['files'].append(path)
+
+for mod, info in sorted(modules.items()):
+    total_missing = info['missing_lines'] + info['missing_branches']
+
+    # Compute source hash
+    hash_parts = ''
+    for f in sorted(info['files']):
+        try:
+            content = open(f).read()
+            hash_parts += hashlib.sha256(content.encode()).hexdigest()
+        except FileNotFoundError:
+            hash_parts += 'missing'
+    source_hash = hashlib.sha256(hash_parts.encode()).hexdigest()
+
+    # Write state
+    with open(f'$STATE_DIR/{mod}.hash', 'w') as fh:
+        fh.write(source_hash)
+    with open(f'$STATE_DIR/{mod}.cov', 'w') as fc:
+        fc.write(str(total_missing))
+
+    status = '100%' if total_missing == 0 else f'{total_missing} gaps'
+    print(f'  {mod}: {status}')
+
+# Summary
+total = data.get('totals', {})
+print()
+print(f\"Total: {total.get('percent_covered_display', '?')}% coverage\")
+print(f\"  Statements: {total.get('num_statements', '?')}\")
+print(f\"  Missing: {total.get('missing_lines', '?')}\")
+print(f\"  Branches: {total.get('num_branches', '?')}\")
+print(f\"  Missing branches: {total.get('missing_branches', '?')}\")
+"
+
+info "Coverage state saved to $STATE_DIR/"

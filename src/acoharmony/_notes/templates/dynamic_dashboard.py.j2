@@ -1,0 +1,933 @@
+import marimo
+
+__generated_with = "{{ marimo_version | default('0.16.2') }}"
+app = marimo.App(
+    width="{{ config.app_width }}",
+    html_head_file="{{ config.html_head_file }}",
+)
+
+with app.setup(hide_code={{ config.hide_code }}):
+    import polars as pl
+    import marimo as mo
+    import sys
+    import json
+    import tempfile
+    from pathlib import Path
+    from datetime import datetime
+    from typing import List, Dict, Optional, Tuple, Any
+
+    # Add src to path for ACOHarmony imports
+    sys.path.insert(0, str(Path("/home/care/acoharmony/src")))
+
+    # Import ACOHarmony modules
+    from acoharmony._storage import StorageBackend
+    from acoharmony import Catalog
+    from acoharmony.tracking import TransformTracker
+
+    # Initialize storage and catalog
+    storage = StorageBackend()
+    catalog = Catalog()
+
+    # Load the {{ config.schema_name }} data
+    data_path = Path("{{ config.data_path }}")
+    if data_path.exists():
+        df_main = pl.read_parquet(data_path)
+    else:
+        df_main = pl.DataFrame()
+
+
+@app.function(hide_code=True)
+def create_section_header(title, color_from="#6366F1", color_to="#8B5CF6"):
+    """Create a pretty section header with gradient background."""
+    return mo.md(f"""
+    <div style="background: linear-gradient(135deg, {color_from}, {color_to}); padding: 1rem 1.5rem; border-radius: 12px; margin: 1.5rem 0;">
+        <h2 style="color: white; margin: 0; font-size: 1.5rem; font-weight: 600;">{title}</h2>
+    </div>
+    """)
+
+
+@app.function(hide_code=True)
+def analyze_schema():
+    """Analyze the dataframe schema using Polars introspection."""
+    if df_main.height == 0:
+        return {
+            'numeric_cols': [],
+            'categorical_cols': [],
+            'date_cols': [],
+            'boolean_cols': [],
+            'high_cardinality_cols': [],
+            'low_cardinality_cols': [],
+            'suitable_filter_cols': [],
+            'nullable_cols': [],
+            'schema': {}
+        }
+
+    # Get schema information
+    schema_info = {}
+    numeric_cols = []
+    categorical_cols = []
+    date_cols = []
+    boolean_cols = []
+    high_cardinality_cols = []
+    low_cardinality_cols = []
+    suitable_filter_cols = []
+    nullable_cols = []
+
+    # Patterns that indicate a column shouldn't be used for filtering
+    bad_filter_patterns = [
+        'address', 'line_1', 'line_2', 'line_3', 'line_4', 'line_5', 'line_6',
+        'street', 'description', 'note', 'comment', 'text', 'message',
+        'id', 'key', 'uuid', 'guid', 'hash'
+    ]
+
+    # Patterns that indicate good filter candidates
+    good_filter_patterns = [
+        'state', 'status', 'type', 'category', 'gender', 'race',
+        'ethnicity', 'county', 'provider', 'enrollment', 'flag',
+        'year', 'month', 'quarter'
+    ]
+
+    # Analyze each column
+    for col_name in df_main.columns:
+        dtype = df_main[col_name].dtype
+        col_lower = col_name.lower()
+
+        # Check for nulls
+        null_count = df_main[col_name].null_count()
+        if null_count > 0:
+            nullable_cols.append(col_name)
+
+        # Categorize by dtype
+        if dtype in [pl.Int8, pl.Int16, pl.Int32, pl.Int64,
+                     pl.UInt8, pl.UInt16, pl.UInt32, pl.UInt64,
+                     pl.Float32, pl.Float64, pl.Decimal]:
+            numeric_cols.append(col_name)
+        elif dtype == pl.Boolean:
+            boolean_cols.append(col_name)
+        elif dtype in [pl.Date, pl.Datetime, pl.Duration, pl.Time]:
+            date_cols.append(col_name)
+        elif dtype in [pl.Utf8, pl.Categorical, pl.String]:
+            categorical_cols.append(col_name)
+
+            # Check cardinality for categorical columns
+            n_unique = df_main[col_name].n_unique()
+
+            # Skip columns with too many nulls or all same value
+            non_null_ratio = 1 - (null_count / df_main.height) if df_main.height > 0 else 0
+
+            if n_unique <= 20 and n_unique > 1 and non_null_ratio > 0.5:
+                low_cardinality_cols.append(col_name)
+
+                # Check if it's suitable for filtering
+                is_bad = any(bad in col_lower for bad in bad_filter_patterns)
+                is_good = any(good in col_lower for good in good_filter_patterns)
+
+                # Add to suitable filters if it's good or at least not bad
+                if is_good or (not is_bad and n_unique <= 10):
+                    suitable_filter_cols.append(col_name)
+
+            elif n_unique > 100:
+                high_cardinality_cols.append(col_name)
+
+        schema_info[col_name] = {
+            'dtype': str(dtype),
+            'null_count': null_count,
+            'n_unique': df_main[col_name].n_unique()
+        }
+
+    return {
+        'numeric_cols': numeric_cols,
+        'categorical_cols': categorical_cols,
+        'date_cols': date_cols,
+        'boolean_cols': boolean_cols,
+        'high_cardinality_cols': high_cardinality_cols,
+        'low_cardinality_cols': low_cardinality_cols,
+        'suitable_filter_cols': suitable_filter_cols,
+        'nullable_cols': nullable_cols,
+        'schema': schema_info
+    }
+
+
+@app.function(hide_code=True)
+def create_overview_metrics():
+    """Generate overview metrics using Polars describe and aggregations."""
+    if df_main.height == 0:
+        return mo.md("**No data loaded**")
+
+    _schema_analysis = analyze_schema()
+
+    # Basic stats
+    total_rows = df_main.height
+    total_cols = df_main.width
+
+    # Create metrics based on available column types
+    metrics_html = f"""
+    <div style="background: linear-gradient(135deg, #0369A1 0%, #0C4A6E 100%); padding: 2.5rem; border-radius: 16px; margin-bottom: 2rem; box-shadow: 0 20px 40px rgba(0,0,0,0.15);">
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+            <div>
+                <h1 style="color: white; margin: 0; font-size: 2.5rem; font-weight: 700; letter-spacing: -0.5px;">
+                    {{ config.schema_name | replace('_', ' ') | title }} Dashboard
+                </h1>
+                <p style="color: rgba(255,255,255,0.95); margin: 0.75rem 0 0 0; font-size: 1.2rem; font-weight: 300;">
+                    {{ config.schema_description }}
+                </p>
+            </div>
+            <img src="{{ config.logo_url }}" alt="HarmonyCares" style="height: 60px; opacity: 0.9;">
+        </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin: 2rem 0;">
+        <div style="padding: 1rem; background: linear-gradient(135deg, #F0F9FF, #DBEAFE); border-radius: 12px; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.07);">
+            <h3 style="margin: 0; color: #0369A1; font-size: 0.875rem; text-transform: uppercase; letter-spacing: 0.5px;">Total Records</h3>
+            <p style="margin: 0.5rem 0 0 0; font-size: 2.25rem; font-weight: 700; color: #0C4A6E;">
+                {total_rows:,}
+            </p>
+        </div>
+    """
+
+    # Add numeric summary if available
+    if _schema_analysis['numeric_cols']:
+        # Show key stats for important numeric columns
+        important_numeric = [
+            col for col in _schema_analysis['numeric_cols']
+            if any(key in col.lower() for key in ['amount', 'cost', 'spend', 'total'])
+        ][:3]  # Show up to 3 financial metrics
+
+        # Define gradient colors for cards
+        gradients = [
+            ('linear-gradient(135deg, #F0FDF4, #D1FAE5)', '#166534'),  # Green
+            ('linear-gradient(135deg, #FEF3C7, #FED7AA)', '#78350F'),  # Yellow
+            ('linear-gradient(135deg, #FCE7F3, #FBCFE8)', '#831843')   # Pink
+        ]
+
+        for i, col in enumerate(important_numeric):
+            col_sum = df_main[col].sum()
+
+            # Format based on column name
+            if any(x in col.lower() for x in ['cost', 'spend', 'amount']):
+                display_val = f"${col_sum:,.0f}" if col_sum else "$0"
+                # Simplify label
+                if 'total_spend' in col.lower():
+                    label = "Total Spend"
+                elif 'avg' in col.lower() or 'mean' in col.lower():
+                    label = "Avg Spend"
+                else:
+                    label = col.replace('_', ' ').title()[:20]  # Limit length
+            else:
+                display_val = f"{col_sum:,.0f}" if col_sum else "0"
+                label = col.replace('_', ' ').title()[:20]
+
+            bg_gradient, text_color = gradients[i % len(gradients)]
+            metrics_html += f"""
+        <div style="padding: 1rem; background: {bg_gradient}; border-radius: 12px; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.07);">
+            <h3 style="margin: 0; color: {text_color}; font-size: 0.875rem; text-transform: uppercase; letter-spacing: 0.5px;">{label}</h3>
+            <p style="margin: 0.5rem 0 0 0; font-size: 2.25rem; font-weight: 700; color: {text_color};">
+                {display_val}
+            </p>
+        </div>
+        """
+
+    # Add unique count for important categorical columns
+    important_categorical = []
+    for col in _schema_analysis['low_cardinality_cols']:
+        if any(x in col.lower() for x in ['provider', 'state', 'status', 'type']):
+            important_categorical.append(col)
+            break
+
+    if important_categorical:
+        col = important_categorical[0]
+        n_unique = df_main[col].n_unique()
+        label = f"Unique {col.replace('_', ' ').title()}"[:20]
+
+        metrics_html += f"""
+        <div style="padding: 1rem; background: #FEE2E2; border-radius: 8px; text-align: center;">
+            <h3 style="margin: 0; color: #991B1B; font-size: 0.875rem;">{label}</h3>
+            <p style="margin: 0.5rem 0 0 0; font-size: 2rem; font-weight: 700; color: #7F1D1D;">
+                {n_unique:,}
+            </p>
+        </div>
+        """
+
+    metrics_html += "</div>"
+
+    # Add categorical summary for low cardinality columns
+    if _schema_analysis['low_cardinality_cols']:
+        sample_categorical = _schema_analysis['low_cardinality_cols'][0]
+        value_counts = df_main[sample_categorical].value_counts().head(5)
+
+        metrics_html += f"""
+    <div style="background: linear-gradient(135deg, #E5E7EB, #F3F4F6); padding: 0.75rem 1rem; border-radius: 10px; margin: 1.5rem 0 0.5rem 0;">
+        <h3 style="color: #1F2937; margin: 0; font-size: 1.1rem; font-weight: 600;">
+            📊 Top Categories in {sample_categorical.replace('_', ' ').title()}
+        </h3>
+    </div>
+    <div style="padding-left: 1rem;">
+    """
+        for row in value_counts.to_dicts():
+            category_name = row[sample_categorical] if row[sample_categorical] else "N/A"
+            metrics_html += f"""
+        <div style="display: flex; align-items: center; margin: 0.5rem 0;">
+            <div style="width: 8px; height: 8px; background: #6366F1; border-radius: 50%; margin-right: 0.75rem;"></div>
+            <span style="color: #374151; font-size: 0.95rem;">
+                <strong style="color: #111827;">{category_name}</strong>: {row['count']:,} records
+            </span>
+        </div>
+        """
+        metrics_html += "</div>"
+
+    return mo.md(metrics_html)
+
+
+@app.function(hide_code=True)
+def create_dynamic_filters(mo):
+    """Create filters dynamically based on column dtypes and suitability."""
+    if df_main.height == 0:
+        return {"controls": mo.md("**No data to filter**"), "filters": {}}
+
+    schema_analysis = analyze_schema()
+    filters = {}
+
+    # Check for identifier columns (MBI, NPI, etc.) that need search boxes
+    identifier_patterns = ['mbi', 'npi', 'hic', 'beneficiary_id', 'patient_id', 'provider_id', 'tin', 'member_id']
+    search_cols = []
+
+    for col in df_main.columns:
+        col_lower = col.lower()
+        # Check if it matches identifier patterns and has reasonable cardinality
+        if any(pattern in col_lower for pattern in identifier_patterns):
+            n_unique = df_main[col].n_unique()
+            # Only add search if there are multiple unique values
+            if n_unique > 1 and n_unique < df_main.height:  # Not all unique, not all same
+                search_cols.append(col)
+                if len(search_cols) >= 2:  # Limit to 2 search boxes
+                    break
+
+    # Create search boxes for identifiers
+    for col in search_cols:
+        filters[col] = mo.ui.text(
+            placeholder=f"Search {col.replace('_', ' ').title()}...",
+            label=f"🔍 {col.replace('_', ' ').title()}"
+        )
+
+    # Use suitable_filter_cols first, then fall back to low_cardinality_cols
+    filter_candidates = schema_analysis['suitable_filter_cols']
+    if not filter_candidates:
+        # Fallback to low cardinality columns that aren't obviously bad
+        filter_candidates = [
+            col for col in schema_analysis['low_cardinality_cols']
+            if not any(bad in col.lower() for bad in ['address', 'line_', 'id'])
+        ]
+
+    # Create dropdowns for suitable categorical columns
+    dropdown_count = 0
+    max_dropdowns = 5 - len(search_cols)  # Adjust limit based on search boxes
+
+    for col in filter_candidates:
+        if dropdown_count >= max_dropdowns:
+            break
+
+        unique_vals = df_main[col].unique().drop_nulls().to_list()
+        if unique_vals and len(unique_vals) > 1:  # Only if there's something to filter
+            filters[col] = mo.ui.dropdown(
+                options=["All"] + sorted(unique_vals),
+                value="All",
+                label=col.replace('_', ' ').title()
+            )
+            dropdown_count += 1
+
+    # Create range sliders for important numeric columns
+    numeric_filter_cols = [
+        col for col in schema_analysis['numeric_cols']
+        if any(x in col.lower() for x in ['amount', 'cost', 'spend', 'total', 'count'])
+    ][:3]  # Limit to 3 sliders
+
+    for col in numeric_filter_cols:
+        min_val = df_main[col].min()
+        max_val = df_main[col].max()
+        if min_val is not None and max_val is not None:
+            filters[col] = mo.ui.range_slider(
+                start=float(min_val),
+                stop=float(max_val),
+                step=float((max_val - min_val) / 100),
+                value=[float(min_val), float(max_val)],
+                label=col.replace('_', ' ').title()
+            )
+
+    # Create date range for date columns
+    for col in schema_analysis['date_cols'][:2]:  # Limit to 2 date ranges
+        min_date = df_main[col].min()
+        max_date = df_main[col].max()
+        if min_date and max_date:
+            filters[col] = mo.ui.date_range(
+                start=min_date,
+                stop=max_date,
+                label=col.replace('_', ' ').title()
+            )
+
+    if filters:
+        # Arrange filters in rows
+        filter_widgets = list(filters.values())
+        filter_rows = []
+
+        # Group widgets into rows of 3
+        for i in range(0, len(filter_widgets), 3):
+            row_widgets = filter_widgets[i:i+3]
+            if row_widgets:
+                filter_rows.append(mo.hstack(row_widgets, gap=1))
+
+        filter_controls = mo.vstack([
+            create_section_header("🔍 Filter Controls", "#6366F1", "#8B5CF6"),
+            *filter_rows
+        ], gap=0.5)
+    else:
+        filter_controls = mo.md("**No suitable columns for filtering found**")
+
+    return {"controls": filter_controls, "filters": filters}
+
+
+@app.cell(hide_code=True)
+def _(filters, mo):
+    """Create a smart data table with filtering."""
+    if df_main.height == 0:
+        data_table = mo.md("**No data to display**")
+        filtered_df = df_main
+    else:
+        # Apply filters
+        filtered_df = df_main
+
+        for col_name, filter_widget in filters.items():
+            if hasattr(filter_widget, 'value'):
+                value = filter_widget.value
+
+                # Handle text search (for MBI, NPI, etc.)
+                if hasattr(filter_widget, '_tag') and 'text' in str(type(filter_widget)):
+                    if value and value.strip():
+                        # Use contains for partial matching
+                        filtered_df = filtered_df.filter(
+                            pl.col(col_name).str.contains(value.strip(), literal=True)
+                        )
+
+                # Handle dropdown filters
+                elif hasattr(filter_widget, '_tag') and 'dropdown' in str(type(filter_widget)):
+                    if value != "All":
+                        filtered_df = filtered_df.filter(pl.col(col_name) == value)
+
+                # Handle range sliders
+                elif hasattr(filter_widget, '_tag') and 'range_slider' in str(type(filter_widget)):
+                    if value:
+                        filtered_df = filtered_df.filter(
+                            (pl.col(col_name) >= value[0]) & (pl.col(col_name) <= value[1])
+                        )
+
+                # Handle date ranges
+                elif hasattr(filter_widget, '_tag') and 'date_range' in str(type(filter_widget)):
+                    if value and len(value) == 2:
+                        filtered_df = filtered_df.filter(
+                            (pl.col(col_name) >= value[0]) & (pl.col(col_name) <= value[1])
+                        )
+
+        # Determine which columns to show
+        schema_analysis = analyze_schema()
+
+        # Prioritize columns for display
+        display_cols = []
+
+        # Add primary key if specified
+        {% if config.primary_key %}
+        if "{{ config.primary_key }}" in df_main.columns:
+            display_cols.append("{{ config.primary_key }}")
+        {% endif %}
+
+        # Add important categorical columns
+        for col in schema_analysis['low_cardinality_cols'][:3]:
+            if col not in display_cols:
+                display_cols.append(col)
+
+        # Add important numeric columns
+        important_numeric = [
+            col for col in schema_analysis['numeric_cols']
+            if any(x in col.lower() for x in ['amount', 'cost', 'spend', 'total'])
+        ][:3]
+        display_cols.extend([c for c in important_numeric if c not in display_cols])
+
+        # Add date columns
+        display_cols.extend([c for c in schema_analysis['date_cols'][:2] if c not in display_cols])
+
+        # Ensure we have some columns to display
+        if not display_cols:
+            display_cols = df_main.columns[:10]
+
+        # Select and sort
+        display_df = filtered_df.select([c for c in display_cols if c in filtered_df.columns])
+
+        {% if config.default_sort_column %}
+        if "{{ config.default_sort_column }}" in display_df.columns:
+            display_df = display_df.sort("{{ config.default_sort_column }}", descending=True)
+        {% endif %}
+
+        # Limit rows
+        display_df = display_df.head({{ config.max_display_rows }})
+
+        # Create table with stats
+        table_title = "## 📊 Data Table"
+
+        # Add dynamic title based on content
+        if any('patient' in col.lower() or 'bene' in col.lower() for col in display_cols):
+            table_title = "## 👥 Patient Data"
+        elif any('provider' in col.lower() for col in display_cols):
+            table_title = "## 🏥 Provider Data"
+        elif any('claim' in col.lower() for col in display_cols):
+            table_title = "## 📋 Claims Data"
+
+        table_html = f"""
+        {table_title}
+
+        <div style="padding: 0.75rem; background: #F3F4F6; border-left: 4px solid #6B7280; margin: 1rem 0;">
+            <p style="margin: 0; color: #374151; font-size: 0.9rem;">
+                Showing <strong>{min(display_df.height, {{ config.max_display_rows }})}</strong> of <strong>{filtered_df.height:,}</strong> filtered records
+                (Total dataset: {df_main.height:,} records)
+            </p>
+        </div>
+        """
+
+        table_widget = mo.ui.table(
+            display_df.to_dicts(),
+            pagination=True,
+            page_size=25,
+            selection=None,
+            show_column_summaries=True
+        )
+
+        data_table = mo.vstack([
+            mo.md(table_html),
+            table_widget
+        ])
+
+    return (data_table, filtered_df)
+
+
+@app.function(hide_code=True)
+def create_polars_describe_table(mo):
+    """Show Polars describe() output for numeric columns."""
+    if df_main.height == 0:
+        return None
+
+    _schema_analysis = analyze_schema()
+
+    if not _schema_analysis['numeric_cols']:
+        return None
+
+    # Get describe output
+    describe_df = df_main.select(_schema_analysis['numeric_cols'][:10]).describe()
+
+    return mo.vstack([
+        mo.md("## 📈 Statistical Summary (Polars describe())"),
+        mo.ui.table(
+            describe_df.to_dicts(),
+            pagination=False
+        )
+    ])
+
+
+@app.function(hide_code=True)
+def create_data_explorer_widget(filtered_df, mo):
+    """Create interactive data explorer for the filtered dataset."""
+    if filtered_df.height == 0:
+        return mo.md("**No data available for exploration**")
+
+    # Determine the most recent data based on date columns
+    schema_analysis = analyze_schema()
+    date_cols = schema_analysis['date_cols']
+
+    # Find the most recent window if date columns exist
+    window_info = ""
+    if date_cols:
+        # Use the first date column to determine recency
+        primary_date_col = None
+        for col in ['file_date', 'end_date', 'start_date', 'effective_date']:
+            if col in date_cols:
+                primary_date_col = col
+                break
+
+        if not primary_date_col and date_cols:
+            primary_date_col = date_cols[0]
+
+        if primary_date_col:
+            max_date = filtered_df[primary_date_col].max()
+            min_date = filtered_df[primary_date_col].min()
+
+            if max_date and min_date:
+                window_info = f"""
+                <div style="padding: 0.5rem; background: #EFF6FF; border-left: 4px solid #2563EB; margin: 1rem 0;">
+                    <p style="margin: 0; color: #1E40AF; font-size: 0.85rem;">
+                        <strong>Observable Window:</strong> {min_date} to {max_date}
+                        <br><small>Based on {primary_date_col.replace('_', ' ').title()}</small>
+                    </p>
+                </div>
+                """
+
+    # Limit data for performance
+    explorer_data = filtered_df.head(1000)
+
+    # Get suggested columns for initial visualization
+    numeric_cols = schema_analysis['numeric_cols']
+    categorical_cols = schema_analysis['low_cardinality_cols']
+
+    # Smart defaults for x and y axes
+    x_col = None
+    y_col = None
+    color_col = None
+
+    # Try to find good default columns
+    if date_cols:
+        x_col = date_cols[0]
+    elif categorical_cols:
+        x_col = categorical_cols[0]
+
+    # Look for important numeric columns for y-axis
+    for col in numeric_cols:
+        if any(key in col.lower() for key in ['amount', 'cost', 'spend', 'total']):
+            y_col = col
+            break
+
+    if not y_col and numeric_cols:
+        y_col = numeric_cols[0]
+
+    # Find a good color column
+    for col in categorical_cols:
+        if any(key in col.lower() for key in ['status', 'type', 'category', 'state']):
+            color_col = col
+            break
+
+    # Create the data explorer widget
+    explorer_widget = mo.ui.data_explorer(
+        explorer_data,
+        x=x_col,
+        y=y_col,
+        color=color_col
+    )
+
+    return mo.vstack([
+        mo.md("## 🔬 Interactive Data Explorer"),
+        mo.md(window_info) if window_info else None,
+        mo.md(f"*Exploring {explorer_data.height:,} records (limited for performance)*"),
+        explorer_widget
+    ])
+
+
+{% if config.show_footer %}
+@app.cell(hide_code=True)
+def create_footer():
+    """Generate footer with tracking information."""
+    tracker = TransformTracker('{{ config.schema_name }}')
+
+    if df_main.height > 0:
+        state = tracker.state
+
+        # Format dates
+        last_run = datetime.fromisoformat(state.last_run).strftime("%Y-%m-%d %H:%M") if state.last_run else "Never"
+        last_success = datetime.fromisoformat(state.last_success).strftime("%Y-%m-%d %H:%M") if state.last_success else "Never"
+
+        # Get the processed files
+        files_processed = state.files_processed.get("processed", [])
+        source_file = Path(files_processed[0]).name if files_processed else "N/A"
+
+        footer_html = f"""
+        ---
+        <div style="text-align: center; color: #6B7280; font-size: 0.875rem; margin-top: 2rem;">
+            <img src="{{ config.logo_url }}" alt="HarmonyCares" style="height: 40px; margin-bottom: 1rem; display: block; margin-left: auto; margin-right: auto;">
+            <p style="font-weight: 600; margin-bottom: 0.5rem;">{{ config.schema_description }}</p>
+            <p style="margin-bottom: 1rem;">Generated using ACOHarmony Data Platform</p>
+
+            {% if config.show_tracking %}
+            <div style="background: #F9FAFB; border-radius: 8px; padding: 1rem; margin: 1rem auto; max-width: 600px; text-align: left;">
+                <p style="font-size: 0.75rem; margin: 0.25rem 0;">
+                    <strong>Schema:</strong> {{ config.schema_name }} | <strong>Source File:</strong> {source_file}
+                </p>
+                <p style="font-size: 0.75rem; margin: 0.25rem 0;">
+                    <strong>Last Transform:</strong> {last_run} | <strong>Last Success:</strong> {last_success}
+                </p>
+                <p style="font-size: 0.75rem; margin: 0.25rem 0;">
+                    <strong>Records:</strong> {state.metadata.get('last_run_records', 0):,} |
+                    <strong>Runs:</strong> {state.total_runs} ({state.successful_runs} successful, {state.failed_runs} failed)
+                </p>
+            </div>
+            {% endif %}
+        </div>
+        """
+    else:
+        footer_html = """
+        ---
+        <div style="text-align: center; color: #6B7280; font-size: 0.875rem; margin-top: 2rem;">
+            <img src="{{ config.logo_url }}" alt="HarmonyCares" style="height: 40px; margin-bottom: 1rem; display: block; margin-left: auto; margin-right: auto;">
+            <p>{{ config.schema_description }}</p>
+            <p>Generated using ACOHarmony Data Platform</p>
+            <p style="font-size: 0.75rem;">No data loaded</p>
+        </div>
+        """
+
+    footer = mo.md(footer_html)
+    return (footer,)
+{% endif %}
+
+
+@app.cell(hide_code=True)
+def _():
+    # Schema analysis
+    schema_info = analyze_schema()
+    return (schema_info,)
+
+
+@app.cell(hide_code=True)
+def _():
+    # Overview metrics
+    overview = create_overview_metrics()
+    return (overview,)
+
+
+@app.cell(hide_code=True)
+def _():
+    # Dynamic filters
+    filter_result = create_dynamic_filters(mo)
+    filter_controls = filter_result["controls"]
+    filters = filter_result["filters"]
+    return (filter_controls, filters, filter_result)
+
+
+
+@app.cell(hide_code=True)
+def _():
+    # Statistical summary
+    stats_table = create_polars_describe_table(mo)
+    return (stats_table,)
+
+
+@app.cell(hide_code=True)
+def _(filtered_df):
+    # Interactive data explorer
+    data_explorer = create_data_explorer_widget(filtered_df, mo)
+    return (data_explorer,)
+
+
+@app.cell(hide_code=True)
+def _(filtered_df, mo):
+    # Create editable data table for the filtered dataset
+    if filtered_df.height == 0:
+        data_editor_section = mo.md("**No data available for editing**")
+        data_editor = None
+    else:
+        # Use filtered data for editor
+        editor_data = filtered_df
+
+        # Create the data editor
+        data_editor = mo.ui.data_editor(
+            editor_data,
+            label="Edit Data"
+        )
+
+        # Create header with record count
+        header = mo.md(f"""
+        <div style="background: linear-gradient(135deg, #10B981, #059669); padding: 1rem 1.5rem; border-radius: 12px; margin: 1.5rem 0;">
+            <h2 style="color: white; margin: 0; font-size: 1.5rem; font-weight: 600;">✏ Data Editor</h2>
+            <p style="color: rgba(255,255,255,0.9); margin: 0.5rem 0 0 0; font-size: 0.9rem;">
+                Editing {editor_data.height:,} records • Changes will be included in Excel export
+            </p>
+        </div>
+        """)
+
+        data_editor_section = mo.vstack([
+            header,
+            data_editor
+        ])
+
+    return (data_editor_section, data_editor)
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    # Create export button (separate from its value handling)
+    export_button = mo.ui.button(
+        label="📥 Export to Excel",
+        kind="success"
+    )
+    return (export_button,)
+
+
+@app.cell(hide_code=True)
+def _(analyze_schema, data_editor, datetime, export_button, filtered_df, mo, pl, tempfile, Path):
+    """Handle Excel export when button is clicked."""
+
+    download_link = None
+
+    # Only execute if button has been clicked
+    if export_button.value:
+        # Create a temporary file for the Excel workbook
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"{{ config.schema_name }}_export_{timestamp}.xlsx"
+        temp_path = Path(tempfile.gettempdir()) / filename
+
+        try:
+            # Polars native Excel export with multiple sheets using a dictionary
+            sheets_dict = {}
+
+            # Sheet 1: Main filtered data
+            if filtered_df.height > 0:
+                sheets_dict["Filtered_Data"] = filtered_df
+
+            # Sheet 2: Edited data (if available)
+            if data_editor is not None:
+                try:
+                    # data_editor.value returns a Polars DataFrame when input was Polars
+                    edited_df = data_editor.value
+                    if edited_df is not None and hasattr(edited_df, 'height') and edited_df.height > 0:
+                        sheets_dict["Edited_Data"] = edited_df
+                except:
+                    # If there's any issue accessing the edited data, skip it
+                    pass
+
+            # Sheet 3: Summary statistics
+            schema_analysis = analyze_schema()
+            if schema_analysis['numeric_cols']:
+                summary_df = filtered_df.select(schema_analysis['numeric_cols'][:20]).describe()
+                sheets_dict["Statistics"] = summary_df
+
+            # Sheet 4: Data overview
+            overview_data = {
+                "Metric": [
+                    "Total Records",
+                    "Total Columns",
+                    "Numeric Columns",
+                    "Categorical Columns",
+                    "Date Columns",
+                    "Null Columns"
+                ],
+                "Value": [
+                    filtered_df.height,
+                    filtered_df.width,
+                    len(schema_analysis['numeric_cols']),
+                    len(schema_analysis['categorical_cols']),
+                    len(schema_analysis['date_cols']),
+                    len(schema_analysis['nullable_cols'])
+                ]
+            }
+            sheets_dict["Overview"] = pl.DataFrame(overview_data)
+
+            # Write all sheets at once using Polars' native method
+            # First DataFrame determines the file path
+            first_df = list(sheets_dict.values())[0]
+            first_df.write_excel(
+                str(temp_path),
+                worksheet=list(sheets_dict.keys())[0],
+                autofit=True,
+                autofilter=True
+            )
+
+            # Add remaining sheets if more than one
+            if len(sheets_dict) > 1:
+                # For multiple sheets, we need to use ExcelWriter context
+                with pl.ExcelWriter(str(temp_path), engine="xlsxwriter") as writer:
+                    for sheet_name, df in sheets_dict.items():
+                        df.write_excel(
+                            writer,
+                            worksheet=sheet_name,
+                            autofit=True,
+                            autofilter=(sheet_name == "Filtered_Data")
+                        )
+
+            # Create download link
+            with open(temp_path, 'rb') as f:
+                download_link = mo.download(
+                    data=f.read(),
+                    filename=filename,
+                    mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+        except Exception as e:
+            download_link = mo.md(f"**Error creating Excel file:** {str(e)}")
+
+    return (download_link,)
+
+
+@app.cell(hide_code=True)
+def _(create_section_header, export_button, mo):
+    # Create export section with header and button
+    export_section = mo.vstack([
+        create_section_header("💾 Export Data", "#F59E0B", "#D97706"),
+        mo.md("""
+        <div style="padding: 1rem; background: linear-gradient(135deg, #FEF3C7, #FED7AA); border-radius: 12px; border-left: 4px solid #D97706; margin: 1rem 0;">
+            <p style="margin: 0; color: #78350F; font-size: 0.95rem; line-height: 1.6;">
+                Export filtered data to Excel workbook with multiple sheets:
+            </p>
+            <ul style="margin: 0.5rem 0 0 1.5rem; padding: 0; color: #92400E;">
+                <li><strong>Filtered Data</strong> - Current filtered dataset</li>
+                <li><strong>Edited Data</strong> - Any edits made in the data editor</li>
+                <li><strong>Statistics</strong> - Summary statistics for numeric columns</li>
+                <li><strong>Overview</strong> - Dataset metadata and counts</li>
+            </ul>
+        </div>
+        """),
+        export_button
+    ])
+
+    return (export_section,)
+
+
+@app.cell(hide_code=True)
+def _(overview):
+    overview
+    return
+
+
+@app.cell(hide_code=True)
+def _(filter_controls):
+    filter_controls
+    return
+
+
+@app.cell(hide_code=True)
+def _(data_table):
+    data_table
+    return
+
+
+@app.cell(hide_code=True)
+def _(data_explorer):
+    data_explorer
+    return
+
+
+@app.cell(hide_code=True)
+def _(data_editor_section):
+    data_editor_section
+    return
+
+
+@app.cell(hide_code=True)
+def _(export_section):
+    export_section
+    return
+
+
+@app.cell(hide_code=True)
+def _(download_link):
+    # Display download link when available
+    if download_link:
+        download_link
+    return
+
+
+@app.cell(hide_code=True)
+def _(stats_table):
+    stats_table
+    return
+
+
+{% if config.show_footer %}
+@app.cell(hide_code=True)
+def _(footer):
+    footer
+    return
+{% endif %}
+
+
+if __name__ == "__main__":
+    app.run()

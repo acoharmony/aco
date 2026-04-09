@@ -1,0 +1,235 @@
+version: 2
+name: cclf8
+description: CCLF8 Beneficiary Demographics - Fixed-width file containing beneficiary
+  demographic and enrollment information
+storage:
+  tier: bronze
+  file_patterns:
+    mssp: P.A*.ACO.ZC8Y*.D*.T*
+    reach: P.D*.ACO.ZC8Y*.D*.T*
+    mssp_regular: P.A*.ACO.ZC8Y*.D*.T*
+    mssp_runout: P.A*.ACO.ZC8R*.D*.T*
+    reach_monthly: P.D*.ACO.ZC8Y*.D*.T*
+    reach_runout: P.D*.ACO.ZC8R*.D*.T*
+    mssp_weekly: P.A*.ACO.ZC8WY*.D*.T*
+  silver:
+    output_name: cclf8.parquet
+    refresh_frequency: weekly
+    last_updated_by: aco transform cclf8
+  gold:
+    output_name: null
+    refresh_frequency: null
+    last_updated_by: null
+file_format:
+  type: fixed_width
+  encoding: utf-8
+  record_length: 549
+columns:
+- name: bene_mbi_id
+  description: Medicare Beneficiary Identifier
+  data_type: string
+  start_pos: 1
+  end_pos: 11
+  length: 11
+  required: true
+- name: bene_hic_num
+  description: Beneficiary HIC Number (deprecated)
+  data_type: string
+  start_pos: 12
+  end_pos: 22
+  length: 11
+  keep: false
+- name: bene_fips_state_cd
+  description: Beneficiary FIPS State Code
+  data_type: string
+  start_pos: 23
+  end_pos: 24
+  length: 2
+- name: bene_fips_cnty_cd
+  description: Beneficiary FIPS County Code
+  data_type: string
+  start_pos: 25
+  end_pos: 27
+  length: 3
+- name: bene_zip_cd
+  description: Beneficiary ZIP Code
+  data_type: string
+  start_pos: 28
+  end_pos: 32
+  length: 5
+- name: bene_dob
+  description: Beneficiary Date of Birth
+  data_type: date
+  start_pos: 33
+  end_pos: 42
+  length: 10
+  date_format: '%Y-%m-%d'
+- name: bene_sex_cd
+  description: Beneficiary Sex Code (1=Male, 2=Female, 0=Unknown)
+  data_type: string
+  start_pos: 43
+  end_pos: 43
+  length: 1
+- name: bene_race_cd
+  description: Beneficiary Race Code
+  data_type: string
+  start_pos: 44
+  end_pos: 44
+  length: 1
+- name: bene_age
+  description: Beneficiary Age
+  data_type: string
+  start_pos: 45
+  end_pos: 47
+  length: 3
+- name: bene_mdcr_stus_cd
+  description: Medicare Status Code
+  data_type: string
+  start_pos: 48
+  end_pos: 49
+  length: 2
+- name: bene_dual_stus_cd
+  description: Dual Status Code (Medicare/Medicaid)
+  data_type: string
+  start_pos: 50
+  end_pos: 51
+  length: 2
+- name: bene_death_dt
+  description: Beneficiary Date of Death
+  data_type: date
+  start_pos: 52
+  end_pos: 61
+  length: 10
+  date_format: '%Y-%m-%d'
+- name: bene_rng_bgn_dt
+  description: Date beneficiary enrolled in Hospice
+  data_type: date
+  start_pos: 62
+  end_pos: 71
+  length: 10
+  date_format: '%Y-%m-%d'
+- name: bene_rng_end_dt
+  description: Date beneficiary ended Hospice
+  data_type: date
+  start_pos: 72
+  end_pos: 81
+  length: 10
+  date_format: '%Y-%m-%d'
+- name: bene_fst_name
+  description: Beneficiary First Name
+  data_type: string
+  start_pos: 82
+  end_pos: 111
+  length: 30
+- name: bene_mdl_name
+  description: Beneficiary Middle Name
+  data_type: string
+  start_pos: 112
+  end_pos: 126
+  length: 15
+- name: bene_lst_name
+  description: Beneficiary Last Name
+  data_type: string
+  start_pos: 127
+  end_pos: 166
+  length: 40
+- name: bene_orgnl_entlmt_rsn_cd
+  description: Beneficiary Original Entitlement Reason Code
+  data_type: string
+  start_pos: 167
+  end_pos: 167
+  length: 1
+- name: bene_entlmt_buyin_ind
+  description: Beneficiary Entitlement Buy-in Indicator
+  data_type: string
+  start_pos: 168
+  end_pos: 168
+  length: 1
+- name: bene_part_a_enrlmt_bgn_dt
+  description: Part A Enrollment Begin Date
+  data_type: date
+  start_pos: 169
+  end_pos: 178
+  length: 10
+  date_format: '%Y-%m-%d'
+- name: bene_part_b_enrlmt_bgn_dt
+  description: Part B Enrollment Begin Date
+  data_type: date
+  start_pos: 179
+  end_pos: 188
+  length: 10
+  date_format: '%Y-%m-%d'
+- name: bene_line_1_adr
+  description: Beneficiary Derived Mailing Line One Address
+  data_type: string
+  start_pos: 189
+  end_pos: 233
+  length: 45
+- name: bene_line_2_adr
+  description: Beneficiary Derived Mailing Line Two Address
+  data_type: string
+  start_pos: 234
+  end_pos: 278
+  length: 45
+- name: bene_line_3_adr
+  description: Beneficiary Derived Mailing Line Three Address
+  data_type: string
+  start_pos: 279
+  end_pos: 318
+  length: 40
+- name: bene_line_4_adr
+  description: Beneficiary Derived Mailing Line Four Address
+  data_type: string
+  start_pos: 319
+  end_pos: 358
+  length: 40
+- name: bene_line_5_adr
+  description: Beneficiary Derived Mailing Line Five Address
+  data_type: string
+  start_pos: 359
+  end_pos: 398
+  length: 40
+- name: bene_line_6_adr
+  description: Beneficiary Derived Mailing Line Six Address
+  data_type: string
+  start_pos: 399
+  end_pos: 438
+  length: 40
+- name: geo_zip_plc_name
+  description: Beneficiary City
+  data_type: string
+  start_pos: 439
+  end_pos: 538
+  length: 100
+  output_name: bene_city
+- name: geo_usps_state_cd
+  description: Beneficiary State
+  data_type: string
+  start_pos: 539
+  end_pos: 540
+  length: 2
+  output_name: bene_state
+- name: geo_zip5_cd
+  description: Beneficiary Zip Code
+  data_type: string
+  start_pos: 541
+  end_pos: 545
+  length: 5
+  output_name: bene_zip
+- name: geo_zip4_cd
+  description: Beneficiary Zip Code Extension
+  data_type: string
+  start_pos: 546
+  end_pos: 549
+  length: 4
+  output_name: bene_zip_ext
+medallion_layer: bronze
+unity_catalog: main
+fourIcli:
+  category: Claim and Claim Line Feed (CCLF) Files
+  fileTypeCode: 113
+  filePattern: P.?????.ACO.ZC*??.D??????.T*.zip, P.?????.ACO.ZCWY??.S??????.E??????.D??????.T*.zip, P.?????.ACO.ZC*Y??.D??????.T*, P.?????.ACO.ZC*WY??.D??????.T*, P.?????.ACO.ZC*R??.D??????.T*
+  extractZip: true
+  refreshFrequency: weekly
+  defaultDateFilter:
+    createdWithinLastWeek: true

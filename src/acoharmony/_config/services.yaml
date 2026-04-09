@@ -1,0 +1,142 @@
+# ACO Harmony Service Configuration
+# Defines service providers and profile mappings for dependency injection
+
+service_definitions:
+  storage:
+    local:
+      provider: filesystem
+      base_path: ${ACO_DATA_PATH:-/opt/s3/data/workspace}
+      auto_create_dirs: true
+
+    minio:
+      provider: s3
+      endpoint: ${MINIO_ENDPOINT:-minio:9000}
+      bucket: ${ACO_BUCKET:-aco}
+      access_key: ${MINIO_ACCESS_KEY:-aco_user}
+      secret_key: ${MINIO_SECRET_KEY:-aco_password}
+      secure: ${MINIO_SECURE:-false}
+      region: ${MINIO_REGION:-us-east-1}
+
+    databricks:
+      provider: unity_catalog
+      workspace: ${DATABRICKS_HOST}
+      catalog: ${DATABRICKS_CATALOG:-main}
+      schema: ${DATABRICKS_SCHEMA:-aco_harmony}
+      token: ${DATABRICKS_TOKEN}
+
+  database:
+    postgres:
+      provider: postgresql
+      host: ${POSTGRES_HOST:-postgres}
+      port: ${POSTGRES_PORT:-5432}
+      database: ${POSTGRES_DB:-acoharmony}
+      user: ${POSTGRES_USER:-aco_user}
+      password: ${POSTGRES_PASSWORD:-aco_password}
+      schema: ${POSTGRES_SCHEMA:-public}
+      pool:
+        min_size: ${DB_POOL_MIN:-2}
+        max_size: ${DB_POOL_MAX:-10}
+
+    duckdb:
+      provider: duckdb
+      path: ${DUCKDB_PATH:-/opt/s3/data/workspace/aco_harmony.duckdb}
+      read_only: ${DUCKDB_READONLY:-false}
+
+    databricks_sql:
+      provider: databricks_sql
+      server_hostname: ${DATABRICKS_SERVER_HOSTNAME}
+      http_path: ${DATABRICKS_HTTP_PATH}
+      access_token: ${DATABRICKS_TOKEN}
+
+  cache:
+    memory:
+      provider: memory
+      max_size: ${CACHE_MAX_SIZE:-1000}
+      default_ttl: ${CACHE_TTL:-3600}
+
+    redis:
+      provider: redis
+      host: ${REDIS_HOST:-localhost}
+      port: ${REDIS_PORT:-6379}
+      db: ${REDIS_DB:-0}
+      password: ${REDIS_PASSWORD}
+      key_prefix: ${REDIS_PREFIX:-aco:}
+      default_ttl: ${CACHE_TTL:-3600}
+
+  compute:
+    local:
+      type: multiprocessing
+      workers: ${MAX_WORKERS:-4}
+      memory_limit: ${MEMORY_LIMIT:-8GB}
+
+    spark:
+      type: databricks
+      cluster_id: ${SPARK_CLUSTER_ID}
+      instance_pool_id: ${SPARK_POOL_ID}
+
+# Profile-to-service mapping
+profile_services:
+  # Local development - minimal dependencies
+  local:
+    storage: local
+    database: duckdb
+    cache: memory
+    compute: local
+
+  # Development - local services with containers
+  dev:
+    storage: local
+    database: postgres
+    analytics: duckdb
+    cache: memory
+    compute: local
+
+  # Staging - container services
+  staging:
+    storage: minio
+    database: postgres
+    analytics: duckdb
+    cache: redis
+    compute: local
+
+  # Production - cloud services
+  prod:
+    storage: databricks
+    database: databricks_sql
+    analytics: databricks_sql
+    cache: redis
+    compute: spark
+
+# Service health check configuration
+health_checks:
+  enabled: ${HEALTH_CHECKS_ENABLED:-true}
+  interval_seconds: ${HEALTH_CHECK_INTERVAL:-30}
+  timeout_seconds: ${HEALTH_CHECK_TIMEOUT:-5}
+  retries: ${HEALTH_CHECK_RETRIES:-3}
+
+# Fallback chains for service failures
+fallback_chains:
+  storage:
+    - minio
+    - local
+
+  database:
+    - postgres
+    - duckdb
+
+  cache:
+    - redis
+    - memory
+
+# Monitoring configuration
+monitoring:
+  enabled: ${MONITORING_ENABLED:-false}
+  metrics_endpoint: ${METRICS_ENDPOINT}
+  alert_webhook: ${ALERT_WEBHOOK}
+  alert_threshold: ${ALERT_THRESHOLD:-0.95}
+
+# Service discovery
+discovery:
+  method: ${DISCOVERY_METHOD:-auto}  # auto, docker, kubernetes, consul
+  auto_discover: ${AUTO_DISCOVER:-true}
+  cache_ttl: ${DISCOVERY_CACHE_TTL:-300}

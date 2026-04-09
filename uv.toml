@@ -1,0 +1,7 @@
+# uv configuration for acoharmony project
+# Force uv to always use Python 3.13
+python-preference = "only-managed"
+
+# Publishing configuration for Gitea - for our custom packages only
+# Use: uv publish --username kcorwin --password <token>
+publish-url = "http://localhost:10007/api/packages/acoharmony/pypi"

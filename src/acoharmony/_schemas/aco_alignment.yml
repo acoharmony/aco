@@ -1,0 +1,161 @@
+version: 2
+name: aco_alignment
+description: Comprehensive ACO alignment tracking across all programs (REACH, MSSP)
+  with temporal coverage
+storage:
+  tier: silver
+  staged_from: bar
+  gold:
+    output_name: aco_alignment.parquet
+columns:
+- name: bene_mbi
+  type: String
+  description: Original Medicare Beneficiary Identifier
+  required: true
+- name: current_mbi
+  type: String
+  description: Current MBI from crosswalk for consistent tracking
+  required: true
+- name: hcmpi
+  type: String
+  description: Master patient identifier from enterprise crosswalk
+  required: false
+- name: previous_mbi_count
+  type: UInt32
+  description: Number of previous MBIs for this beneficiary
+  required: true
+- name: birth_date
+  type: Date
+  description: Beneficiary date of birth
+  required: false
+- name: death_date
+  type: Date
+  description: Beneficiary date of death if applicable
+  required: false
+- name: sex
+  type: String
+  description: Beneficiary sex
+  required: false
+- name: race
+  type: String
+  description: Beneficiary race
+  required: false
+- name: ethnicity
+  type: String
+  description: Beneficiary ethnicity
+  required: false
+- name: state
+  type: String
+  description: Beneficiary state of residence
+  required: false
+- name: county
+  type: String
+  description: Beneficiary county
+  required: false
+- name: zip_code
+  type: String
+  description: Beneficiary ZIP code
+  required: false
+- name: has_ffs_service
+  type: Boolean
+  description: Whether beneficiary has any FFS service record
+  required: true
+- name: ffs_first_date
+  type: Date
+  description: First date of FFS service for this beneficiary
+  required: false
+- name: ffs_claim_count
+  type: UInt32
+  description: Total number of FFS claims
+  required: false
+- name: ever_reach
+  type: Boolean
+  description: Whether beneficiary was ever in REACH program
+  required: true
+- name: ever_mssp
+  type: Boolean
+  description: Whether beneficiary was ever in MSSP program
+  required: true
+- name: months_in_reach
+  type: UInt32
+  description: Total months enrolled in REACH
+  required: true
+- name: months_in_mssp
+  type: UInt32
+  description: Total months enrolled in MSSP
+  required: true
+- name: first_reach_date
+  type: Date
+  description: First month beneficiary was in REACH
+  required: false
+- name: last_reach_date
+  type: Date
+  description: Last month beneficiary was in REACH
+  required: false
+- name: first_mssp_date
+  type: Date
+  description: First month beneficiary was in MSSP
+  required: false
+- name: last_mssp_date
+  type: Date
+  description: Last month beneficiary was in MSSP
+  required: false
+- name: current_program
+  type: String
+  description: Current program enrollment (REACH, MSSP, or None)
+  required: true
+- name: current_aco_id
+  type: String
+  description: Current ACO ID if enrolled
+  required: false
+- name: current_provider_tin
+  type: String
+  description: Current provider TIN
+  required: false
+- name: continuous_enrollment
+  type: Boolean
+  description: Whether beneficiary has continuous enrollment without gaps
+  required: true
+- name: program_switches
+  type: UInt32
+  description: Number of times switched between programs
+  required: true
+- name: enrollment_gaps
+  type: UInt32
+  description: Number of months with gaps in enrollment
+  required: true
+- name: has_demographics
+  type: Boolean
+  description: Whether demographics data is available
+  required: true
+- name: mbi_stability
+  type: String
+  description: MBI stability indicator (Stable, Changed, Multiple)
+  required: true
+- name: observable_start
+  type: Date
+  description: Start date of observable period
+  required: true
+- name: observable_end
+  type: Date
+  description: End date of observable period
+  required: true
+- name: processed_at
+  type: Datetime
+  description: Timestamp when this record was processed
+  required: true
+metadata:
+  purpose: 'This intermediate table provides a comprehensive view of beneficiary alignment
+    across all ACO programs (REACH, MSSP) with temporal tracking. It includes year-month
+    boolean columns for the entire observable span to enable time-series analysis
+    and cohort identification. '
+  usage: 'Used by analytics and reporting pipelines to: - Track beneficiary program
+    participation over time - Identify cohorts based on enrollment patterns - Analyze
+    program switching and gaps - Support attribution and financial reconciliation
+    - Generate regulatory reports '
+  refresh_frequency: monthly
+  data_sources: '- bar: Beneficiary Alignment Report (monthly snapshots) - alr: Alignment
+    reports - ffs_first_dates: First FFS claim dates - patient_demographics: Beneficiary
+    demographic information - enterprise_crosswalk: MBI normalization and HCMPI mapping'
+medallion_layer: silver
+unity_catalog: main

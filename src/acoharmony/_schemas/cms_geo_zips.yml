@@ -1,0 +1,47 @@
+version: 2
+name: cms_geo_zips
+description: CMS Geographic ZIP Codes - Mapping of ZIP codes to Medicare localities and carriers
+storage:
+  tier: bronze
+  silver:
+    output_name: cms_geo_zips.parquet
+    refresh_frequency: quarterly
+    last_updated_by: aco transform cms_geo_zips
+  file_patterns:
+    quarterly: '*GEO_ZIP*.csv'
+    quarterly_xlsx: '*GEO_ZIP*.xlsx'
+file_format:
+  type: csv
+  delimiter: ','
+  encoding: utf-8
+  header: true
+columns:
+- name: geo_state_cd
+  description: Geographic State Code
+  data_type: string
+  required: true
+- name: geo_zip_5
+  description: 5-Digit ZIP Code
+  data_type: string
+  required: true
+- name: carrier
+  description: Medicare Carrier Number
+  data_type: string
+- name: locality
+  description: Medicare Locality Code
+  data_type: string
+- name: rural_indicator
+  description: Rural Indicator (B=Both, R=Rural, blank=Urban)
+  data_type: string
+- name: plus_four_flag
+  description: Plus Four ZIP Extension Required Flag
+  data_type: string
+- name: part_b_rx_indicator
+  description: Part B Prescription Drug Indicator
+  data_type: string
+- name: year_quarter
+  description: Year and Quarter in YYYYQ format (e.g., 2025Q1)
+  data_type: string
+  required: true
+medallion_layer: bronze
+unity_catalog: main

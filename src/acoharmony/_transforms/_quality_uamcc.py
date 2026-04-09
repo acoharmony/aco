@@ -1,0 +1,161 @@
+# © 2025 HarmonyCares
+# All rights reserved.
+
+"""
+UAMCC (NQF #2888) All-Cause Unplanned Admissions for Patients with
+Multiple Chronic Conditions Quality Measure.
+
+Implements the ACO REACH UAMCC measure:
+- Identifies MCC cohort (9 chronic condition groups)
+- Builds denominator (age >= 66, 2+ MCC groups)
+- Classifies admissions via Planned Admission Algorithm v4.0
+- Applies outcome exclusions
+- Calculates person-time at risk
+- Computes observed rate per 100 person-years
+"""
+
+from __future__ import annotations
+
+import polars as pl
+
+from .._decor8 import timeit, traced
+from .._expressions._uamcc import UamccExpression
+from .._log import LogWriter
+from ._quality_measure_base import MeasureFactory, MeasureMetadata, QualityMeasureBase
+
+logger = LogWriter("transforms.quality_uamcc")
+
+
+class AllCauseUnplannedAdmissions(QualityMeasureBase):
+    """
+    NQF2888: All-Cause Unplanned Admissions for Patients with MCCs.
+
+        ACO REACH quality measure that calculates the rate of unplanned
+        acute admissions per 100 person-years among Medicare beneficiaries
+        aged 66+ with 2 or more chronic condition groups.
+
+        Lower rates are better.
+
+        Denominator: Medicare FFS beneficiaries aged 66+ with 2+ MCC groups
+        Numerator: Unplanned acute inpatient admissions
+        Exclusions: Planned admissions (PAA v4.0), complications, injuries
+    """
+
+    def get_metadata(self) -> MeasureMetadata:
+        """Get measure metadata."""
+        return MeasureMetadata(
+            measure_id="NQF2888",
+            measure_name="All-Cause Unplanned Admissions for Patients with MCCs",
+            measure_steward="CMS",
+            measure_version="2025",
+            description="Rate of unplanned acute admissions per 100 person-years "
+            "among Medicare FFS beneficiaries aged 66+ with 2 or more "
+            "chronic condition groups. Lower rates are better.",
+            numerator_description="Unplanned acute inpatient admissions during "
+            "the performance year",
+            denominator_description="Medicare FFS beneficiaries aged 66+ with "
+            "diagnoses in 2 or more of 9 chronic condition groups",
+            exclusions_description="Planned admissions (PAA v4.0), procedure "
+            "complications (CCS 145/237/238/257), injuries (CCS 2601-2621)",
+        )
+
+    @traced()
+    @timeit(log_level="debug")
+    def calculate_denominator(
+        self,
+        claims: pl.LazyFrame,
+        eligibility: pl.LazyFrame,
+        value_sets: dict[str, pl.LazyFrame],
+    ) -> pl.LazyFrame:
+        """Calculate denominator: patients with 2+ MCC groups, aged 66+."""
+        measurement_year = self.config.get("measurement_year", 2025)
+
+        config = {
+            "performance_year": measurement_year,
+            "min_age": 66,
+            "min_mcc_groups": 2,
+        }
+
+        mcc_cohort = UamccExpression.identify_mcc_cohort(
+            claims, value_sets.get("cohort", pl.DataFrame().lazy()), config
+        )
+
+        denominator = UamccExpression.build_denominator(
+            mcc_cohort, eligibility, config
+        )
+
+        return denominator.select("person_id").with_columns(
+            [pl.lit(True).alias("denominator_flag")]
+        )
+
+    @traced()
+    @timeit(log_level="debug")
+    def calculate_numerator(
+        self,
+        denominator: pl.LazyFrame,
+        claims: pl.LazyFrame,
+        value_sets: dict[str, pl.LazyFrame],
+    ) -> pl.LazyFrame:
+        """Calculate numerator: patients with unplanned admissions."""
+        measurement_year = self.config.get("measurement_year", 2025)
+
+        config = {
+            "performance_year": measurement_year,
+            "min_age": 66,
+            "min_mcc_groups": 2,
+        }
+
+        planned = UamccExpression.classify_planned_admissions(
+            claims, value_sets, config
+        )
+        with_exclusions = UamccExpression.apply_outcome_exclusions(
+            planned, value_sets
+        )
+
+        # Unplanned admissions for denominator members
+        unplanned = (
+            with_exclusions.filter(~pl.col("is_excluded"))
+            .join(
+                denominator.select("person_id"),
+                on="person_id",
+                how="inner",
+            )
+            .select("person_id")
+            .unique()
+        )
+
+        return (
+            denominator.select("person_id")
+            .join(
+                unplanned.with_columns(
+                    [pl.lit(True).alias("_has_admission")]
+                ),
+                on="person_id",
+                how="left",
+            )
+            .with_columns(
+                [
+                    pl.col("_has_admission")
+                    .fill_null(False)
+                    .alias("numerator_flag")
+                ]
+            )
+            .select(["person_id", "numerator_flag"])
+        )
+
+    def calculate_exclusions(
+        self,
+        denominator: pl.LazyFrame,
+        claims: pl.LazyFrame,
+        value_sets: dict[str, pl.LazyFrame],
+    ) -> pl.LazyFrame:
+        """UAMCC exclusions are applied at the admission level via PAA."""
+        return denominator.select("person_id").with_columns(
+            [pl.lit(False).alias("exclusion_flag")]
+        )
+
+
+# Register quality measure for discovery via MeasureFactory
+MeasureFactory.register("NQF2888", AllCauseUnplannedAdmissions)
+
+logger.debug("Registered UAMCC (NQF #2888) quality measure")

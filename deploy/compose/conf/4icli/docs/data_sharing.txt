@@ -1,0 +1,2315 @@
+Accountable Care Organization Realizing Equity, Access, and Community Health Model  
+Reporting and Data Sharing Overview: PY2023 
+Version 1 
+Date: June 6, 2023 
+ 
+Revision History ............................................................................................................................................ 2 
+Overview ....................................................................................................................................................... 4 
+1.0 Alignment ................................................................................................................................................ 7 
+2.0 Finance .................................................................................................................................................. 15 
+3.0 Quality ................................................................................................................................................... 24 
+4.0 Claim and Claim-Line Feeds (CCLFs) ...................................................................................................... 40 
+5.0 Appendix ............................................................................................................................................... 44 
+ 
+
+ 
+  
+Revision History 
+Revision  
+ Date 
+ Revisions compared to previous version 
+ 
+PY2021 version 
+ 01/29/2021 
+ N/A 
+ 
+PY2022 version 
+ 11/12/2021 
+ Overview: 
+ Updated information on Application Programming Interface (APIs) 
+
+
+Alignment: 
+ Updated file layout for the Provisional Alignment Estimate 
+
+ Beneficiary Alignment Report now includes field for Race-Ethnicity in the Overview tab and date of birth in the Monthly tab 
+
+ Updated file layout for the Prospective Plus Opportunity Report 
+
+ Updated file layout for the Paper-Based Voluntary Response File 
+
+
+Finance:  
+ Updated field(s) in the Alternative Payment Arrangement (APA) Report’s DATA_CLAIMS_PRVDR tab to distinguish services related to substance abuse treatment and beneficiary opt-outs 
+
+ Removal of the TCC_PMT, PCC_PMT, and APO_PMT tabs from the APA reports. This information will be added to the “__DETAILED” tabs to both reduce report complexity and streamline payment calculations  
+
+ Additional tabs in the Quarterly Benchmark Report (QBR) for Stop Loss Charge and Payout 
+
+ Updated fields in the April 2022 version of the Claims Reduction File 
+
+
+CCLFs: 
+ Updated link to newest CCLF Information Packet 
+
+
+ 
+02/24/2022 
+  Updated blurb on Claims Reduction File (CRF) to indicate claims for entities that participate in multiple years will be combined into a single CRF 
+
+ Includes clarified CRF File Layout as attachment 
+
+ Updated Appendix to include CRF and CCLF Claim Type Mapping 
+
+
+ 
+03/10/2022 
+  Updated Appendix to include CRF to CCLF Claim Mapping, and remove the Claim Type Mapping 
+
+
+ 
+ 
+ 03/29/2022 
+ PY2Q1 Quarterly Benchmark Report 
+ Purpose: Update baseline weighted benchmark calculation methodology on Standard DCE reports to account for DCEs with less than 3 BYs of data 
+
+ Worksheet: BENCHMARK_HISTORICAL_AD/ESRD  
+
+o Row 37: Recalculated BY weights 
+
+o Addition of row 38 (hidden): Intermediary weights calculation 
+
+o Columns C, D, and E are all updated to populate ‘N/A’ if there is no back-end data or if the Eligible Months for that year=0 
+
+
+
+  Purpose: Update PY Capped Risk Score calculation methodology to not apply the cap when the PY population subject to the cap is >3 times as large as the historical reference population used to establish the cap. 
+
+ Worksheet: RISKSCORE_AD/ESRD o Addition of rows 11 & 27: “PY to RY Capped Beneficiary Ratio” 
+
+o Rows 12/13 & 28/29: Floor/Ceiling updated to populate “N/A” if the ratio is >3 (no cap applied) 
+
+o Rows 14 & 30: Capped risk score recalculated to not apply the cap if the ratio is >3 
+
+
+
+
+ Purpose: Update the capitation payment data variables to populate the pre-sequestration TCC and PCC payment amounts (i.e. the payments that include sequestration).  We will continue to use post-sequestration Enhanced PCC payment amount since it does not accrue against the benchmark.   
+
+ Worksheet: DATA_CAP  
+
+o Column F-I: Variable name update 
+
+
+
+ 
+PY2023 version 
+ 10/17/2022 
+  Renaming nomenclature from GPACO to ACO REACH 
+
+ Removal of the Tentative Reporting and Data Sharing Distribution Schedule (maintained separately in 4i)  
+
+ Transitioning Prospective Plus Opportunity Report from quarterly to annual 
+
+ For APA templates, transition from 2 to 3 APA templates, which now reflect an updated TCC template and PCC/PCC-APO template. Previously, CMS had separate PCC and PCC-APO templates. 
+
+ New Quality Report templates, and additional details on the Health Equity scoring adjustments 
+
+ 2023 Claims Reduction File Template established by Common Working File 
+
+
+ 
+05/23/2023 
+  Updated fields in the Risk Score Report to related to the Health Equity Benchmark Adjustment 
+
+
+ 
+06/01/2023 
+  Updated to provide detail regarding the Provider Specific Payment Reduction Report 
+
+
+ 
+
+  
+Overview 
+The Accountable Care Organization Realizing Equity, Access, and Community Health (ACO REACH) Model creates a new opportunity for the Centers for Medicare & Medicaid Services (CMS) Center for Medicare and Medicaid Innovation (Innovation Center) to test two financial risk-sharing arrangements expected to reduce Medicare Fee-for-service (FFS) expenditures while preserving or enhancing the quality of care furnished to beneficiaries. The purpose of this overview is to orient REACH Accountable Care Organizations (REACH ACOs) to the reporting and data sharing approach they can expect in Performance Year 2023 (PY2023) of the ACO REACH Model. The Innovation Center expects that this overview will be updated annually to provide additional details or reflect any changes made in the future. 
+ 
+The ACO REACH Model’s reporting and data sharing approach builds on the scope, cadence, and structure of data shared in the Global and Professional Direct Contracting (GPDC) Model and Next Generation Accountable Care Organization (NGACO) Model while incorporating stakeholder feedback to focus on data consistency (i.e., eliminating conflicting or confusing data shared), uniqueness (i.e., eliminating duplicative reports), and timeliness. The goal of the ACO REACH Model’s data sharing approach is to support REACH ACOs’ value-based care efforts and to provide transparency around each REACH ACO’s performance throughout each PY. This paper provides detail on each of the reports and data files that CMS will provide REACH ACOs throughout each PY, organized into four categories: Alignment, Finance, Quality, and Claim & Claim Line Feeds (CCLFs). Please note that the content of this document is informational only and may be subject to change.  
+ 
+During the PY, all reports and data files described herein will be accessible via the Data Hub folder of the 4 Innovation (4i) Portal once uploaded by CMS (unless otherwise noted). For reference, report templates, prototypes, and documentation files are provided in a zipped attachment on the 4i Reporting and Data Sharing Overview page. 
+ 
+In addition to the reports and data files detailed below (which are the primary focus of this paper), the 4i Portal provides system-generated reports that can be downloaded by REACH ACOs at any time which provide data regarding each REACH ACO’s participation in the model. These system-generated reports are available in the Reports folder in 4i, and are summarized here: 
+ 
+4i Extract Report 
+ Description 
+ 
+Agreement Management Data 
+ This report contains information found in the Agreement Details tab of the 4i Portal for each REACH ACO in a given PY. This includes information regarding the REACH ACO’s participation in the model, such as the Model PY and Risk Agreement Option, General Information about the REACH ACO, including the REACH ACO website, and mailing address, Entity Information, such as the REACH ACO’s Legal Business Name and Tax Identification Number (TIN), and Financial Arrangement and Benefit Enhancement selections, which reflect the REACH ACO’s choice of payment mechanisms and benefit enhancements. 
+ 
+Participant List 
+ This report contains the list of aligned providers added to the REACH ACO for each PY, as defined by the provider’s Billing TIN, individual National Provider Identifier (NPI), organizational NPI, and CMS Certification Number, as applicable. Additional details include the provider’s effective start and termination dates and the Provider Class (Participant Provider or Preferred This report contains the records and details of the REACH ACO’s Participant Providers and Preferred Providers and their respective benefit enhancement and payment mechanism elections (including provider identifiers and claims reduction percentage). 
+ Provider). In addition, this file may be updated for PY2023 to include final, approved BE and PM elections for the corresponding PY. 
+ Benefit Enhancement Report 
+ 
+APM Contacts Report 
+ This report contains the contact information and user account details of every active and inactive user associated with each REACH ACO. These records distinguish REACH ACO users based on their Title, Email Address, Business Mailing Address, and Current status. 
+ 
+
+ 
+Health Insurance Portability and Accountability (HIPAA) Act-Covered Reports 
+ 
+A subset of the reports that CMS will offer to REACH ACOs are HIPAA-covered reports, which are reports that contain beneficiary-identifiable data and are subject to unique legal protections. REACH ACOs must request HIPAA-covered data from CMS and attest to their ability to meet the HIPAA requirements for receiving and using such data. The HIPAA-Covered Disclosure Request Attestation and Data Specification Worksheet (‘the Worksheet’) allows an Executive Contact for the REACH ACO to request and complete the necessary attestations to access these data. Close to the start of PY2023, the Worksheet will become available under the My Agreements tab in 4i. Please review the appropriate legal documentation, including the Performance Period Participation Agreement (‘PA’) and the Worksheet, to ensure you fully understand your obligations regarding HIPAA-covered data. Note: The Worksheet must only be re-signed whenever there is an amended PA or a Change in Control to the REACH ACO’s governing body.  
+ 
+To further protect these reports, only certain user roles in 4i, specifically Advanced Payment Model (APM) user roles (Executive, Entity Primary, and Entity Secondary Contact) are able to view HIPAA-covered data, however, Information Technology (IT) / Technical Contact does not have access. Please ensure that your REACH ACO’s contacts who need access to HIPAA-covered data have the appropriate permissions. Note: Reports that include HIPAA-covered data have been flagged with an asterisk throughout this overview.  
+ 
+Beneficiary Claims Data Sharing and Restrictions 
+ 
+REACH ACOs are eligible to receive claims-level data via the Claim and Claim Line Feed (CCLF) data files and the Weekly Claim Reduction File, described in detail below. There are three specific restrictions to note that can result in some or all claims related to a given beneficiary to be suppressed from data sharing:  
+ 
+ Substance Use Disorder (SUD) Data: In accordance with applicable law, including HIPAA and the regulations in 42 CFR Part 2, a beneficiary’s substance use disorder records are confidential, and claims data related to Alcohol and Substance Abuse treatment are not shared with REACH ACOs nor are they applicable to Total Care Capitation (TCC), Primary Care Capitation (PCC), or Advanced Payment Option (APO) payment mechanisms. For a full list of the Alcohol and Substance Abuse-related codes, please refer to Appendix A in the CCLF Information Packet (IP) (CCLF IP). 
+
+
+ Beneficiary Opt Out: CMS will not share claims data via CCLFs or reduce FFS claim payments per TCC, PCC, or APO for beneficiaries who have opted out of medical data sharing. Beneficiaries may update their data sharing preference at any time by calling 1-800-MEDICARE or via Medicare.gov.1  
+
+ Administrative Suppression: If a Participant Provider is terminated from a REACH ACO for any reason and that provider is the only active Participant Provider to have submitted claims for or to have a voluntary alignment relationship with a beneficiary, then the beneficiary’s claims will be suppressed. If a subsequent active Participant Provider or Preferred Provider from the REACH ACO submits claims for or establishes a voluntary alignment relationship with the beneficiary, data sharing will be resumed for that beneficiary. Note: Administrative Suppression only applies to CCLFs, so administratively suppressed beneficiaries who are aligned to a REACH ACO are still subject to TCC, PCC, APO claims reductions, and their claims will be shared via Weekly Claim Reduction File described below.2 
+
+
+1 For more information, please visit https://www.cms.gov/files/document/register-mymedicaregov-and-choose-your-primary-clinician.pdf 
+2 For additional information regarding administrative suppression, please refer to Section 6.04.E of the PA. 
+3 Production = the API is fully functional, and any organizations that have appropriate credentials can access the data. Pilot = API is being piloted to a few organizations, and will be scaled at a later date. Pre-production = API is still in pre-development phase. 
+ 
+Beneficiaries with suppressed claims remain aligned to the REACH ACO unless they cease to meet model eligibility requirements. Suppressed claims are still included in aggregate financial reports and in alignment reports, including the Quarterly Benchmark Reports and the Provider Alignment Report, and still count towards PY expenditures in determining shared savings or losses. Please review the appropriate legal documentation to assure that you understand beneficiary rights regarding data sharing. The REACH ACO may refer to the Beneficiary Alignment Report to understand which aligned beneficiaries have suppressed claims. 
+ 
+CMS Application Programming Interface Tools 
+In line with 2019 Federal Cloud Computing Strategy, the Innovation Center is actively working towards delivering data to our model participants via application programming interface (API) tools. APIs supported through cloud infrastructure hold the promise of improving the interoperability and integration of data into model participant business architecture, thereby streamlining the ability of participants to drive savings and improve quality. A list of CMS’s APIs in development or in operation are provided as a courtesy in the table below. Please note that none of APIs presented below are used directly for purposes of alignment or financial operations related to ACO REACH. Therefore, their use is purely at the discretion of the REACH ACO; any questions related to the API themselves should be directed to the API management team. Note, in early PY2023, REACH ACOs will have the ability to programmatically download CMS generated files from 4i’s Data Hub using the API Key Management Solution. This API will thereby remove the need to manually download reports or data files from 4i’s Data Hub itself.  
+CMS API 
+ Phase of development 
+ Target Audience 
+ Data 
+ 
+Beneficiary Claims Data API 
+ Production 3 
+ ACO REACH Model participants 
+ Beneficiary characteristics, Medicare Parts A, B, and D claims 
+ 
+Medicare Claims Data to Prescription Drug Plan Sponsors (AB2D) API 
+ Production 
+ Part D Plan Sponsors 
+ Medicare Parts A and B claims 
+ 
+Data at the Point of Care Pilot API 
+ Pilot 
+ Providers and Health Information Technology (IT) implementers  
+ Medicare Parts A, B, and D claims 
+ 
+Blue Button 2.0 API 
+ Production 
+ Beneficiaries 
+ Medicare Parts A, B, and D claims 
+ 
+Procedure Price Lookup (PPL) API 
+ Production 
+ Licensed American Medical Association (AMA) users 
+ Pricing data for procedures by CPT/HCPCS code 
+ 
+Quality Payment Program (QPP) Submissions API 
+ Production 
+ Developers supporting QPP clinicians 
+ Various, i.e. submission response, preliminary scores, etc. 
+ 
+Partially Adjudicated Claims Access 
+ Pilot 
+ ACO REACH Model participants 
+ Partially adjudicated Medicare Parts A and B claims 
+ 
+API Key Management (KM) and Command Line Interface (CLI) tool 
+ Production 
+ ACO REACH Model participants 
+ All reports and data files in 4i’s Data Hub 
+ 
+Demonstration Files API4 
+ Pre-production 
+ ACO REACH Model Participant and Preferred Providers 
+ ACO beneficiary enrollment and provider payment mechanism/benefit enhancement enrollment 
+ 
+
+4 Note: more information will be provided concerning this API at a later date in PY2023. 
+ 
+Tentative Reporting and Data Sharing Distribution Schedule 
+To streamline the intake, use, and awareness of the various reports and data files transmitted through participation in ACO REACH, CMS is providing a tentative Reporting and Data Sharing Distribution Schedule, which is available here. This PY-specific calendar indicates the tentative dates by which the applicable reports and data files (discussed in detail below) will be available for download in 4i. These dates are based on prior years’ production and distribution schedule and may be subject to change.  
+1.0 Alignment 
+CMS will provide five types of alignment reports throughout the PY: 1) the Preliminary Alignment Estimate, 2) the Beneficiary Alignment Report, 3) the Provider Alignment Report, 4) the Prospective Plus Opportunity Report, and 5) the Signed Voluntary Alignment Response File.  
+ 
+1. The Preliminary Alignment Estimate provides a provisional estimate of the beneficiaries who would be aligned to the REACH ACO prior to the PY. This is an informational file that provides the total count of beneficiaries, and the count of beneficiaries by alignment source, i.e. claims, voluntary, or both. 
+
+2. The Beneficiary Alignment Report (BAR) provides a monthly report of all beneficiaries who are aligned to the REACH ACO at any point during the PY. This year-to-date report will be updated each month to reflect changes (if any) to a beneficiary’s Medicare or ACO REACH Model eligibility, which may cause de-alignment. This data will be provided in two sheets of an Excel Workbook, outlined in detail below. 
+
+3. The Provider Alignment Report (PAR) indicates which Participant Providers contributed to each beneficiary’s alignment to the REACH ACO, either through claims-based alignment or voluntary alignment. The PAR is transmitted annually to REACH ACOs who are enrolled in Prospective Alignment and quarterly for REACH ACOs who are enrolled in Prospective Plus Alignment (to provide information on the newly aligned beneficiaries each quarter). The PAR will indicate whether the beneficiary was claims-aligned, voluntarily-aligned (for both signed voluntary alignment (SVA) and electronic-voluntary alignment (EVA)), or both claims- and voluntarily-aligned.  4. The Prospective Plus Opportunity (PPO) Report shows how many FFS beneficiaries in each county in the REACH ACO’s Service Area remain eligible to be aligned via Prospective Plus Alignment, i.e., remain unaligned to any model or initiative with which beneficiary overlap is prohibited (e.g., the Medicare Shared Savings Program, Primary Care First, etc.), at the beginning of the PY. Pending a change in model eligibility status, these beneficiaries would remain available to voluntarily align to the REACH ACO and be recognized through Prospective Plus effective at the beginning of each calendar year. The PPO Report is only transmitted to REACH ACOs who are enrolled in Prospective Plus Alignment. 
+
+5. The Signed Voluntary Alignment Response File (SVA Response File) provides the outcome of each paper-based voluntarily-alignment attestation submitted by the REACH ACO for the quarter (e.g., whether the attestation successfully resulted in the beneficiary being aligned to the REACH ACO, or the reason why the attestation was not accepted). Beneficiaries who become aligned through the timely submission of a paper-based voluntarily alignment attestation will become effective on the 1st day of the subsequent quarter, e.g. January 1st, April 1st, etc. This report is only transmitted to REACH ACOs who are participating in Prospective Plus Alignment and typically becomes available mid-month in the first month of each quarter (after eligibility information for the 1st of the quarter becomes available – i.e., mid-April, mid-July, mid-October).  
+
+
+1.1 Alignment Summary Table 
+The table below provides a high-level summary of the list of alignment reports planned for PY2023, along with their corresponding attributes. Note, the cadence of the distribution cycle for these reports depends on the REACH ACOs election of Prospective or Prospective Plus Alignment. 
+ 
+Report 
+ Distribution Cycle 
+ Level of Detail 
+ Reporting Period 
+ File Format 
+ 
+Preliminary Alignment Estimate 
+ Beginning of each PY 
+ Alignment – Count 
+ Prospective PY / Quarter 
+ Excel Workbook 
+ 
+Beneficiary Alignment Report* 
+ Monthly 
+ Beneficiary-Month 
+ Year-to-date 
+ Excel Workbook 
+ 
+Provider Alignment Report* 
+ Beginning of each PY / Quarterly 
+ Provider-Bene-AY 
+ Prospective Quarter 
+ Excel Comma Separated Values (CSV) File 
+ 
+Prospective Plus Opportunity Report 
+ Beginning of each PY 
+ County-Quarter 
+ Prospective PY 
+ Excel Workbook 
+ 
+Signed Voluntary Alignment (SVA) Response File* 
+ Beginning of each PY / Quarterly 
+ Provider-Bene 
+ Current Quarter 
+ Excel Workbook 
+ 
+
+1.2 Report / Data Detail 
+The contents of each Alignment Report are detailed below. 
+1.2.1. Preliminary Alignment Estimate 
+Variable  
+ Data Type 
+ 
+ACO Identifier 
+ CHAR (5) 
+ 
+Provisionally Aligned as of MMM DD, YYYY 
+ Integer 
+ 
+Aligned via prior claims only                                
+ Integer 
+ 
+Aligned via voluntary attestation only (signed or electronic) 
+ Integer 
+ 
+Aligned via both claims and voluntary attestation              
+ Integer 
+ 
+
+ 
+The Preliminary Alignment Estimate is a provisional estimate of the beneficiaries who would be aligned to the REACH ACO. This estimate is a provisional snapshot and will not reflect all beneficiary alignment checks when the report is generated, i.e. some exclusion criteria will not be incorporated which may result in some beneficiaries becoming de-aligned due to ineligibility by the start of the PY. This is an informational file that provides the total count of beneficiaries by alignment source, i.e. claims, voluntary, or both. 
+1.2.2. Beneficiary Alignment Report* 
+The Beneficiary Alignment Report is a year-to-date list of Medicare beneficiaries aligned to the REACH ACO for at least one month and includes several informational fields. This report is a single file made up of two sheets that will be sent each month.  
+Worksheet I: Overview D#### 
+The first sheet (Overview D####) presents annual data regarding a beneficiary’s alignment to the REACH ACO that changes less often during each PY, and includes the Medicare Beneficiary Identifier (MBI) number, the beneficiary’s effective start and termination dates, the beneficiary’s mailing address, and data regarding how the beneficiary became aligned to the REACH ACO (claims and / or voluntary alignment). High Needs Population ACOs will also receive additional details regarding which of the High Needs eligibility criteria the beneficiary has met.5 In this file, each line of data corresponds to a unique beneficiary.  
+5 The lookback periods for these High Needs eligibility criteria may be found in Table C on page 106 of the Performance Period Participation Agreement. 
+Variable  
+ Data Type 
+ 
+Beneficiary MBI ID 
+ CHAR (11) 
+ 
+Beneficiary Alignment Effective Start Date 
+ CHAR (YYYYMMDD) 
+ 
+Beneficiary Alignment Effective Termination Date 
+ CHAR (YYYYMMDD) 
+ 
+Beneficiary First Name 
+ CHAR 
+ 
+Beneficiary Last Name 
+ CHAR 
+ 
+Beneficiary Line 1 Address 
+ CHAR 
+ 
+Beneficiary Line 2 Address 
+ CHAR 
+ 
+Beneficiary Line 3 Address 
+ CHAR 
+ 
+Beneficiary Line 4 Address 
+ CHAR 
+ 
+Beneficiary Line 5 Address 
+ CHAR 
+ 
+Beneficiary Line 6 Address 
+ CHAR 
+ 
+Beneficiary City 
+ CHAR 
+ 
+Beneficiary USPS State Code  
+ CHAR 
+ 
+Beneficiary Zip 5 
+ CHAR 
+ 
+Beneficiary Zip 4 
+ CHAR 
+ 
+Beneficiary State-County of Residence Social Security Administration (SSA) 
+ CHAR 
+ 
+Beneficiary State-County of Residence Federal Information Processing Standard (FIPs) 
+ CHAR 
+ 
+Beneficiary Gender (M, F, U) 
+ CHAR 
+ 
+Beneficiary Race-Ethnicity 
+ CHAR 
+ 
+Beneficiary Birth Date of Birth 
+ CHAR (YYYYMMDD) 
+ 
+Beneficiary Age 
+ CHAR 
+ 
+Beneficiary Date of Death 
+ CHAR (YYYYMMDD) 
+ 
+Beneficiary Eligibility Alignment Year 1 (Y/N) 
+ CHAR(1) 
+ 
+Beneficiary Eligibility Alignment Year 2 (Y/N) 
+ CHAR(1) 
+ 
+Beneficiary Any Part D Coverage Alignment Year 1 (Y/N) 
+ CHAR(1) 
+ 
+Beneficiary Any Part D Coverage Alignment Year 2 (Y/N) 
+ CHAR(1) 
+ 
+Newly Aligned Beneficiary Flag (Y/N) 
+ CHAR(1) 
+ 
+Prospective Plus Alignment (Y/N) 
+ CHAR(1) 
+ 
+Claim Based Alignment Indicator (Y/N) 
+ CHAR(1) 
+ 
+Voluntary Alignment Type (Paper/Electronic/No) 
+ CHAR 
+ 
+Mobility Impairment Indicator (Y/N)6  
+ CHAR(1) 
+ 
+Frailty Indicator (Y/N)Error! Bookmark not defined. 
+ CHAR(1) 
+ 
+High Risk Score Indicator (Y/N)Error! Bookmark not defined. 
+ CHAR(1) 
+ 
+Medium Risk with Unplanned Admissions Indicator (Y/N)Error! Bookmark not defined. 
+ CHAR(1) 
+ 
+
+6 These values will only be populated if the beneficiary is aligned to a High Needs Population ACO.    
+ 
+Worksheet II: Monthly D#### 
+The second worksheet (Monthly D####) focuses on beneficiary-related information that is more likely to change each month. These data will reflect the most current information for beneficiaries who are aligned as of the first of the month in which the report is generated. These fields will include indicators for whether the beneficiary had Medicare Part D Prescription coverage, the beneficiary’s medical data sharing preference, whether the beneficiary was administratively suppressed, and the beneficiary’s alignment status (active vs. de-aligned). In addition, "as was" data will be included when generating the most recent month’s report for the data sharing and administrative suppression fields. For example, if a beneficiary did not share medical data when the report is generated in January, and then the beneficiary changed their data sharing preference when the report is generated in February, then January’s field in the February report would remain unchanged (‘N’), but February’s field would be updated (‘Y’). A note to the end-user: for purposes of calculating proxy per-beneficiary, per-month expenditure estimates using CCLFs, ACOs should use the most recent Risk Score Report’s (RSR) reported beneficiary-eligible months. As a reminder, expenditures incurred through an aligned beneficiary’s month of death do accrue against the benchmark. The month in which the beneficiary death occurs will be counted as an aligned month, assuming no other factor has changed rendering the beneficiary ineligible in the month of death. Therefore, the BAR’s Monthly alignment status indicator is for informational purposes only. 
+Field 
+ Value 
+ Data type 
+ 
+Beneficiary MBI ID 
+ N/A 
+ CHAR (11) 
+ 
+Beneficiary Date of Birth 
+ N/A 
+ CHAR(8) 
+ 
+Calendar Month 
+ N/A 
+ CHAR(6) 
+ 
+Part D Prescription Indicator 
+ Y/N 
+ CHAR(1) 
+ 
+Medical Data Sharing Preference 
+ Y/N 
+ CHAR(1) 
+ 
+Administrative Suppression 
+ Y/N 
+ CHAR(1) 
+ 
+Alignment Status 
+ See list below 
+ See table below 
+ 
+
+Alignment Status Category 
+ 
+Code 
+ Label 
+ 
+AL 
+ Beneficiary was aligned 
+ 
+DD 
+ Beneficiary’s date of death was prior to start of PY 
+ 
+DY 
+ Beneficiary’s date of death was during the PY 
+ 
+AB 
+ Beneficiary lost either Medicare Part A or Medicare Part B coverage 
+ 
+MS 
+ Beneficiary transitioned to Medicare as Secondary Payer (MSP) 
+ 
+MC 
+ Beneficiary transitioned to Medicare Advantage (MA) 
+ 
+CO 
+ Beneficiary moved outside of the REACH ACO’s Service Area 
+ 
+OU 
+ Beneficiary resided in a non-United States (US) location for any month during the PY 
+ 
+EM 
+ For Voluntarily Aligned Beneficiaries, (1) did not have any claims with any Participant Provider or Preferred Provider during the PY, and (2) had at least one qualified Primary Care Qualified Evaluation & Management (PQEM) claim during the PY from a non-REACH ACO-affiliated provider 7 
+ 
+EP 
+ Beneficiary was aligned to another Medicare Shared Savings initiative 
+ 
+NV 
+ Beneficiary’s eligibility cannot be verified 8 
+ 
+
+7 This category is verified retrospectively after each PY 
+8 This category will be temporarily reported in the event a beneficiary’s alignment status cannot be determined during the PY 
+9 For PY2023, AY1 is 7/1/2018 – 6/30/2021; AY2 is 7/1/2021 – 6/30/2022.  
+ 
+ 
+1.2.2 Provider Alignment Report*  
+The Provider Alignment Report (PAR) identifies the Participant Provider(s) that contributed to each aligned beneficiary. For claims-aligned beneficiaries, the PAR includes all Participant Providers from whom the beneficiary received eligible primary care services during the 2-year claims-alignment lookback period for the PY. For voluntarily-aligned beneficiaries, the PAR lists the Participant Provider to whom the beneficiary submitted a voluntary alignment attestation. The PAR is produced annually for REACH ACOs who do not participate in Prospective Plus Alignment, and quarterly for REACH ACOs participating in Prospective Plus Alignment. 
+Records related to claims-based alignment (where ALGN_TYPE_CLM is equal to “Y”) refer to all Participant Providers that provided primary care services used in the claims-alignment algorithm during the two alignment years (AY) for each PY, Financial Operating Guide for details on claims-based alignment). Each row in this 9 including providers in solo or group practice as well as those who practice at a Federally Qualified Health Center (FQHC), Rural Health Clinic (RHC) or Critical Access Hospital (CAH) Method II facility. Alignment years serve as the lookback period for claims-alignment (see Appendix B of the report corresponds to a provider-beneficiary ‘touch’ in the claims-based alignment lookback period (i.e., every unique combination of an aligned beneficiary receiving primary care services from a Participant Provider is one row). Note that if the CCN (FAC_PRVDR_OSCAR_NUM) and Provider NPI field (PRVDR_NPI_NUM) is populated, the record is referring to institutional claims. If the TIN (PRVDR_TAX_NUM) and Provider NPI (PRVDR_NPI_NUM) fields are populated, the record is referring to professional claims.  
+Each record where ALGN_TYPE_VA is populated corresponds to the beneficiary’s form of voluntary alignment (VA), and will contain either SVA, for signed voluntary attestation, or EVA, for electronic voluntary attestation. For these records, each beneficiary will have at most one VA attestation: either the attestation that originally contributed to the alignment of the beneficiary to the REACH ACO, or the most recent valid attestation to a Participating Provider within the REACH ACO to which the beneficiary was already aligned, if a more recent attestation has been recorded. Note: expenditures for primary care services do not apply to VA records and these fields are, therefore, null. 
+Variable 
+ Description 
+ Data Type 
+ 
+ACO_ID 
+ The REACH ACO identifier to which the beneficiary is aligned 
+ CHAR 
+ 
+MBI_ID 
+ The beneficiary’s current Medicare Beneficiary Identifier (MBI) 
+ CHAR (11) 
+ 
+ALGN_TYPE_CLM (Y/N) 
+ An indicator for whether the records refer to Claims Alignment (CLM) 
+ CHAR 
+ 
+ALGN_TYPE_VA (SVA; EVA) 
+ An indicator for whether the records refer to SVA or EVA 
+ CHAR 
+ 
+PRVDR_TIN_NUM (CLM or VA) 
+ TIN of the billing practice 10 or voluntary alignment TIN. 
+ CHAR (10) 
+ 
+PRVDR_NPI_NUM  
+ NPI of the provider who rendered the service 10, 11 or the voluntary alignment NPI 
+ VARCHAR (10) 
+ 
+FAC_PRVDR_OSCAR_NUM 
+ The CMS Certification Number (CCN) of the Provider 11 
+ VARCHAR (20) 
+ 
+QEM_ALLOWED_PRIMARY_AY1 
+ The allowed charge for primary care services provided to the beneficiary in alignment year 1 that are classified by the claims systems as being provided by a primary care specialist12 
+ DECIMAL (15,2) 
+ 
+ 
+ 
+QEM_ALLOWED_NONPRIMARY_AY1 
+ The allowed charge for primary care services provided to the beneficiary in alignment year 1 that are classified by the claims systems as being provided by a selected non-primary care specialist12 
+ DECIMAL (15,2) 
+ 
+ 
+QEM_ALLOWED_OTHER_AY1 
+ The allowed charge for primary care services provided to the beneficiary in alignment year 1 that are classified by the claims systems as being provided by a specialist12 
+ DECIMAL (15,2) 
+ 
+ 
+QEM_ALLOWED_PRIMARY_AY2 
+ The allowed charge for primary care services provided to the beneficiary in alignment year 2 that are classified by the claims systems as being provided by a primary care specialist12 
+ DECIMAL (15,2) 
+ 
+ 
+QEM_ALLOWED_NONPRIMARY_AY2 
+ The allowed charged for primary care services provided to the beneficiary in alignment year 2 that are classified by the claims systems as being provided by a non-primary care specialist12 
+ DECIMAL (15,2) 
+ 
+ 
+
+10 The Participant is identified for purposes of alignment by the combination of the TIN and the Individual NPI. 
+11 The Participant is identified for the purposes of alignment by the combination of the CCN and the Individual NPI. 
+12 Selected other non-primary care specialties may be used to conduct alignment if less than 10% of all primary care services provided by primary care specialists. 
+QEM_ALLOWED_OTHER_AY2 
+ The allowed charged for primary care services provided to the beneficiary in alignment year 2 that are classified by the claims systems as being provided by a specialist13 
+ DECIMAL (15,2) 
+ 
+ 
+
+13 Other specialties (i.e., other than primary care specialties and selected non-primary care specialties are not used in the alignment). 
+14 Beneficiaries aligned to the ACO REACH Model through Prospective or Prospective Plus Alignment must meet Medicare and ACO REACH Model eligibility criteria and may not already be aligned to any of the following CMS Coordinated Care Initiatives:  
+a) Independence at Home (IAH) 
+
+b) Medicare Shared Savings Program (SSP) 
+
+c) Next Generation ACO (NGACO) Model 
+
+d) Comprehensive Primary Care Plus (CPC+) Model 
+
+e) Vermont ACO (VT ACO) All Payer 
+
+f) Maryland Primary Care Program (MDPCP) 
+
+g) Primary Care First (PCF) Model 
+
+h) Kidney Care First (KCF) and Comprehensive Kidney Care Contracting (CKCC) Options of the Kidney Care Choices (KCC) Model 
+
+
+ 
+1.2.3 Prospective Plus Opportunity Report 
+The ACO REACH Model will offer the Prospective Plus Opportunity Report to all REACH ACOs selecting Prospective Plus Alignment. This report is designed to support REACH ACOs as they conduct voluntary alignment activities during the PY by informing REACH ACOs about the number of model-eligible FFS beneficiaries residing within their Service Area after the start of the PY. An ACO’s Core Service Area includes all counties in which the ACO’s Participant Providers have physical office locations. The Extended Service Area includes all counties contiguous to the Core Service Area. 
+Note: CMS is only able to provide REACH ACOs aggregated beneficiary totals for counties that are not subject to the CMS cell suppression policy which stipulates that no cell representing 10 or fewer beneficiaries may be reported directly. As such, any cell value lower than 10 has been changed to 'SUPPRESSED'.  
+Variable 
+ Variable Description 
+ Data Type 
+ 
+ACO_ID 
+ The REACH ACO identifier to which the beneficiary is aligned 
+ CHAR 
+ 
+ACO_TYPE 
+ Indicator if ACO is considered High Needs, New Entrant, or standard  
+ Text 
+ 
+CNTY_NAME 
+ Name of county 
+ Text 
+ 
+STATE_CD 
+ State code 
+ Text 
+ 
+FIPS Code 
+ FIPs county code 
+ CHAR(5) 
+ 
+CLND_MNTH 
+ Calendar month 
+ Integer 
+ 
+Eligible Benes 
+ Total eligible FFS beneficiaries 14  
+ Integer 
+ 
+
+ 
+1.2.4 Signed-Attestation Based Alignment Response File 
+The Signed-Voluntary Attestation (SVA) Response File (previously known as the Paper-based Voluntary Alignment Response File) informs the REACH ACO of the outcome of their submission of a signed attestation prior to the start of the PY or the subsequent quarter. All REACH ACOs that submit a SVA file will receive a SVA Response File. This could happen at the start of the year if the REACH ACO elects to conduct SVA, and at the start of each quarter if the REACH ACO elects SVA and Prospective Plus Alignment.  
+ 
+Variable 
+ Variable Description 
+ Data Type 
+ 
+ACO_ID 
+ REACH ACO's identification number  
+ Text 
+ 
+VALID_FLAG 
+ Indicator for whether the record was valid (Yes or No) 
+ Text 
+ 
+ALGN_FLAG 
+ Indicator for whether the record was reflected in the alignment 
+ Text 
+ 
+RESPONSE_CODE_LIST 
+ See the Response Code List table below. 
+ Text 
+ 
+ID_RECEIVED 
+ Beneficiary Identifier Received on the SVA Attestation  
+ Text 
+ 
+BENE_MBI 
+ Beneficiary Identifier 
+ Text 
+ 
+BENE_FIRST_NAME 
+ Beneficiary’s first name 
+ Text 
+ 
+BENE_LAST_NAME 
+ Beneficiary’s last name 
+ Text 
+ 
+BENE_LINE_1_ADDRESS 
+ A first line of a beneficiary street address. 
+ Text 
+ 
+BENE_LINE_2_ADDRESS 
+ A second line of a beneficiary street address. 
+ Text 
+ 
+BENE_CITY 
+ A name of the city for a given zip code of a Medicare Beneficiary's mailing address. 
+ Text 
+ 
+BENE_STATE 
+ Beneficiary’s place of residence 
+ Text 
+ 
+BENE_ZIPCODE 
+ A five-digit zip code defined by the United States Postal Service (USPS) that identifies the destination post office or delivery area. 
+ Text 
+ 
+PROVIDER_NAME 
+ The name of the practice, clinic, physician or non-physician practitioner that the beneficiary has identified as their principal source of primary care on the signed attestation. 
+ Text 
+ 
+PRACTITIONER_NAME 
+ If an individual practitioner was identified by name on the signed SVA form, this should be the same as the PROVIDER NAME. If the signed SVA form designated a practice or practice location, this should identify an individual Participant Provider in active participation with the REACH ACO that is associated with the Voluntary Alignment attestation. 
+ Text 
+ 
+IND_NPI 
+ The NPI of the attesting individual practitioner. 
+ Text 
+ 
+IND_TIN 
+ The TIN of the attesting individual practitioner. 
+ Text 
+ 
+SIGNATURE_DATE 
+ The date the beneficiary signed the form identifying their principal source of primary care. Dates must be in the short date format (MM/DD/YYYY).  
+ Text 
+ 
+
+ 
+Response Code Categories 
+ 
+Code Category 
+ Response Code  
+ Description 
+ 
+Accepted/ Aligned  
+ 
+ A0 
+ Accepted attestation; newly aligned beneficiary. 
+ 
+A1 
+ Accepted attestation; beneficiary was already aligned to the same REACH ACO. 
+ 
+A2 ineligible to be aligned for the remainder of this performance year. 
+ Accepted attestation; beneficiary was already aligned to the same REACH ACO during the current performance year but previously lost eligibility, as such this beneficiary remains 
+ 
+Validation 
+ 
+ V0 
+ Rejected because of a missing or invalid Medicare Beneficiary Identifier (MBI) that could not be matched to CMS data. 
+ 
+V1 
+ Rejected because of a missing or invalid signature date (e.g., signature date before the REACH ACO had access to SVA; signature date after submission of SVA file).  
+ 
+V2 
+ Rejected because the Tax Identification Number or National Provider Identifier is missing or not listed on the REACH ACO's participant list when the attestation was signed. 
+ 
+Precedence 
+ 
+ P0 
+ Rejected because a duplicate attestation was submitted by the same REACH ACO with the same or more recent signature date. 
+ 
+P1 
+ Rejected because a more recent attestation for the beneficiary took precedence outside the REACH ACO.  
+ 
+P2 
+ Rejected because the beneficiary is participating in another model or REACH ACO. 
+ 
+Eligibility 
+ 
+ E0 
+ Rejected because the beneficiary is reported as deceased in CMS data. 
+ 
+E1  
+ Rejected because the beneficiary does not meet the High Needs criteria (High Needs ACOs only). 
+ 
+E2 
+ Rejected because the beneficiary is not enrolled in Medicare Part A or Part B in CMS data. 
+ 
+E3 
+ Rejected because the beneficiary is not eligible for the model because of enrollment in Medicare Advantage in CMS data. 
+ 
+E4  
+ Rejected because the beneficiary does not live within the REACH ACO’s Extended Service Area.  
+ 
+E5 
+ Rejected because the beneficiary does not live within the United States.  
+ 
+
+2.0 Finance 
+2.1 Finance Summary Table 
+The table below summarizes the ACO REACH Model’s financial reports and data files planned for PY2023. Each report is discussed in greater detail below. In addition, the Appendix contains a preliminary PY2023 risk score production schedule for the different risk score updates provided in the reports indicated below. As a general note to end-users, if you’ve downloaded an Excel workbook, please Enable Editing to ensure the Workbook formulas properly populate referenced cells.15 In addition, the MERs, APAs, QBRs, and RSRs will always reflect the expenditures attributable to aligned beneficiaries for months of eligibility. 
+15 For more information, please visit: https://support.microsoft.com/en-us/topic/what-is-protected-view-d6f09ac7-e6b9-4495-8e43-2bbcdbcb6653 
+ 
+Report / Data file 
+ Distribution Cycle 
+ Reporting Period 
+ Risk Scores  
+ Quality Scores 
+ Alignment 16 
+ Report Type 
+ 
+Quarterly Benchmark Report 17 
+ Quarterly 
+ Prior Quarter / Year-to-date 
+ REACH ACO-level, Preliminary 17 
+ Placeholder estimate 
+ P0: Preliminary 
+Q1: Prospective  
+Q2: Prospective Plus 
+Q3: Prospective Plus 
+Q4: Prospective Plus 
+ Excel Workbook 
+ 
+Alternative Payment Arrangement Report 17 
+ Quarterly 
+ Prospective Quarter / Year-to-date  
+ REACH ACO-level, Preliminary 17 
+ Placeholder estimate 
+ P1/Q1: Prospective 
+Q2: Prospective Plus 
+Q3: Prospective Plus 
+Q4: Prospective Plus 
+ Excel Workbook 
+ 
+Monthly Expenditure Report 
+ Monthly 
+ Prior Month 
+ NA 
+ NA 
+ Prior Month’s BAR 
+ Excel Workbook 
+ 
+National Reference Population RTA Data 
+ Monthly 
+ Prior Month 
+ NA 
+ NA 
+ NA 
+ Excel Workbook 
+ 
+Risk Score Report* 17 
+ Quarterly 
+ Prior Quarter 
+ Beneficiary-level4 
+ NA 
+ P0: Preliminary 
+Q1: Prospective   
+Q2: Prospective Plus 
+Q3: Prospective Plus 
+Q4: Prospective Plus 
+ Excel CSV 
+File 
+ 
+Weekly Claim Reduction File* 
+ Weekly 
+ Prior Week 
+ NA 
+ NA 
+ NA 
+ CSV Text 
+File 
+ 
+(Optional) Provisional Settlement Report18 
+ Annually 
+ Prior PY, only first 6-months 
+ REACH ACO-level, Preliminary17 
+ Placeholder estimate 
+ P0-Q2 
+ Excel Workbook 
+ 
+Preliminary Settlement Report 18 
+ Annually 
+ Prior PY 
+ REACH ACO-level, Preliminary or Final 17 
+ Placeholder estimate 
+ Final 
+ Excel Workbook 
+ 
+Final Settlement Report 18 
+ Annually 
+ Prior PY 
+ REACH ACO-level, Final 17 
+ Final 
+ Final 
+ Excel Workbook 
+ 
+Provider Specific Payment Reduction Report 
+ Monthly 
+ Prior Month / Year-to-date 
+ NA 
+ NA 
+ Prior Month’s BAR 
+ Excel Workbook 
+ 
+
+16 P0 = Preliminary report (e.g., Preliminary benchmark report / QBR); Q2 = second quarter report (e.g., Q2 QBR) 
+17 See the Appendix for more details regarding the schedule of risk score runs that feeds each Quarterly Benchmark Report and Alternative Payment Arrangement Report. 
+18 The format of the Provisional, Preliminary, and Final Settlement Reports will be identical to the Quarterly Benchmark Report, however, these reports will reflect different reporting periods, and more current risk scores and alignment information. Typically, the final quality scores will not be available until the Final Settlement Report.  
+2.2 Report / Data Details 
+This section expands on the summary table above to provide further details regarding each of the financial reports and data feeds planned for PY2023.  
+2.2.1 Quarterly Benchmark Report 
+The Quarterly Benchmark Report (QBR) provides the REACH ACO with its prospective benchmark and quarterly updates on financial performance. The QBR for a calendar quarter reflects experience of aligned beneficiaries with at least one alignment-eligible month during the reporting period. The QBR serves two purposes: (1) it informs the REACH ACO what its Benchmark Expenditure was for the prior quarter; and (2) it tells the REACH ACO how its PY Expenditure to date compares to its Benchmark Expenditure. In addition, this report allows the REACH ACO to track and understand the sources of differences across QBRs during the PY. The following table lists each tab included in the QBR along with a brief description. Please see the Benchmark Information Packet for additional details.quarter; and (2) it tells the REACH ACO how its PY Expenditure to date compares to its Benchmark Expenditure. In addition, this report allows the REACH ACO to track and understand the sources of differences across QBRs during the PY. The following table lists each tab included in the QBR along with a brief description. Please see the Benchmark Information Packet for additional details.quarter; and (2) it tells the REACH ACO how its PY Expenditure to date compares to its Benchmark Expenditure. In addition, this report allows the REACH ACO to track and understand the sources of differences across QBRs during the PY. The following table lists each tab included in the QBR along with a brief description. Please see the Benchmark Information Packet for additional details.
+19 For more information, please visit: https://4innovation.cms.gov/secure/knowledge-management/view/740 
+20 For more information, please visit: https://innovation.cms.gov/media/document/aco-reach-py2023-fncl-settlement 
+21 For High Needs Population ACOs, a REACH ACO-level proxy risk score will be used in the initial QBR(s), since beneficiaries aligned to High Needs Population ACOs will not have CMMI-HCC concurrent risk scores reported (because their diagnosis information will be incomplete). This proxy risk score will be replaced once their diagnosis information becomes available. 
+The Stop-Loss Arrangement available to all REACH ACOs is an optional arrangement which, if elected, removes partial financial liability for REACH ACO-aligned beneficiary expenditures which exceed a predetermined threshold, referred to as a Beneficiary Attachment Point. The reduction in financial liability for expenditures above each Beneficiary’s Attachment Point is offset by a stop-loss charge. The stop-loss charge is based upon both prospectively known parameters and Performance Year (PY) experience.  
+The Stop-Loss Arrangement is discussed in detail in the Financial Settlement Overview paper available on the ACO REACH Model website20 and in the Performance Period Participation Agreement Appendix B, §VI.D.  
+ 
+Tab 
+ Description 
+ 
+REPORT_PARAMETERS 
+ Basic parameters used to construct the report 
+ 
+FINANCIAL_SETTLEMENT 
+ Shared Savings / Losses Settlement Calculation 
+ 
+BENCHMARK_HISTORICAL_AD 
+ Calculation of the AD Historical Blended Benchmark 
+ 
+BENCHMARK_HISTORICAL_ESRD 
+ Calculation of the ESRD Historical Blended Benchmark 
+ 
+RISKSCORE_AD 
+ Calculation of the Population-level PY AD Benchmark Risk Score21 
+ 
+RISKSCORE_ESRD 
+ Calculation of the Population-level PY ESRD Benchmark Risk Score 
+ 
+STOP_LOSS_CHARGE 
+(REACH ACOs electing Stop-Loss) 
+ Calculation of Stop-Loss Payout, Stop-Loss Charge, the Beneficiary Attachment Points, and the Payout Rate that informs the Charge 
+ 
+STOP_LOSS_PAYOUT  
+(REACH ACOs electing Stop-Loss) 
+ 
+DATA_CLAIMS 
+ Data table holding aggregate claims data by claim type, benchmark type, alignment type, and provider-type 
+ 
+DATA_RISK 
+ Data table holding aggregate risk data by benchmark 
+ 
+DATA_COUNTY 
+ Data table holding eligible months accrued to each benchmark by county-of-residence and related Rate Book data 
+ 
+DATA_USPCC 
+ Data used to populate USPCC and GSF trend factors used to adjust benchmark expenditures 
+ 
+DATA_STOP_LOSS_COUNTY 
+(REACH ACOs electing Stop-Loss) 
+ Data used to populate the Stop-Loss Payout and Charge calculation tabs 
+ 
+DATA_STOP_LOSS_CLAIMS 
+(REACH ACOs electing Stop-Loss) 
+ 
+DATA_STOP_LOSS_PAYOUT 
+(REACH ACOs electing Stop-Loss) 
+ 
+DATA_CAP 
+ Data table holding relevant performance period capitation payments including TCC, PCC (base and enhanced), and APO payments. 
+ 
+DATA_HEBA 
+ Data table holding the relevant information for calculating the Health Equity Benchmark Adjustment (HEBA) component of the benchmark, which will feed into the Financial Settlement tab. 
+ 
+
+ 
+2.2.2 Alternative Payment Arrangement Report 
+The Alternative Payment Arrangement (APA) Report provides REACH ACOs with quarterly data on the application of their selected Capitation Payment Mechanism and the Advance Payment Option (APO) (if applicable). Each REACH ACO will receive an APA Report prior to each quarter containing information about the upcoming quarter’s Capitation and APO payments. Specifically, the APA Report includes information regarding the sum of monthly non-claims based payments made to the REACH ACO, the preliminary, interim, and final payment mechanism calculations, along with any retrospective or prospective adjustments to payments. The APA Report consists of the several worksheets listed below. Please note that the tabs in the APA Report will only display information if the REACH ACO is enrolled in the respective payment mechanism, i.e. REACH ACOs who elect TCC will not see any information populated in the PCC- and APO-related tabs. Please note that capitation payments may meaningfully vary quarter-to-quarter (see Table 7 here for the list of updates made to the payment mechanisms each quarter).APA Information Packet for more information on the contents of this Report. 22 ACOs may refer to the 
+22 Please visit: https://innovation.cms.gov/media/document/aco-reach-py2023-financialop-cap-pymnt-mech 
+23 This table presents all tabs across both templates presented in the APA template, however, certain tabs will only be applicable depending on the REACH ACO’s choice of PCC or TCC. 
+Tab 23 
+ Description 
+ 
+REPORT_PARAMETERS 
+ This worksheet provides the Alternative Payment Arrangement Elections of the REACH ACO, i.e. TCC, PCC, or PCC and APO, and includes the incurred and paid claim performance and lookback periods used to construct the Workbook. 
+ 
+PAYMENT_HISTORY 
+ This worksheet provides data on non-claims-based payments received by the REACH ACO through the last quarter included in the APA Quarterly Report. 
+ 
+TCC_PMT_DETAILED  
+(TCC ACOs) 
+ This worksheet provides the calculation of the TCC Withhold Percentage based on the historical expenditures for services rendered to all aligned beneficiaries stratified by all claims, claims reduced through TCC, and claims that count towards the Withhold during the lookback period, and further stratified by whether the provider was a non-REACH ACO provider, a Participant Provider, or a Preferred Provider. 
+ 
+BASE_PCC_PMT_DETAILED (PCC ACOs) 
+ This worksheet provides the calculation of the per-beneficiary, per-month Base PCC payment calculation, based upon the REACH ACO’s Base PCC Percentage. Prior quarters’ payments are retrospectively adjusted based on the same parameters used in the prospective payment.  
+ 
+ENHANCED_PCC_PCT_DETAILED  
+(PCC ACOs) 
+ This worksheet provides the prospective quarter’s per-beneficiary, per-month Enhanced PCC payment calculation, based upon the REACH ACO’s Enhanced PCC Percentage. Prior quarters’ payments are retrospectively adjusted based on the same parameters used to calculate the prospective payment. 
+  
+APO_PMT_DETAILED  
+(PCC ACOs with APO) 
+ This worksheet provides the prospective quarter’s Advanced Payment Option per-beneficiary, per month payment calculation, which is adjusted based on the number of aligned beneficiaries for a given quarter. 
+ 
+TCC_WH_PCT  
+(TCC ACOs) 
+ This worksheet provides the calculation of the TCC Withhold Percentage based on the historical expenditures for services rendered to all aligned beneficiaries stratified by all claims, claims reduced through TCC, and claims that count towards the Withhold during the lookback period, and further stratified by whether the provider was a non-REACH ACO provider, a Participant Provider, or a Preferred Provider. 
+ 
+BASE_PCC_PCT (PCC ACOs) 
+ This worksheet provides the calculation of the Base PCC Percentage based on the historical expenditures for services rendered to all aligned beneficiaries stratified by total incurred claims and reduced claims during the lookback period, and further stratified by whether the provider was a non-REACH ACO provider, a Participant Provider, or a Preferred Provider.  
+ 
+ENHANCED_PCC_PCT_CEIL (PCC ACOs) 
+ This worksheet provides the calculation of the Enhanced PCC Percentage. This calculation generates a maximum allowed Enhanced PCC Payment Amount based on the historical expenditures for services rendered to all aligned beneficiaries stratified by total incurred claims and reduced claims during the lookback period, and further stratified by whether the provider was a non-REACH ACO provider, a Participant Provider, or a Preferred Provider. This calculation assumes that all Participant Providers have reduced primary care-based claims at a 100% FFS claim reduction. 
+ 
+APO_PBPM (PCC ACOs with APO) 
+  This worksheet provides the calculation of the APO per-member per-month (PBPM) payment amount based on the historical expenditures for services rendered to all aligned beneficiaries stratified by total incurred claims and reduced claims during the lookback period, and further stratified by whether the provider was a non-REACH ACO provider, a Participant Provider, or a Preferred Provider. 
+ 
+RECON_TCC  
+(TCC ACOs) 
+ This worksheet provides the calculation of the final adjustments to TCC payment based on PY experience. This tab is calculated prior to Settlement.  
+ 
+RECON_BPCC 
+(PCC ACOs) 
+ This worksheet provides the calculation of the final adjustments to Base PCC payment based on PY experience. This tab is calculated prior to Settlement. 
+ 
+RECON_EPCC (PCC ACOs) 
+ This worksheet provides the calculation of the final adjustments to Enhanced PCC payment based on PY experience. This tab is calculated prior to Settlement. 
+ 
+RECON_APO 
+(PCC ACOs with APO) 
+ This worksheet provides the calculation of the final adjustments to APO payment based on PY experience. This tab is calculated prior to Settlement. 
+ 
+DATA_CLAIMS_PRVDR  
+(All REACH ACOs) 
+ This worksheet holds the data that are used to populate the various worksheets (TCC_WH_PCT, BASE_PCC_PCT, ENHANCED_PCC_PCT_CEIL, APO_PBPM) in the APA Report. Each row tab represents a REACH ACO's quarterly expenditures grouped by FFS claim type, incurred month, and provider class with further indicators to distinguish the Financial Arrangement elections, i.e. choice of payment mechanism, pertaining to each REACH ACO.
+  
+
+24 In Q2 of PY2023, CMS will incorporate additional fields into the DATA_CLAIMS_PRVDR tab which will permit REACH ACOs to distinguish claims for services rendered to beneficiaries that opted out of medical data-sharing or for the treatment of SUD. 
+25 Please visit:  https://4innovation.cms.gov/secure/knowledge-management/view/877 
+26 For more information on National Claims Warehouse claim type codes, please visit: https://resdac.org/cms-data/variables/nch-claim-type-code 
+27 In the CLAIM_LAG tab, users can limit claim type (the default is “All Claim Types”) to ‘All DMERC” or “Non DMERC”. 
+ 
+2.2.3 Monthly Expenditure Report 
+The purpose of the Monthly Expenditure Report (MER) is two-fold: (1) It provides timely information on the expenditure incurred by the aligned beneficiary population to support financial reporting, and (2) It provides “control” totals that can be used to supplement the CCLF data, which do not reflect claims subject to beneficiary data sharing restrictions. For more information on the differences between the Aggregate financial reports and CCLF data files, please refer to the table in this section below. For information regarding how a REACH ACO can construct a QBR/MER proxy using CCLF claims, please refer to the following guidance document.25 Note: some durable medical equipment regional carrier (DMERC) and DMERC, and DMEPOS claims (CLM_TYPE_CD of 81/82) are paid prior to the incurred date.26 Some DME claims pay for equipment that covers a period of time (e.g., 2-3 months), then the expense is incurred over that period of time.27  
+Tab 
+ Description 
+ 
+REPORT_PARAMETERS 
+ Basic parameters used to construct the report  
+ 
+CLAIM_TYPE 
+ This worksheet displays the REACH ACO’s monthly aggregations of incurred FFS expenditures with further breakout aggregations of aligned beneficiaries and beneficiary months, claim types, and cumulative year-to-date experience. This worksheet does not reflect claims that were incurred but not reported (IBNR). View Parameters allows users to cycle through aggregations by Variable, Benchmark and Alignment. 
+ 
+CLAIM_LAG 
+ This worksheet displays the REACH ACO’s Claims Lag report, which presents a monthly aggregation of FFS expenditures by incurred and paid month. View Parameters allows users to cycle through aggregations by Variable, Benchmark, and Alignment. 
+ 
+DATA_CLAIMS 
+ This worksheet holds the FFS expenditure data that is used to populate the CLAIMS_TYPE, CLAIMS_LAG, and CLAIMS_PBPM worksheets. 
+ 
+DATA_ENROLL 
+ This worksheet holds the beneficiary and beneficiary-month counts by benchmark and alignment type that is used to populate the CLAIMS_TYPE, CLAIMS_LAG, and CLAIMS_PBPM worksheets. 
+ 
+
+ 
+2.2.4 National Reference Population Retrospective Trend Adjustment (RTA) Data 
+The purpose of the National Reference Population RTA Data is three-fold: (1) It provides timely information on the expenditure incurred by the reference population to support comparisons with the REACH ACO’s aligned population, (2) It provides computation details for the Reference Trend Adjustment, and (3) It provides computation details on the completion rates used in the QBR.  The completion rates are used to estimate total incurred expenditures based on expenditures that have incurred and paid. The National Reference Population RTA Data report contains the worksheets listed in the table below.  
+Tab 
+ Description 
+ 
+DESCRIPTION 
+ Basic description of the worksheets contained in the report.  
+ 
+RETRO_TREND_ADJ 
+ Provides the estimated retrospective trend adjustment with no claims run-out and when incorporating incurred but not reimbursed claims (IBNR). 
+ 
+DATA_SUMMARY 
+ Calculates the reference population expenditures and estimates of IBNR expenditures are computed for the performance year.  This sheet contains the supporting data for estimating the performance year retrospective trend adjustment. View Parameters allows users to select benchmark type, claims incurred through month, claims paid through month, and claim type. 
+ 
+CLM_TYPE 
+ Displays the monthly aggregations of incurred FFS expenditures by claim type by month. This worksheet does not reflect claims that were incurred but not reported (IBNR). View Parameters allows users to select benchmark type and year. 
+ 
+CLM_LAG 
+ Displays a monthly aggregation of FFS expenditures by incurred and paid month. View Parameters allows users to select benchmark type, year, and claim type. 
+ 
+DATA_EXPND 
+ Contains aggregated claims data for DC eligible beneficiaries which supports calculations in other worksheets. 
+ 
+DATA_ELIG 
+ Presents eligible month data and contains the number of eligible beneficiaries by year/month and benchmark type. 
+ 
+USPCC 
+ Contains the data used to calculate the USPCC trend in the RETRO_TRND_ADJ worksheet. 
+ 
+
+ 
+2.2.5 Risk Score Report* 
+The Risk Score Reports (RSR) will be released to REACH ACOs with the QBRs. The RSR for a calendar quarter reflects experience of aligned beneficiaries with at least one alignment-eligible month during the reporting period. The RSRs will provide monthly beneficiary-level risk scores for the REACH ACO’s aligned beneficiaries, with a few exceptions. For example, the initial RSR for beneficiaries aligned to High Needs Population ACOs will not have CMMI-HCC concurrent risk scores reported because their diagnosis information will be incomplete. Monthly risk scores will be provided for each beneficiary, resolved to reflect the most current REACH ACO alignment and Medicare eligibility status information available for the purpose of risk score assignment, for example, AD or ESRD status and new enrollee status. The monthly assigned risk scores will be reported and retroactively updated on a quarterly basis as more current demographic and diagnosis data becomes available. The RSR will provide ‘raw’ risk scores, meaning that they have not been normalized, in addition to providing normalized risk scores.  
+ 
+Initially, risk scores will be calculated using diagnosis information from lagged diagnosis reporting periods (see the Preliminary Risk Score Production Schedule in the Appendix.) After each PY, final risk scores will be calculated and provided in the RSRs that will be applied in the Final Settlement Report (S2). The format for the monthly beneficiary-level risk score information is provided in the table below. Note: all beneficiaries for which the REACH ACO is financially responsible (i.e., the beneficiaries used in the QBR) should be included in the RSR for the period in which they aligned to the REACH ACO and are eligible for ACO REACH. Note to the end-user: the beneficiary-months indicated in the RSR represent alignment and eligibility of the beneficiary to the Model. RSR eligible beneficiary-months should be used when ACOs generate proxy PBPMs using CCLFs.28 Effective in quarter 2 (Q2) of PY2023, CMS will being transmitting the fields related to the Health Equity Benchmark Adjustment (HEBA) in the RSR. 
+28 Please see the limitations of the BAR mentioned in Worksheet II: Monthly D#### above. 
+ 
+Variable 
+ Variable Description 
+ Data Type 
+ 
+ACO_ID 
+ REACH ACO Identifier 
+ CHAR (5) 
+ 
+ACO_TYPE 
+ Indicator if ACO is considered High Needs, New Entrant, or Standard  
+ CHAR 
+ 
+CLNDR_YR 
+ Calendar Year  
+ CHAR(4) 
+ 
+CLNDR_MO 
+ Calendar Month (01= Jan, 02= Feb, etc.) 
+ CHAR(2)  
+ 
+BENE_MBI 
+ Beneficiary MBI 
+ CHAR (11) 
+ 
+BNMRK 
+ Benchmark to which the month’s experience accrues (A= AD, E = ESRD) 
+ CHAR (1)  
+ 
+RAW_RISK_SCORE 
+ Raw Risk Score of the beneficiary in the calendar month 
+ DECIMAL(6,3) 
+ 
+NORM_RISK_SCORE 
+ Normalized risk score of the beneficiary in the calendar month 
+ DECIMAL(6,3) 
+ 
+ADI_NATRANK 
+ The beneficiary’s Area Deprivation Index (ADI) score of the block group the beneficiary resided in on their first day of eligibility. 
+ DECIMAL(6,3) 
+ 
+DE_BMP 
+ An indicator for whether the beneficiary qualified for Dual Eligibility Status for the month 
+ CHAR (1) 
+ 
+EQTY_SCR 
+ The beneficiary’s Equity Score contribution in the month. Values can range from 1 to 125 
+ DECIMAL(6,3) 
+ 
+
+ 
+2.2.6 Weekly Claims Reduction File* 
+The purpose of the Weekly Claims Reduction File (CRF) is to allow REACH ACOs to administer downstream payment arrangements with providers that have agreed to participate in a Payment Mechanism (PM), i.e., that have agreed to receive reductions on their FFS claim payments for services provided to aligned beneficiaries in connection with TCC, PCC, or APO. Participant Providers and Preferred Providers enrolled in TCC, PCC, or APO will continue to receive their standard 837 X12 Electronic Remittance Advice through the local Medicare Administrative Contractor (MAC), as under Traditional Medicare. Contracted providers will receive a CO=132 Claim Adjustment Reason Codes (CARC) when their claim is subject to TCC, PCC, or APO. Beginning January 1, 2023, TCC, PCC and APO-enrolled Participant Providers and Preferred Providers will now receive the associated ACO identifier in their ERA. 
+The CRF is a flat file that contains a subset of the 835 ERA fields for all institutional and professional claims where the FFS claim-based payments were reduced, in part or in full, (based on the provider’s elected FFS claim payment reduction).29 This file is generated each week as claims are submitted and adjudicated.30 Similar to CCLFs, claims in CRFs are either original claims, adjustment claims, or cancellation claims. These data include the charge amount, the allowed amount, the Medicare primary payment amount, Medicare beneficiary cost-sharing amounts, along with the associated TCC, PCC, or APO payment adjustment amount. In January of PY2022, the CRF was updated to include the Patient Control Number (PCN) at the claim-header and claim-line level.31 In April of PY2022, the CRF layout was updated to include the Claim Adjustment Reason Codes (CARC), the Remittance Advice Reason Code (RARC), and Group Code (GC) (at both claim-header and claim-line level), the Place of Service (claim-line), Sequestration Adjustment Amount (at both claim-header and claim-line level), and Merit-based Incentive Payment (MIPs) Adjustment amount (positive or negative as applicable) at the claim-line level.32 The most up-to-date template for the Claims Reduction File is Table 4 and Table 5 in CMMI-ICD-Appendix-D, that is found in the zip called PY2023 Templates. 
+29 Please refer to the following slides and recording for more information regarding the adjudication process: https://4innovation.cms.gov/secure/knowledge-management/view/341 
+30 Please note, REACH ACOs will not observe reduced claims until they are billed by the provider/facility. 
+31 Please note, the PCN is assigned by the billing provider. If the PCN is not present when the service is billed, the PCN will not be populated in the CRF. 
+32 As a note, positive MIPs adjustments are credits to the provider that are paid out to the provider at the end of each quarter by the local MAC. 
+Please note, for organizations that participate in multiple Performance Years, e.g., 2023 and 2024, all weekly claims will be combined into a single CRF. Organizations will not receive one CRF for 2023 claims and a separate CRF for 2024 claims. They will be combined into a single CRF. As a reminder, the payment process in ACO REACH mirrors payments in Traditional Medicare:  
+1) Providers bill Medicare via their MAC 
+
+2) The MAC adjudicates the claim, and reduces the Medicare 'would have paid amount', i.e. Medicare allowed - Beneficiary Co-insurance - Beneficiary Deductible – Statutory adjustments = Would have been paid amount 
+
+3) The MACs reduce what Medicare Would have been paid amount (if applicable) 
+
+4) The MACs pay out to the provider any amount remaining after the reduction 
+
+5) The REACH ACO is responsible for compensating the providers for the services that are reduced (as established between the Participant Provider or Preferred Provider and the REACH ACO) 
+
+
+ 
+In addition, CMS is exploring the ability to transmit the 835 Electronic Remittance Advice (ERA) to supplement or replace the weekly CRF. Should the 835 ERA (or alternative) become available during the course of PY2023, all REACH ACOs would receive access to this additional data stream. 
+2.2.7 (Optional) Provisional Settlement Report 
+The Provisional Settlement Report (SP) is identical to the layout of the QBR. The SP is optional, and only provided to REACH ACOs who elect Provisional Settlement, which will occur on or about January 31 following each PY, and will include expenditures incurred on or after January 1 and on or before June 31 of the PY, with 6-months of claims run-out, preliminary risk scores, and placeholder quality scores.  
+2.2.8 Preliminary Settlement Report 
+The Preliminary Settlement Report (S1) is identical to the layout of the QBR. CMS will provide this report to all REACH ACOs approximately four months after the end of each PY. This report will reflect all PY expenditures with 3-months of run-out, preliminary risk scores, and placeholder quality scores. Note that unlike Provisional Settlement and Final Settlement, this report is informational-only and does not trigger the payout of shared savings or recoupment of shared losses. 
+2.2.9 Final Settlement Report 
+The Final Settlement Report (S2) is identical to the layout of the QBR. CMS will provide this report to all REACH ACOs approximately seven months after the end of each PY. This report will reflect all PY expenditures with 3-months of run-out, final resolved risk scores, and final quality scores. 
+2.2.10 Provider Specific Payment Reduction Report 
+The Provider Specific Payment Reduction Report (abbreviated RED) is a provider-level point-in-time and year-to-date summary of spending incurred by Participant and Preferred Providers for claims that were paid through the end of the current month. This report is a management report that is coupled with the production of Claim and Claim-line Feed (CCLF) files, and was known as the ‘6-3 Report’ in the Next Generation Accountable Care Organization (NGACO) model. The report contains up to seven different tabs that reflect National Claims History claim type codes 10, 20, 30, 40, 50, 60, 71, and 72, which are claims that are eligible for payment mechanism reductions under ACO REACH. This report reflects the total number of beneficiaries for whom the provider billed claims during the current month and year-to-date, the total number of incurred claims in the current month and year-to-date, the total number of claims incurred that were suppressed due to opt-out of SUD treatment for the current month and year-to-date, the total Medicare spending paid through the current month and year-to-date, and the total reductions to Medicare CBPs through the current month and year-to-date. ACOs may use this report to better track claims for Medicare spending that is not sent in the monthly CCLFs due to data suppression, and serve as proxy totals for comparison against the Aggregated Financial Reports. 
+3.0 Quality 
+CMS will provide quarterly Claims-Based Quality Measure Reports and an Annual Quality Report to each REACH ACO. For more information on quality measures and the calculation of quality scores, please see the Quality Measurement Methodology paper or the Measure Information Forms (MIFs) that are available in 4i’s Knowledge Library. 
+3.1 Quality Summary Table 
+The table below provides a high-level summary of the list of reports and data feeds planned for PY2023, along with report or data feed attributes. The Quality Measurement Methodology describes the quality measures implemented for the ACO REACH Model and provides details regarding the quality performance evaluation methodology.  
+ 
+Report 
+ Distribution Cycle 
+ Level of Detail 
+ Reporting Period 
+ 
+Quarterly Claims-based Quality Reports 
+ Quarterly 
+ Quarterly calculations for Quality Measures: 
+ Risk-Standardized, All-Condition Readmission 
+
+ Risk-Standardized, All-Cause Unplanned Admissions for Patients with Multiple Chronic Conditions 
+
+ Days at Home for Patients with Complex, Chronic Conditions (High Needs Population ACOs only) 
+
+ Timely Follow-Up after Acute Exacerbations of Chronic Conditions (Standard and New Entrant ACOs only) 
+
+
+ 
+Stratified Reporting: As of PY2022, CMS is providing informational data on quality measure performance stratified by selected beneficiary characteristics that are recognized as social risk factors in health equity literature: 
+ Having dual-eligibility  
+
+ Living in a low socioeconomic status neighborhood as defined by the Area of Deprivation Index (ADI) 
+
+ Identifying with a race/ethnicity other than white (i.e., non-white) 
+
+
+ 12-month rolling period ending in the prior quarter  
+ 
+Annual Quality Report 
+ Annually  
+(Summer) 
+ • Annual calculations for claims-based measures, with run-out  
+
+• Consumer Assessment of Healthcare Providers and Systems (CAHPS®), calculated annually 
+
+
+ 
+Stratified Reporting: As of PY2022, CMS is providing informational data on quality measure performance stratified by selected beneficiary characteristics that are recognized as social risk factors in health equity literature: 
+ Having dual-eligibility  
+
+ Living in a low socioeconomic status neighborhood as defined by the Area of Deprivation Index (ADI)  Identifying with a race/ethnicity other than white (i.e., non-white) 
+
+
+ Prior PY 
+ 
+
+3.2 Report / Data Details 
+3.2.1 Quarterly Claims-Based Quality Measures Report 
+ 
+The Quarterly Claims-Based Quality Report (QQR) will contain the measure scores based on the REACH ACO’s performance from the rolling 12-month reporting period that ends with the last day of the specified quarter. For example, for Quarter 1 of PY2023, which ends as of March 31, 2023, the 12-month period reflected in the data used to calculate the quality measures scores reported in the Quarter 1 Quarterly Claims-Based Quality Report will be April 1, 2022 through March 31, 2023. For Quarter 2, the 12-month period will be July 1, 2022 through June 30, 2023. The claims for services provided during the 12-month reporting period are pulled three months after the end of the period. This three-month run-out applied to the claims used to calculate the quarterly quality measures is equivalent to the claims run-out used for annual quality measure calculation. The quarterly report includes beneficiaries aligned to the REACH ACO and eligible for the model for one or more months during the reporting period. Summary statistics are calculated for each quality measure across all REACH ACOs, for purposes of relative comparison. In the Quarterly Claims-Based Quality Report and Annual Quality report, CMS is also providing REACH ACOs with informational data on their quality performance stratified by selected beneficiary characteristics that are recognized as social risk factors in health equity literature. This stratified reporting focuses on 3 social risk factors: having dual-eligibility, living in a low socioeconomic status neighborhood as defined by the Area of Deprivation Index (ADI), and identifying with a race/ethnicity other than white. This report is for informational purposes to help REACH ACOs gain a better understanding of their performance at regular intervals during the PY and identify potential opportunities for quality improvement.  
+QQR Tabs  
+Tab 
+ Description 
+ 
+Cover 
+ REACH ACO ID, report title, REACH ACO agreement start date, and reference indicating the rolling 12-month reporting period reflected in the current report 
+ 
+Table of Contents 
+ Linked titles of subsequent report tabs 
+ 
+Glossary 
+ List of abbreviations used in the report and definitions 
+ 
+About this Report 
+ Overview of the report contents, purpose of the report, and where REACH ACOs can find more information about the quality performance measures 
+ 
+Parameters  
+ The parameters used to construct the report (reporting period, beneficiary alignment and eligibility period, last date claims were processed for the report, entity type, HCC used in measure risk adjustment, measure specifications version used, benchmark year, and the date the report was produced) 
+ 
+Tables 1a and 1b 
+ Performance data for claims-based quality measures (Table 1a), including the REACH ACO-level quality measure scores, and corresponding provisional percentile ranking and highest threshold met, in addition to the mean quality measure scores for either Standard and Entrant entities or High Needs Population entities. Table 1b provides the full range of concurrent, provisional PY2023 quality performance benchmark values based on the reporting period.  
+ 
+About Stratified Reporting 
+ Overview of the stratified reporting tables including rationale for inclusion, description of the data presented and the stratifiers (dual eligibility, low socioeconomic status, and identification with a race/ethnicity other than white), and where REACH ACOs can submit questions or feedback 
+ 
+Tables 2-4 
+ Claims-based quality measure scores stratified by dual eligibility (Table 2), low socioeconomic status (Table 3), and identification with a race/ethnicity other than white (Table 4).  
+ 
+
+ 
+QQR – Table 1a (Your ACO's Quality Measure Scores (Claims-Based Measures Only)) 
+Variable 
+ Variable Description 
+ 
+Measure 
+ Claims-based quality measures listed by abbreviation 
+ 
+Measure Name 
+ Risk-Standardized, All-Condition Readmission (ACR) Risk-Standardized, All-Cause Unplanned Admissions for Patients with Multiple Chronic Conditions (UAMCC), Days at Home for Patients with Complex, Chronic Conditions (DAH – High Needs Population ACOs only), and Timely Follow-Up After Acute Exacerbations of Chronic Conditions (TFU – Standard and New Entrant ACOs only) 
+ 
+Your ACO Quality Measure Score 
+ ACR:  
+• Percentage of hospitalizations by REACH ACO-assigned beneficiaries that result in an unplanned readmission to a hospital within 30 days following discharge per 100 index hospital admission. 
+
+
+UAMCC:  
+• Rate of risk-standardized, acute, unplanned hospital admissions per 100 person-years 
+
+
+DAH (High Needs Population ACOs only): 
+• Risk factor-adjusted, mortality-adjusted, nursing home transition-adjusted days at home, averaged over all patients within a REACH ACO 
+
+
+ 
+TFU (Standard and New Entrant ACOs only): 
+• REACH ACO-level rate of follow-up for patients with chronic conditions who have experienced an acute exacerbation of one of six conditions of interest, which can be attributed to providers participating in the model 
+
+
+ 
+Mean Quality Measure Score 
+ Mean for each measure is calculated based on your REACH ACO's cohort of entities (Standard/New Entrant or High Needs Population).   
+ 
+Your ACO Provisional Measure Percentile Rank 
+ Provided for information only. Your ACO’s provisional measure percentile ranking based on the performance distribution of REACH ACOs and non-REACH ACO provider groups during the same reporting period used for the report.  
+ 
+Your ACO Highest Provisional Quality Performance Benchmark 
+ Provided for information only. Your ACO’s highest provisional quality performance benchmark reached based on your ACO’s measure scores from the reporting period and the distribution of provisional quality performance benchmarks displayed in Table 1b. 
+ 
+
+ 
+ 
+QQR– Table 1b (Provisional Quality Performance Benchmarks for PY2023) 
+Variable 
+ Variable Description 
+ 
+Highest Threshold Met 
+ List of possible quality performance benchmark thresholds to meet (<30%, 30 – 90%) 
+ 
+ACR 
+ List of ACR quality performance benchmark values that correspond to the listed thresholds in the first column (Highest Threshold Met) 
+ 
+UAMCC 
+ List of UAMCC quality performance benchmark values that correspond to the listed thresholds in the first column (Highest Threshold Met) 
+ 
+DAH (High Needs Population ACOs only) 
+ List of DAH quality performance benchmark values that correspond to the listed thresholds in the first column (Highest Threshold Met) 
+ 
+TFU (Standard and New Entrant ACOs only) 
+ List of TFU quality performance benchmark values that correspond to the listed thresholds in the first column (Highest Threshold Met) 
+ 
+
+ 
+ 
+QQR – Tables 2-4 (Stratified Reporting) 
+Tables 2 - 4: claims-based quality measure scores stratified by dual-eligibility, residence in a low SES neighborhood, and identifying with a race/ethnicity other than white  
+Variable 
+ Variable Description 
+ 
+Measure 
+ Claims-based quality measures used for providing stratified reports, listed abbreviation (ACR – Equity Version, UAMCC, TFU) 
+ 
+Measure Name 
+ Risk-Standardized, All-Condition Readmission (ACR) – Equity Version, Risk-Standardized, All-Cause Unplanned Admissions for Patients with Multiple Chronic Conditions (UAMCC), Days at Home for Patients with Complex, Chronic Conditions (DAH – High Needs Population ACOs only), and Timely Follow-Up After Acute Exacerbations of Chronic Conditions (TFU – Standard and New Entrant ACOs only) 
+ 
+Volume – Your REACH ACO (by stratifier) 
+ Volume is defined differently depending on the measure:  
+ ACR: index hospital stays 
+
+ UAMCC: person-years 
+
+ DAH: Days in Care (High Needs Population ACOs only) 
+
+ TFU: acute exacerbation events (Standard and New Entrant ACOs only) 
+
+
+ 
+Volume is stratified differently depending on the table: 
+ Table 2: dual eligibility, defined as full Medicaid for one or more months during the reporting period.  
+
+ Table 3: residence in a low SES neighborhood, defined by an Area Deprivation index (ADI) percentile of 81 or higher 
+
+ Table 4: identifying with a race/ethnicity other than white  
+
+
+ 
+Measure Score – Your REACH ACO (by stratifier) 
+ Measure score is stratified differently depending on the table: 
+ Table 2: dual eligibility  
+
+ Table 3: residence in a low SES neighborhood 
+
+ Table 4: identifying with a race/ethnicity other than white 
+
+
+ 
+Mean Measure Score – All REACH ACOs and Other Provider Groups (by stratifier) 
+ Mean measure score is stratified differently depending on the table: 
+ Table 2: dual eligibility  
+
+ Table 3: residence in a low SES neighborhood 
+
+ Table 4: identifying with a race/ethnicity other than white 
+
+
+ 
+All Beneficiaries – Mean Measure Score – All REACH ACOs and Other Provider Groups 
+ Mean measure score calculated across all REACH ACOs and other provider groups. For Standard or New Entrant ACOs, the mean quality measure score for each measure is calculated across both Standard and New Entrant ACOs. For High Needs Population ACOs, the mean quality measure score for each measure is calculated across all High Needs Population ACOs.  
+ 
+
+ 
+3.2.2 Annual Quality Report 
+ 
+The Annual Quality Report (AQR) will contain each REACH ACO’s claims-based quality measure scores and CAHPS survey scores for the PY, along with additional detail on quality performance and scoring. Final PY2023 quality scores will not impact financial benchmarking until the Final Settlement for PY2023, which will occur in the summer of 2024.  
+ 
+A number of elements are introduced in the PY2023 annual quality reports that impact Financial Settlement: scoring of quality measures and calculation of REACH ACOs’ Initial Quality Scores, Continuous Improvement/Sustained Exceptional Performance (CI/SEP), Health Equity Data Reporting (HEDR), and High Performers Pool (HPP) Eligibility. CI/SEP and HPP will only apply to REACH ACOs that started prior to PY2023. The CI/SEP and HEDR will be applied to the Initial Quality Score to calculate the Total Quality Score and the Quality Withhold Earned Back. Table 1 provides a summary of all of these elements and how to perform their calculation. Details of the calculations underlying these elements are provided in subsequent tabs. Tables 2a-2c provide additional details regarding the determination of whether REACH ACOs’ met the CI/SEP criteria (Table 2a), the HEDR bonus (Table 2b), and the criteria for HPP Eligibility (Table 2c).   
+As of PY2023, all claims-based measures will be Pay-for-Performance (P4P) and REACH ACOs can earn up to 10 points for each measure that will be included in the Initial Quality Score. The number of points earned will be determined by the highest Quality Performance Benchmark (QPB) threshold met for each of the measures. Table 1 provides a summary of the points earned out of 10 for each of the four quality measures that determine the Initial Quality Score, including CAHPS, which is survey-based, and three claims-based measures:   
+1. Risk-Standardized, All-Condition Readmission 
+
+2. Risk-Standardized, All-Cause Unplanned Admissions for Patients with Multiple Chronic Conditions 
+
+3. Days at Home for Patients with Complex, Chronic Conditions (High Needs Population ACOs only) OR Timely Follow-Up after Acute Exacerbations of Chronic Conditions (Standard and New Entrant ACOs only). 
+
+
+
+Table 3a provides more details regarding the claims-based measures and points earned, including an ACO’s percentile ranking for each measure, and the highest QPB threshold met. Table 3b provides the Quality Performance Benchmark distributions for each claims-based quality measure, as well as the number of points an ACO can earn for each QPB threshold.  
+In PY2023, CAHPS will be P4P for Standard and New Entrant ACOs, and REACH ACOs can earn up to 10 points towards the Initial Quality Score. CAHPS will be Pay for Reporting (P4R) for High Needs Population ACOs in PY2023. High Needs Population ACOs will earn the full 10 points towards the Initial Quality Score if they contract with a CAHPS vendor to conduct the survey. Table 4 and Table 5 provide information on the CAHPS scores attained by each REACH ACO and among all REACH ACOs on the PY2023 ACO REACH CAHPS survey. ACO REACH uses the ACO CAHPS Survey with some added questions about patient characteristics and experience of care provided, including activities of daily living, questions about contacting the provider's office after regular office hours, and questions on whether after-hours medical questions were answered as soon as the beneficiary needed. The questions make up 8 experience of care Summary Survey Measure (SSM) domains. The 8 SSMs are Getting Timely Appointments, Care, and Information; How Well Providers Communicate; Care Coordination; Shared Decision-making; Patient Rating of Provider; Courteous and Helpful Office Staff; Health Promotion and Education; and Stewardship of Patient Resources.  
+ 
+Table 4 presents the 8 SSMS with 5 different values for each, including the score for each REACH ACO and the average score across all REACH ACOs. For Standard and New Entrant ACOs, Table 4 will also provide the SSM percentile rank, highest benchmark threshold met, and the points awarded for each REACH ACO. These elements are not included in Table 4 for High Needs Population ACOs because CAHPS remains P4R for High Needs ACOs in PY2023. For Standard and New Entrant ACOs, quality performance benchmarks are created from SSM scores from the Merit-based Incentive Payment System, Shared Savings Program, Next Generation ACO, as well as ACO REACH. A REACH ACO can earn up to 10 SSM points for each SSM for a total possible count of 80 SSM points for the CAHPS Composite Score. 
+ 
+Table 5 displays the CAHPS questions and the results, both raw and risk adjusted, for each REACH ACO and all REACH ACOs, as well as the PY2022 scores. There are two types of questions, scored survey questions, which are used to calculate the SSM scores, and questions not scored, which include questions about demographics, health function, and screening questions. The results of the scored survey questions are presented with three different numbers. The first is the patient mix adjusted linearized means score, and the second is the raw linearized mean score. The average of the patient mix-adjusted linearized means scores for the component questions in an SSM determine the REACH ACO's SSM score. The third number is the number of respondents, which refers to the number of beneficiaries in the REACH ACO answering the question. For the unscored questions, the table presents the percentage of responses obtained per answer category and the number of respondents answering the question. Question results are not reported when there are fewer than 11 responses in any answer category. 
+ 
+Tables 6, 7, and 8 are also new for the PY2023 annual report. These are analogous to the Stratified Reporting Tables being provided as of PY2022 in the Quarterly Quality Reports. These tables provide claims-measure data stratified by dual eligibility (Table 6), living in a low socioeconomic status neighborhood (Table 7), and identifying with a race other than white (Table 8). Modified versions of the ACR and DAH measures are used in these calculations and the data presented are for informational purposes only.  
+ 
+AQR Tabs  
+Tab 
+ Description 
+ 
+Cover 
+ REACH ACO ID, report title, REACH ACO agreement start date 
+ 
+Table of Contents 
+ Linked titles of subsequent report tabs 
+ 
+Glossary 
+ List of abbreviations used in the report and definitions 
+ 
+About this Report 
+ Overview of the report contents, purpose of the report and why it is being provided, and where REACH ACOs can find more information about the quality performance measures 
+ 
+Parameters  
+ The parameters used to construct the report (reporting period, beneficiary alignment and eligibility through date, last date claims were processed for the report, HCC used in measure risk adjustment, measure specifications version used, benchmark year, and Summary information about quality measure performance results across claims-based measures and CAHPS; the tab also illustrates how the total quality score is calculated for each REACH ACO 
+ date the report was produced, brief description of how the quality withhold is tied to quality measure reporting and performance, and notes regarding interpretation of quality performance measure information) 
+ Table 1 
+ 
+Table 2 
+ Summary of adjustments made to the Initial Quality Score based on CI/SEP, HEDR, and HPP. CI/SEP and HPP only apply to REACH ACOs that started prior to PY2023.  
+ 
+Table 3 
+ Quality performance results across claims-based measures 
+ 
+About CAHPS 
+ Explanation of the contents of the CAHPS tables, information regarding why the tables are provided, and guidance regarding where to find more details about CAHPS 
+ 
+Table 4 
+ Annual CAHPS summary survey measure (SSM) patient mix adjusted linear mean scores for the REACH ACO and across all REACH ACOs, as well as the SSM percentile rank, highest benchmark threshold met, and number of points earned 
+ 
+Table 5 
+ Annual CAHPS survey results by scored survey question, includes the patient mix adjusted linearized mean score, the raw linearized mean score, and the number of respondents 
+ 
+About Stratified Reporting 
+ Overview of the stratified reporting tables including rationale for inclusion, description of the data presented and the stratifiers (dual eligibility, low socioeconomic status, and identification with a race/ethnicity other than white), and where REACH ACOs can submit questions or feedback 
+ 
+Tables 6 – 8  
+ Claims-based quality measure scores stratified by dual eligibility (table 5), low socioeconomic status (table 6), and identification with a race/ethnicity other than white (table 7). 
+ 
+
+ 
+  
+AQR – Table 1 (Summary Information)  
+Variable 
+ Variable Description 
+ 
+Measure 
+ Claims-based quality measures listed by abbreviation and CAHPS abbreviation  
+ 
+Measure Name 
+ Risk-Standardized, All-Condition Readmission (ACR), Risk-Standardized, All-Cause Unplanned Admissions for Patients with Multiple Chronic Conditions (UAMCC), Days at Home for Patients with Complex, Chronic Conditions (DAH – High Needs Population ACOs only), and Timely Follow-Up After Acute Exacerbations of Chronic Conditions (TFU – Standard and New Entrant ACOs only), Consumer Assessment of Healthcare Providers and Systems (CAHPS)  
+ 
+PY2023 – Your ACO Quality Measure Score 
+ ACR:  
+• Percentage of hospitalizations by REACH ACO-assigned beneficiaries that result in an unplanned readmission to a hospital within 30 days following discharge per 100 index hospital admission. 
+
+
+UAMCC:  
+• Rate of risk-standardized, acute, unplanned hospital admissions per 100 person-years 
+
+
+DAH (High Needs Population ACOs only): 
+• Risk factor-adjusted, mortality-adjusted, nursing home transition-adjusted days at home, averaged over all patients within a REACH ACO 
+
+
+ 
+TFU (Standard/New Entrant ACOs only): 
+• REACH ACO-level rate of follow-up for patients with chronic conditions who have experienced an acute exacerbation of one of six conditions of interest, which can be attributed to providers participating in the model 
+
+
+ 
+Points Earned 
+ The number of points earned on each Pay-for-Performance (P4P) measure (ACR, UAMCC, DAH or TFU, CAHPS). Each of the measures is worth 10 points for a total of 40 possible points that a REACH ACO could earn. 
+ 
+ 
+Points Possible 
+ The total possible points that can be earned for each of the P4P measures. 
+ 
+Initial Quality Score 
+ The total number of points earned by a REACH ACO divided by the total number of possible points that an entity can earned, multiplied by 100.  
+ 
+CI/SEP Gateway Multiplier 
+ Multiplier used based on whether or not a REACH ACO met the CI/SEP criteria in a given PY. REACH ACOs that meet the CI/SEP criteria in a given PY have a multiplier of 1.0 and REACH ACOs that do not meet the CI/SEP criteria in a given PY have a multiplier of 0.5. This column only applies to REACH ACOs that started prior to PY2023. 
+ 
+HEDR Adjustment 
+ REACH ACOs may earn up to 10% addition to their Initial Quality Score, based on the proportion of aligned population for which data are reported. REACH ACOs that document and submit a beneficiary’s choice not to disclose such data will receive credit for reporting that data.  
+ 
+Total Quality Score (0-100%) 
+ The Initial Quality Score after application of the CI/SEP multiplier and the HEDR Adjustment. The total Quality Score will be constrained to 0% to 100% of the Quality Withhold, even if addition of the HEDR Adjustment would result in a score outside of this range. 
+ 
+Quality Withhold Earn Back (0-2%) 
+ The amount of the 2% Quality Withhold that a REACH ACO earns back, based on the Total Quality Score. A Total Quality Score of 100% would result in a REACH ACO earning back the entire 2% Quality Withhold.  
+ 
+HPP Bonus 
+ An amount of additional funds that REACH ACOs may receive from the HPP if they meet the CI/SEP criteria and have an average percentile rank of 70% or greater across all claims-based measures. The HPP is funded by the total amount of the Quality Withhold that is not earned back by REACH ACOs that meet the CI/SEP criteria. This column only applies to REACH ACOs that started prior to PY2023. 
+ 
+
+ 
+AQR – Table 2a (Adjustments to Initial Quality Score: Continuous Improvement/Sustained Exceptional Performance (CI/SEP)) 
+Variable 
+ Variable Description 
+ 
+Measure 
+ Claims-based quality measures listed by abbreviation 
+ 
+Measure Name 
+ Risk-Standardized, All-Condition Readmission (ACR) – Equity Version, Risk-Standardized, All-Cause Unplanned Admissions for Patients with Multiple Chronic Conditions (UAMCC), Days at Home for Patients with Complex, Chronic Conditions (DAH – High Needs Population ACOs only), and Timely Follow-Up After Acute Exacerbations of Chronic Conditions (TFU – Standard and New Entrant ACOs only) 
+ 
+PY2023 – Your ACO Quality Measure Score 
+ ACR:  
+• Percentage of hospitalizations by REACH ACO-assigned beneficiaries that result in an unplanned readmission to a hospital within 30 days following discharge per 100 index hospital admission. 
+
+
+UAMCC:  
+• Rate of risk-standardized, acute, unplanned hospital admissions per 100 person-years 
+
+
+DAH (High Needs Population ACOs only): 
+• Risk factor-adjusted, mortality-adjusted, nursing home transition-adjusted days at home, averaged over all patients within a REACH ACO 
+
+
+ 
+TFU (Standard/New Entrant ACOs only): 
+• REACH ACO-level rate of follow-up for patients with chronic conditions who have experienced an acute exacerbation of one of six conditions of interest, which can be attributed to providers participating in the model 
+
+
+ 
+PY2023 – Standardized Quality Measure Score 
+ Standardized score components will be used in the evaluation of the continuous improvement for the CI/SEP criteria.  
+ ACR and UAMCC: the standardized score components will be equal to the ratio of a REACH ACO’s predicted score to its expected score. 
+
+ DAH (High Needs Population ACOs only): because this measure is based on three separate regression models, the measure calculation involves three separate standardized scores. An analogous standardized score component will be calculated by dividing the official measure score by the national mean (adjusted days at home). 
+
+Your ACO’s percentile ranking based on the quality performance benchmark distribution used to create the quality performance benchmarks displayed in Table 3b. 
+  TFU (Standard/New Entrant ACOs only): this cell is not applicable for TFU. Official TFU scores will be used for determination of continuous improvement, since the measure score is not dependent on a national mean rate and the measure calculation does not involve a standardized score component.  
+
+
+ PY2023 – Quality Measure Percentile Rank 
+ 
+PY20–2 - Your ACO Quality Measure Score 
+ ACR:  
+• Percentage of hospitalizations by REACH ACO-assigned beneficiaries that result in an unplanned readmission to a hospital within 30 days following discharge per 100 index hospital admission. 
+
+
+UAMCC:  
+• Rate of risk-standardized, acute, unplanned hospital admissions per 100 person-years 
+
+
+DAH (High Needs Population ACOs only): 
+• Risk factor-adjusted, mortality-adjusted, nursing home transition-adjusted days at home, averaged over all patients within a REACH ACO 
+
+
+TFU (Standard/New Entrant ACOs only): 
+• REACH ACO-level rate of follow-up for patients with chronic conditions who have experienced an acute exacerbation of one of six conditions of interest, which can be attributed to providers participating in the model 
+
+
+ 
+PY2022 – Standardized Quality Measure Score 
+ Standardized score components will be used in the evaluation of the continuous improvement for the CI/SEP criteria.  
+ ACR and UAMCC: the standardized score components will be equal to the ratio of a REACH ACO’s predicted score to its expected score. 
+
+ DAH (High Needs Population ACOs only): because this measure is based on three separate regression models, the measure calculation involves three separate standardized scores. An analogous standardized score component will be calculated by dividing the official measure score by the national mean (adjusted days at home). 
+
+ TFU (Standard/New Entrant ACOs only): this cell is not applicable for TFU. The official TFU score will be used for determination of continuous improvement, since the measure score is not dependent on a national mean rate and the measure calculation does not involve a standardized score component.  
+
+
+ 
+PY2022 – Quality Measure Percentile Rank 
+ Your REACH ACO’s highest quality performance benchmark reached based on your REACH ACO’s measure percentile rank and the quality performance benchmarks displayed in Table 3b. 
+ 
+Continuous Improvement: Change in PY2023 vs. PY2022 
+ For each quality measure, CMS determines whether REACH ACOs exhibit statistically significant improvement, no statistically significant change, or a statistically significant decline in performance on the measure scores (standardized score components for ACR, UAMCC, and DAH, and observed measure scores for TFU). This determination is based on a comparison of 95% confidence intervals (CIs)—CMS calculates 95% CIs for each REACH ACO for each measure and year. This column only applies to REACH ACOs that started prior to PY2023. Possible values are: 
+ • -1 point for declining performance 
+
+• -0 points for no change in performance 
+
+• +1 point for improving performance 
+
+
+This column only applies to REACH ACOs that started prior to PY2023. 
+ 
+• Significant decline 
+
+• Significant improvement 
+
+• Change is not statistically significant 
+
+
+ 
+Sustained Exceptional Performance: Met 70th  percentile threshold in PY2023 and PY2022 CI/SEP Points 
+ A REACH ACO qualifies as having Sustained Exceptional Performance on a measure if the ACO meets or exceeds the respective 70th percentile benchmark values in both PY2022 and PY2023. This column only applies to REACH ACOs that started prior to PY2023. 
+ 
+Total CI/SEP Points 
+ The sum of CI/SEP points across claims-based measures. This column only applies to REACH ACOs that started prior to PY2023. 
+ 
+Met Overall CI/SEP Criteria 
+ To pass the overall CI/SEP criteria, REACH ACOs must meet both conditions listed below:  
+• CONDITION 1: receive +1 CI/SEP point for AT LEAST 1 measure (i.e., the REACH ACO must exhibit continuous improvement OR sustained exceptional performance for at least one measure) AND 
+
+• CONDITION 2:  have an overall net CI/SEP score greater than or equal to 0. 
+
+
+This column only applies to REACH ACOs that started prior to PY2023. 
+ 
+
+ 
+AQR – Table 2b (Adjustments to Initial Quality Score: Health Equity Data Reporting (HEDR)) 
+Variable 
+ Variable Description 
+ 
+Number of beneficiaries with at least 6 months of alignment to the ACO during the performance year for whom the ACO successfully reports all required data elements 
+ Corresponding beneficiary count 
+ 
+Number of beneficiaries with at least 6 months of alignment to the ACO during the performance year 
+ Corresponding beneficiary count 
+ 
+Demographic Reporting Rate 
+ Percentage calculated by dividing the number of beneficiaries with at least 6 months of alignment to an ACO during the performance year for whom the ACO successfully reports all required data elements, by the number of beneficiaries with at least 6 months of alignment to the ACO during the performance year 
+ 
+HEDR Adjustment Range 
+ For PY2023, the HEDR Adjustment Range will be +0% to +10% 
+ 
+Your ACO HEDR Adjustment 
+ Percentage calculated by multiplying the Reporting Rate by the maximum adjustment 
+ 
+
+ 
+AQR – Table 2c (High Performers Pool (HPP) Eligibility – only applicable to REACH ACOs that started prior to PY2023) 
+Variable 
+ Variable Description 
+ 
+Met Overall CI/SEP Criteria 
+ Yes or no response 
+ 
+Average Percentile on Claims-Based Measures in PY2023 
+ This value is based on a REACH ACO's PY2023 percentile rankings for the three claims-based measures, consistent with the values reported in Tables 2a and 3a. 
+ 
+Average Percentile on Claims-Based Measures in PY2023 >= 70% 
+ Yes or No response 
+ 
+Met HPP Requirements 
+ Yes or No response 
+ 
+
+ 
+AQR – Table 3a (Claims-Based Quality Measure Results) 
+Variable 
+ Variable Description 
+ 
+Measure 
+ Claims-based quality measures listed by abbreviation 
+ 
+Measure Name 
+ Risk-Standardized, All-Condition Readmission (ACR), Risk-Standardized, All-Cause Unplanned Admissions for Patients with Multiple Chronic Conditions (UAMCC), Days at Home (DAH) for Patients with Complex, Chronic Conditions (High Needs Population ACOs only), and Timely Follow-Up After Acute Exacerbations of Chronic Conditions (Standard and New Entrant ACOs only) 
+ 
+Your ACO Quality Measure Score 
+ • ACR: Percentage of hospitalizations by REACH ACO-assigned beneficiaries that result in an unplanned readmission to a hospital within 30 days following discharge per 100 index hospital admission. 
+
+• UAMCC: Rate of risk-standardized, acute, unplanned hospital admissions per 100 person-years 
+
+• DAH: Risk factor-adjusted, mortality-adjusted, nursing home transition-adjusted days at home, averaged over all patients within a REACH ACO 
+
+• TFU: REACH ACO-level rate of follow-up for patients with chronic conditions who have experienced an acute exacerbation of one of six conditions of interest, which can be attributed to providers participating in the model 
+
+
+ 
+Mean Quality Measure Score (ACO of same type) 
+ Mean for each measure is calculated based on your REACH ACO’s cohort of entities (Standard/New Entrant or High Needs Population).   
+ 
+Measure Percentile Rank 
+ Your REACH ACO’s percentile ranking based on the quality performance benchmark distribution used to create the quality performance benchmarks displayed in Table 3b. 
+ 
+Highest Quality Performance Benchmark Threshold Met 
+ The highest threshold value met based on the PY2023 Quality Performance Benchmark distribution displayed in Table 3b. 
+ 
+Points Earned 
+ A REACH ACO can earn up to 10 points for each claims-based measure, depending on the highest percentile threshold met (see list of values in Table 3b below) 
+ 
+
+AQR – Table 3b (Quality Performance Benchmarks and Points Earned for Claims-Based Measures) 
+Variable 
+ Variable Description 
+ 
+Highest Threshold Met 
+ List of possible quality performance benchmark thresholds to meet (<30%, 30 – 90%) 
+ 
+ACR 
+ List of ACR quality performance benchmark values that correspond to the listed thresholds in the first column (Highest Threshold Met) 
+ 
+UAMCC 
+ List of UAMCC quality performance benchmark values that correspond to the listed thresholds in the first column (Highest Threshold Met) 
+ 
+DAH 
+ List of DAH quality performance benchmark values that correspond to the listed thresholds in the first column (Highest Threshold Met) 
+ 
+TFU 
+ List of TFU quality performance benchmark values that correspond to the listed thresholds in the first column (Highest Threshold Met) 
+ 
+Points Earned 
+ An ACO can earn up to 10 points for each claims-based measure, depending on the highest percentile threshold met:  
+• <30% = 0 points 
+
+• ≥ 30% = 7.5 points 
+
+• ≥ 35% = 7.75 points 
+
+• ≥ 40% = 8 points 
+
+• ≥ 45% = 8.25 points 
+
+• ≥ 50% = 8.5 points 
+
+• ≥ 8.75 points 
+
+• ≥ 60% = 9 points 
+
+• ≥ 65% = 9.25 points 
+
+• ≥ 70% = 9.5 points 
+
+• ≥ 75% = 9.625 points 
+
+• ≥ 80% = 9.75 points 
+
+• ≥ 85% = 9.875 points 
+
+• ≥ 90% = 10 points 
+
+
+ 
+
+ 
+AQR – Table 4 (CAHPS Results) 
+Variable 
+ Variable Description 
+ 
+SSM 
+ Summary Survey Measure  
+ 
+Your REACH ACO 
+ A REACH ACO’s patient mix adjusted linear mean score by SSM 
+ 
+All REACH ACOs 
+ The patient mix adjusted linear mean score across all REACH ACOs for each SSM 
+ 
+SSM Percentile Rank (Standard and New Entrant ACOs Only) 
+ Your REACH ACO’s percentile ranking based on the quality performance benchmark distribution used to create the SSM quality performance benchmarks  
+ 
+Highest Benchmark Threshold Met (Standard and New Entrant ACOs Only) 
+ The highest threshold value met based on your REACH ACO’s SSM Percentile Rank and the PY2023 Quality Performance Benchmarks. 
+ 
+Points Earned (Standard and New Entrant ACOs Only) 
+ Points earned based on the highest percentile threshold met. 
+ 
+Points Possible (Standard and New Entrant ACOs Only) 
+ A REACH ACO can earn up to 10 points for each SSM, depending on the highest percentile threshold met 
+ 
+
+ 
+AQR – Table 5 (CAHPS Questions) 
+Variable 
+ Variable Description 
+ 
+Your REACH ACO 
+ Depending on the corresponding row, the values in this column convey a REACH ACO’s patient mix adjusted linearized mean summary survey measure (SSM) score, or the patient mix adjusted linearized mean score, raw linearized mean score or number of non-missing respondents for each reported question. Under the “Unscored Survey Questions” section, this column value represents the percentage of responses obtained per answer category and the number of non-missing respondents answering the question. 
+ 
+All REACH ACOs 
+ Depending on the corresponding row, the values in this column convey the patient mix adjusted linearized mean SSM score across all REACH ACOs, or the patient mix adjusted linearized mean score, raw linearized mean score or number of non-missing respondents for each reported question across all REACH ACOs. Under the “Unscored Survey Questions” section, this column value represents the percentage of responses obtained per answer category and the number of non-missing respondents answering the question across all REACH ACOs. 
+ 
+PY2022 Score (Standard and New Entrant ACOs Only) 
+ For Standard and New Entrant ACOs that started prior to PY2023, depending on the corresponding row, the values in this column convey a REACH ACO’s patient mix adjusted linearized mean summary survey measure (SSM) score from PY2022, or the patient mix adjusted linearized mean score, raw linearized mean score or number of non-missing respondents for each reported question. Under the “Unscored Survey Questions” section, this column value represents the percentage of responses obtained per answer category and the number of non-missing respondents answering the question. 
+ 
+
+ 
+AQR – Tables 6- 8 (Stratified Reporting) 
+Variable 
+ Variable Description 
+ 
+Measure 
+ Claims-based quality measures used for providing stratified reports, listed abbreviation (ACR – Equity Version, UAMCC, Timely Follow-Up) 
+ 
+Measure Name 
+ Risk-Standardized, All-Condition Readmission (ACR) – Equity Version, Risk-Standardized, All-Cause Unplanned Admissions for Patients with Multiple Chronic Conditions (UAMCC), Days at Home for Patients with Complex, Chronic Conditions – Days in Care (DAH-DIC – High Needs Population ACOs only), and Timely Follow-Up After Acute Exacerbations of Chronic Conditions (TFU – Standard and New Entrant ACOs only) 
+ 
+Volume – Your REACH ACO  (by stratifier) 
+ Volume is defined differently depending on the measure:  
+ ACR: index hospital stays  UAMCC: person-years 
+
+ DAH-DIC: Days in Care 
+
+ TFU: acute exacerbation events 
+
+
+ 
+Volume is stratified differently depending on the table: 
+ Table 6: dual eligibility, defined as full Medicaid for one or more months during the reporting period.  
+
+ Table 7: residence in a low SES neighborhood, defined by an Area Deprivation index (ADI) percentile of 81 or higher 
+
+ Table 8: identifying with a race/ethnicity other than white  
+
+
+ 
+Measure Score – Your REACH ACO  
+(by stratifier) 
+ Measure score is stratified differently depending on the table: 
+ Table 6: dual eligibility  
+
+ Table 7: residence in a low SES neighborhood 
+
+ Table 8: identifying with a race/ethnicity other than white 
+
+
+ 
+Mean Measure Score – All REACH ACOs and Other Provider Groups  
+(by stratifier) 
+ Mean measure score is stratified differently depending on the table: 
+ Table 6: dual eligibility  
+
+ Table 7: residence in a low SES neighborhood 
+
+ Table 8: identifying with a race/ethnicity other than white 
+
+
+ 
+All Beneficiaries – Mean Measure Score – All REACH ACOs and Other Provider Groups 
+ Mean measure score calculated across all REACH ACOs and other provider groups. For Standard or New Entrant ACOs, the mean quality measure score for each measure is calculated across both Standard and New Entrant ACOs. For High Needs Population ACOs, the mean quality measure score for each measure is calculated across all High Needs Population ACOs.  
+ 
+
+ 
+  
+4.0 Claim and Claim-Line Feeds (CCLFs) 
+CMS provides CCLF data files to multiple Innovation Center and CMS initiatives, including the ACO REACH Model. CCLFs are data extracts for all FFS professional, institutional, and prescription drug program services rendered to aligned beneficiaries and processed during the prior month (i.e., since the last batch of CCLF files were shared). These files will include Medicare claims from all healthcare providers (Participant, Preferred, and non-Participant and non-Preferred), including physicians, non-physician practitioners (e.g., Nurse Practitioners), hospitals (Acute Care Hospitals (ACHs), Long-Term Acute Care Hospitals (LTACHs), Psychiatric, etc., Skilled Nursing Facilities (SNFs), Inpatient Rehabilitation Facility (IRFs), Federally Qualified Health Centers (FQHCs), Rural Health Clinics (RHCs), Critical Access Hospitals (CAHs, Method I and Method II), hospices, home health agencies, laboratories, and imaging facilities. 
+ 
+The term “claim” refers to a bill that is submitted by a provider for services rendered to a Medicare beneficiary. A single claim can be associated with multiple services provided on one or more dates. Individual services are reported on the claim form as separate claim lines. CCLF files contain institutional and professional claims at the claim-header and claim-line level. The CCLFs that REACH ACOs will receive each month consist of five Medicare Part A files, three Medicare Part B files, one Medicare Part D file, one beneficiary demographics file, and one beneficiary MBI cross-reference file. The CCLF IP provides the file specifications for each of these data files. 
+4.1 CCLFs Summary Table 
+The table below provides a high-level summary of the list of CCLF data files planned for PY2023. All CCLF data files have a reporting period spanning the prior month and are distributed monthly between the second and third week of the subsequent month.  
+CCLF 
+ Level of Detail 
+ Description 
+ 
+Reference 
+ 
+Summary Statistics Header Record, Summary Statistics Detail Records (CCLF0)33 
+ Report 
+ Record count for each of the 11 CCLF files 
+ 
+Beneficiary Demographics File (CCLF8)34 
+ Beneficiary 
+ Contains list of beneficiaries for whom the REACH ACO is qualified to receive claims data (i.e., aligned beneficiaries who have not opted out of data sharing and have not been excluded by CMS) 
+ 
+Beneficiary XREF File (CCLF9) 
+ Beneficiary 
+ Contains the list of beneficiaries who have at least one MBI change and have not opted out of data sharing, along with each beneficiary's current MBI and any previous MBI(s) with start/end dates. This report can be used to identify the historical claims that linked to the new MBI 
+ 
+Part A 
+ 
+
+33 Do not contain HIPAA-covered data. 
+34 This file contains the Beneficiary Medicare Status Code field, which provides five categories of a beneficiary’s Medicare entitlements. This data may or may not conflict with data provided in the Risk Score Report. The source-of-record for the ACO REACH Model is the Risk Score Report. 
+Claims Header File (CCLF1) 
+ Claim-header 
+ Beneficiary-level spending on facility services (by Diagnostic Related Group (DRG) or principal diagnosis), provider or facility NPI, MBI 
+ 
+Claims Revenue Center Detail File (CCLF2) 
+ Claim-lines 
+ HCPCS and date for each service; for outpatient claims has payment amount and allowed charge 
+ 
+Procedure Code File (CCLF3) 
+ Claim-header 
+ Type and date of procedure 
+ 
+Diagnosis Code File (CCLF4) 
+ Claim-header 
+ Principal and secondary diagnoses 
+ 
+Part A Claims Benefit Enhancement (BE) and Demonstration Code Files (CCLFA) Error! Bookmark not defined. 
+ Claim-header 
+ BE code and Medicare Demonstration Special Processing Numbers associated with claim lines. One row per claim that is processed with one or more of the following BEs: Care Management Home Visits, Telehealth, Post Discharge Home Visit, Homebound Home Health, and/or Concurrent Care for Beneficiaries with Hospice 
+ 
+Part B 
+ 
+Part B Physicians File (CCLF5) 
+ Claim-lines and claim-headers 
+ At the claim level, the file contains date of service, MBI, header level diagnosis code, disposition code, and type of claim (DMEPOS or non-DMEPOS). At the line level, the file contains provider specialty, date of service, health care common procedure coding system (HCPCS) code, HCPCS modifier code, payment amount, allowed charge amount, line-level diagnosis code (i.e., the “pointer” to the header level diagnosis), units of service, primary payer, provider Tax Identification Number (TIN), and rendering NPI number 
+ 
+Part B DME File (CCLF6) 
+ Claim-lines and claim-headers 
+ Date of service, disposition code, type of claim submitted (DMEPOS or non) 
+ 
+Part B Claims Benefit Enhancement (BE) and Demonstration Codes File 
+ Claim-line 
+ BE code and Medicare Demonstration Special Processing Numbers associated with claim lines. One row per claim that is processed with one or more of the following BEs: SNF 3-Day Waiver, Care Management Home Visits, Telehealth, Post Discharge Home Visit, Homebound Home Health, and/or Concurrent Care for Beneficiaries with Hospice 
+ 
+Part D 
+ 
+Part D Claims Data (CCLF7) 
+ Claim-lines 
+ Prescription drug information at the beneficiary level, including NDC, quantity dispensed, days supplied, prescribing provider ID, service provider ID, and patient payment amount 
+ 
+Historical 
+ 
+Historical CCLFs 
+ Claim-lines and claim-headers 
+ Contains all CCLFs using 36-month lookback period prior to the PY or prior to the start of the quarter for newly aligned beneficiaries 35 
+ 
+
+35 These claims are provided in the first month of the quarter when the beneficiary becomes effectively aligned to the REACH ACO. 
+ 
+4.2 Comparison of Aggregated Finance Reports and Claim-level data 
+The table below highlights the key similarities and differences between Aggregated Finance Reports, i.e. QBR, APA, and MER, and Claim-level data, i.e. the Monthly CCLFs and the Weekly Claims Reduction File. CMS shares Aggregated Finance Reports and Claim-level data files to provide financial information to REACH ACOs to help them make management decisions and monitor model performance during each PY. The Aggregated Finance Reports help REACH ACOs track financial performance and the progression of the benchmark throughout the PY. Claim-level Reports are provided to help REACH ACOs track actual expenditures as they are incurred and help facilitate financial agreements with aligned providers.  
+There are two important distinctions between Claim-level data and Aggregated Finance Reports. First, Claim-level data files do not include two types of claims data: (1) Claims data for beneficiaries who opt out of data sharing; and (2) Claims data related to treatment for SUD services. These claims data are included in the Aggregate Finance Reports. Consequently, the claim-level data files will not match exactly with the total expenditures in the Aggregated Finance Reports if summed.  
+Second, from a financial accounting perspective, Claim-level data files are generated on a cash accounting basis (i.e., based on the date the claim was processed/paid). Therefore, the claim-level data files contain claims expenditures for services that are paid during the prior week or month, regardless of when the services were provided (i.e., incurred). In contrast, the Aggregate Financial Reports are generated on an accrual accounting basis (i.e., based on date of service), and therefore reflect a more accurate financial picture. The MER will also provide data on the difference between the month in which a claim was incurred and the month in which it was paid. For more technical guidance on how to reconcile CCLF claims to MERs/QBRs, please review this resource. 
+Claim-level data / Report 
+ Data Included 
+ Data Excluded 
+ Incurred / Paid Parameters 
+ 
+Claim-level data 
+ 
+Claims Header File (CCLF1) 
+Claims Revenue Center Detail File (CCLF2) 
+Procedure Code File (CCLF3) 
+Diagnosis Code File (CCLF4) 
+Part B Physicians File (CCLF5) 
+Part B DME File (CCLF6) 
+Part D Claims Data (CCLF7) 
+Part A Claims Benefit Enhancement (BE) and Demonstration Code Files (CCLFA) 
+Part B Claims Benefit Enhancement (BE) and Demonstration Codes File (CCLFB) 
+ All Part A, Part B, and Part D 
+  Beneficiary opt-outs 
+
+ Administrative suppression 
+
+ SUD treatment 
+
+
+ Claims for services incurred (provided) during the PY and paid during the month prior to the month in which the report is distributed (e.g., the June CCLF will include claims incurred between April and June and paid during June). 
+ 
+Historical CCLFs 
+ Claims incurred by PY aligned beneficiaries during the three years prior to the PY and paid prior to the start of the PY. 
+ 
+Weekly Claims Reduction File 
+ Reduced Part A and Part B claims Claims for services incurred between the start of the PY and the end of the quarter, and paid prior to the end of the calendar quarter (e.g., the QBR for the quarter ending in June will include claims for services incurred between April and June and paid between April 1 and June 30. 
+ Claims paid during the prior week regardless of when the claim was incurred. 
+ 
+Aggregated Finance Reports 
+ 
+Quarterly Benchmark Report (QBR) 
+ All Part A and Part B 
+ None 
+ 
+Alternative Payment Arrangement (APA) Report 
+ Claims for services incurred between the start of the PY and the end of the quarter, and paid prior to the end of the calendar quarter. 
+In addition, the APA presents a forecast of preliminary quarterly TCC, PCC, and APO payments to the REACH ACO that may be subject to adjustments where applicable. 
+ 
+Monthly Expenditure Report (MER) 
+ Claims for services incurred between the start of the PY and the end of the previous calendar month, and paid prior to the end of the previous calendar month quarter (e.g., the Monthly Expenditure for May will include claims for services incurred in April and May and paid between April 1 and May 31). 
+ 
+
+ 
+  
+5.0 Appendix 
+5.1 Risk Score Production Schedule 
+CMMI will provide REACH ACOs with risk score updates throughout the PY to reflect updated diagnosis information as it becomes available. The table below provides a preliminary risk score production schedule for PY2023. This schedule highlights the different risk score updates that will provided and links those risk score updates to the QBRs, RSRs, and APAs. Note that initial risk scores, used at the beginning of the PY, will be calculated using diagnoses from an earlier data collection and diagnosis measurement period. For the CMMI-HCC concurrent risk adjustment model, beneficiary risk scores will not be provided initially due to the incompleteness of the diagnosis information, which will be reported during the PY. Initially, a proxy risk score will be incorporated into the calculations shown in the QBR and APA. For more details regarding the ACO REACH Risk Adjustment Policy, please refer to: https://innovation.cms.gov/media/document/aco-reach-py2023-risk-adjustment. 
+ 
+5.1.1 Preliminary Risk Score Production Schedule Table for PY2023 
+Diagnosis Measurement Period 
+ Run-out through 
+ Benchmark and  
+Risk Score Reports 
+ Alternative Arrangement Reports 
+ 
+ Prospective Risk Scores for Standard and New Entrant ACO AD Beneficiaries, and ESRD Beneficiaries 
+ 
+7/21 – 6/22 
+ 9/30/2022 
+ Preliminary QBR / RSR 
+ Q1, Q2 APA (Q1, Q2 payment) 
+ 
+1/22 - 12/22 
+ 03/31/2023 
+ Q1 QBR / RSR 
+ Q3 APA (Q3 payment) 
+ 
+1/22 - 12/22 
+ 06/30/2023 
+ Q2 QBR / RSR 
+ Q4 APA (Q4 payment) 
+ 
+1/22 - 12/22 
+ 09/30/2023 
+ Q3 QBR / RSR 
+  
+ 
+1/22 - 12/22 
+ 12/31/2023 
+ Q4 provisional QBR / RSR 
+  
+ 
+1/22 - 12/22 
+ 1/31/2024 
+ S1 
+ Final adjustments 
+post-PY, but before settlement 
+ 
+ Concurrent Risk Scores for High Needs Population ACO AD Beneficiaries 
+ 
+7/21 – 6/22 
+ 9/30/2022 
+ Preliminary QBR / RSR36 
+ Q1, Q2 APA (Q1, Q2 payment)22  
+ 
+1/22 -12/22 
+ 03/31/2023 
+ Q1 QBR / RSR22 
+ Q3 APA (Q3 payment)22 
+ 
+4/22 - 3/23 
+ 06/30/2023 
+ Q2 QBR / RSR22 
+ Q4 APA (Q4 payment) 37 
+ 
+7/22 - 6/23 
+ 09/30/2023 
+ Q3 QBR / RSR22 
+  
+ 
+10/22 - 9/23 
+ 12/31/2023 
+ Q4 provisional QBR / RSR22 
+  
+ 
+1/23 - 12/23 
+ 3/31/2024 
+ S1 / RSR 
+ Final adjustments 
+post-PY, but before settlement 
+ 
+
+36 For the CMMI-HCC concurrent risk adjustment model, beneficiary-level risk scores will not be provided initially due to the incompleteness of the diagnosis information. Initially, a proxy risk score will be incorporated into the calculations shown in the QBR and APA. 
+37 The proxy risk score (per the previous footnote) may continue to be used until it is determined that the CMMI-HCC concurrent risk scores are sufficiently complete. 
+ 
+5.2 PY2023 Reporting and Data Sharing Distribution Schedule 
+CMMI will provide REACH ACOs with reports and data files throughout the PY to reflect new information as it becomes available. ACOs should refer to this website for the most up-to-date reporting schedule for PY2023; note this information is subject to change.  
+5.3 Tentative PY2023 4i File Naming Conventions 
+Category 
+ File Name 
+ File Format 
+ File Pattern 
+ As displayed in 4i 
+ Pattern Interpretation 
+ 
+Alignment 
+ Provisional Alignment Estimate 
+ xlsx 
+ P.D****.PAER.Dyymmdd.Thhmmsst 
+ Provisional Alignment Estimate (xlsx) 
+ D**** Represents Entity ID  
+Dyymmdd – “D”  stands for Date, "yy" stands for Calendar Year, i.e. 21, 22, 23, "mm" stands for Month, i.e. 01, 02, 03, and "dd" stands for day 
+Thhmmsst – Represents the file generated time 
+PAER – Represents Provisional Alignment Estimate 
+ 
+Beneficiary Alignment Report 
+ xlsx 
+ P.D****.ALGC**.RP.Dyymmdd.Thhmmsst 
+ Beneficiary Alignment Report Delivered in MMM YYYY (xls) 
+ ALGC – Represents Beneficiary Alignment Report 
+ 
+Provider Alignment Report 
+ xlsx 
+ P.D****.PALMR.Dyymmdd.Thhmmsst 
+ Provider Alignment Report (xlsx) 
+ PALMR - Represents Provider Alignment Report 
+ 
+Prospective Plus Opportunity Report 
+ xlsx 
+ P.D****.PPOPR.Q*.Dyymmdd.Thhmmsst 
+ Prospective Plus Opportunity Report - Q* (xlsx) 
+ PPOPR - Represents Prospective Plus Opportunity Report 
+Q – Represents the PY Quarter 
+ 
+Paper Based Voluntary Alignment Response File 
+ xlsx 
+ P.D****.PBVAR.Dyymmdd.Thhmmsst 
+ Paper Based Voluntary Alignment Response File (xlsx) 
+ PBVAR - Represents Paper Based Voluntary Alignment Response File 
+ 
+Finance 
+ Preliminary Benchmark Report 
+ xlsx 
+ P.D****.PRLBR.Dyymmdd.Thhmmsst 
+ Preliminary Benchmark Report (xlsx) 
+ PRLBR – Represents Preliminary Benchmark Report 
+ 
+Preliminary Benchmark Report (Unredacted) 
+ xlsx 
+ P.D****.PRBRU.Dyymmdd.Thhmmsst 
+ Preliminary Benchmark Report (Unredacted) (xlsx) 
+ PRBRU - Represents Preliminary Benchmark Report (Unredacted) 
+ 
+Quarterly Benchmark Report 
+ xlsx 
+ P.D****.QBNMR.Dyymmdd.Thhmmsst 
+ Quarterly Benchmark Report (xlsx) 
+ QBNMR - Represents Quarterly Benchmark Report 
+ 
+Preliminary Alternative Payment Arrangement Report 
+ xlsx 
+ P.D****.ALPAR.Dyymmdd.Thhmmsst 
+ Preliminary Alternative Payment Arrangement Report (xlsx) 
+ ALPAR - Represents Preliminary Alternative Payment Arrangement Report 
+ 
+Preliminary Full Alternative Payment Arrangement Report (Unredacted) 
+ xlsx 
+ P.D****.PLARU.Dyymmdd.Thhmmsst 
+ Preliminary Full Alternative Payment Arrangement Report (Unredacted) (xlsx) 
+ PLARU - Represents Preliminary Full Alternative Payment Arrangement Report (Unredacted) 
+ 
+Alternative Payment Arrangement Report 
+ xlsx 
+ P.D****.ALTPR.Dyymmdd.Thhmmsst 
+ Alternative Payment Arrangement Report (xlsx) 
+ ALTPR - Represents Alternative Payment Arrangement Report 
+ 
+Monthly Expenditure Report 
+ xlsx 
+ P.D****.MEXPR.Dyymmdd.Thhmmsst 
+ Monthly Expenditure Report (xlsx) 
+ MEXPR - Represents Monthly Expenditure Report 
+ 
+Risk Score Report 
+ zip 
+ P.D****.RAP*V*.Dyymmdd.Thhmmsst 
+ Risk Score Report for DC - PY* and Version * (zip) 
+ RA - Represents Risk Score Report 
+P* - Performance Year (P) i.e. 1, 2, 3, etc. 
+V* - Version number e.g., V1 
+ 
+Weekly Claims Reduction File 
+ text 
+ P.D****.TPARC.Dyymmdd.Thhmmsst 
+ Weekly Claims Reduction File (txt) 
+ TPARC - Represents Weekly Claims Reduction File 
+ 
+Provider Specific Payment Reduction Report 
+ xlsx 
+ P.D****. PYREDYY.RP.Dyymmdd.Thhmmsst 
+ Provider Specific Payment Reduction Report 
+ RED – Represents Provider Specific Payment Reduction Report 
+ 
+CCLFs 
+ CCLFs 
+ Zip 
+ P.A****.ACO.ZCY**.Dyymmdd.Thhmmsst 
+ CCLF Delivered in <Mon>. <Year> (zip) 
+ ZCY** - Represents the monthly CCLFs for corresponding calendar year (CY) 
+ 
+CCLFs Run-out 
+ Zip 
+ P.A****.ACO.ZCR**.Dyymmdd.Thhmmsst 
+ Run-Out CCLF Delivered in <Mon>. <year> (zip) 
+ ZCR** - Represents the run-out CCLFs for the corresponding CY 
+ 
+Quality 
+ Quarterly Quality Report 
+ xlsx 
+ P.D****.QTLQR.Q*.Dyymmdd.Tmmddyyr 
+ Quarterly Quality Report (xlsx) 
+ QTLQR - Represents Quarterly Quality Report 
+yymmdd – Represents the last day of the applicable reporting period, "yy" stands for Calendar Year, i.e. 21, 22, 23, "mm" stands for Month, i.e. 01, 02, 03, and "dd" stands for day 
+mmddyy – Represents the date the report was generated, "dd" stands for day, "mm" stands for Month, i.e. 01, 02, 03, "yy" stands for Calendar Year, i.e. 21, 22, 23 
+r – used to distinguish between multiple report versions produced in a single day, i.e. 0 if the first and only report version produced that day, 1 if the second report version produced that day  
+ 
+ 
+Annual Quality Report 
+ xlsx 
+ P.D****.ANLQR.Dyymmdd.Tmmddyyr 
+ Annual Quality Report (xlsx) 
+ ANLQR – Represents Annual Quality Report 
+yymmdd – Represents the last day of the applicable reporting period, "yy" stands for Calendar Year, i.e. 21, 22, 23, "mm" stands for Month, i.e. 01, 02, 03, and "dd" stands for day 
+mmddyy – Represents the date the report was generated, "dd" stands for day, "mm" stands for Month, i.e. 01, 02, 03, "yy" stands for Calendar Year, i.e. 21, 22, 23 
+r – used to distinguish between multiple report versions produced in a single day, i.e. 0 if the first and only report version produced that day, 1 if the second report version produced that day  
+ 
+
+5.4 Natural keys between CCLFs and CRFs 
+The table below outlines the natural keys between the CCLFs and the CRFs. This mapping will be updated as necessary as updates to the CCLFs and CRFs occur. 
+Claim and Claim-Line Feed Files (v33.1) 
+ Claims Reduction File (v 012022) 
+ 
+Table  
+ Field  
+ Condition 
+ Table  
+ Field 
+ Condition 
+ 
+Part A Claims Header File (CCLF1) 
+ BENE_MBI_ID 
+  
+ File Header 
+ CLMH-MBI 
+  
+ 
+PRVDR_OSCAR_NUM 
+  
+ CLMH-PVDR-CCN 
+  
+ 
+CLM_TYPE_CD 
+ 60 
+ CLMH-MEDICARE-PART 
+ HUIP 
+ 
+20 
+ 
+30 
+ 
+10 
+ HUHH 
+ 
+50 
+ HUHC 
+ 
+CLM_FROM_DT 
+  
+ CLMH-FROM-DT 
+  
+ 
+CLM_THRU_DT 
+  
+ CLMH-THRU-DT 
+  
+ 
+CLM_ADJSMT_TYPE_CD 
+  
+ CLMH-ADJSMT-TYPE-CD 
+  
+ 
+Part A Claims Revenue Center Detail File (CCLF2) 
+ BENE_MBI_ID 
+  
+ File Detail 
+ CLMH-MBI 
+  
+ 
+CLM_TYPE_CD 
+ 10 
+ CLMH-MEDICARE-PART 
+ HUHH 
+ 
+20 
+ HUIP 
+ 
+30 
+ HUIP 
+ 
+40 
+ HUOP 
+ 
+50 
+ HUHC 
+ 
+60 
+ HUIP 
+ 
+CLM_LINE_FROM_DT 
+  
+ CLML-FROM-DT  
+  
+ 
+CLM_LINE_THRU_DT 
+  
+ CLML-THRU-DT 
+  
+ 
+CLM_LINE_NUM 
+  
+ CLML-LINE-NUMBER 
+  
+ 
+PRVDR_OSCAR_NUM 
+  
+ File Header 
+ CLMH-PVDR-CCN 
+  
+ 
+CLM_FROM_DT 
+  
+ CLMH-FROM-DT 
+  
+ 
+CLM_THRU_DT 
+  
+ CLMH-THRU-DT 
+  
+ 
+Part B Physicians File (CCLF5) 
+ BENE_MBI_ID 
+  
+ File Header 
+ CLMH-MBI 
+  
+ 
+CLM_TYPE_CD 
+ 71 
+ CLMH-MEDICARE-PART 
+ HUBC 
+ 
+72 
+ HUBC 
+ 
+CLM_FROM_DT 
+  
+ CLMH-FROM-DT 
+  
+ 
+CLM_THRU_DT 
+  
+ CLMH-THRU-DT 
+  
+ 
+
+ 
+

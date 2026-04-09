@@ -1,0 +1,93 @@
+version: 2
+name: sva
+description: Shared Voluntary Alignment (SVA) submission file for beneficiary voluntary
+  alignment
+storage:
+  tier: bronze
+  file_patterns:
+    reach:
+    - '*SVA*.xlsx'
+  silver:
+    output_name: sva.parquet
+    refresh_frequency: quarterly
+    last_updated_by: aco transform sva
+file_format:
+  type: excel
+  sheet_name: SVA_DATA
+  encoding: utf-8
+columns:
+- name: ACO ID
+  output_name: aco_id
+  description: ACO Identifier
+  data_type: string
+  required: true
+- name: Beneficiary's MBI
+  output_name: bene_mbi
+  description: Medicare Beneficiary Identifier
+  data_type: string
+  required: true
+- name: Beneficiary's First Name
+  output_name: bene_first_name
+  description: Beneficiary first name
+  data_type: string
+- name: Beneficiary's Last Name
+  output_name: bene_last_name
+  description: Beneficiary last name
+  data_type: string
+- name: Beneficiary's Street Address
+  output_name: bene_street_address
+  description: Street address
+  data_type: string
+- name: City
+  output_name: city
+  description: City
+  data_type: string
+- name: State
+  output_name: state
+  description: State code
+  data_type: string
+- name: Zip
+  output_name: zip
+  description: ZIP code
+  data_type: string
+- name: Provider Name/Primary place the Beneficiary receives care (as it appears on
+    the signed SVA letter)
+  output_name: provider_name
+  description: Provider name from SVA letter
+  data_type: string
+- name: Name of Individual  Participant Provider associated w/ attestation
+  output_name: sva_provider_name
+  description: DC Participant Provider name
+  data_type: string
+- name: iNPI for Individual  Participant Provider (column J)
+  output_name: sva_npi
+  description: DC Participant Provider NPI
+  data_type: string
+  required: true
+- name: TIN for Individual Participant Provider (column J)
+  output_name: sva_tin
+  description: DC Participant Provider TIN
+  data_type: string
+- name: Signature Date on SVA letter
+  output_name: sva_signature_date
+  description: Date of signature on SVA letter
+  data_type: date
+  date_format:
+  - '%Y-%m-%d'
+  - '%m/%d/%Y'
+  - '%-m/%-d/%Y'
+- name: Response Code (CMS to fill out)
+  output_name: sva_response_code
+  description: CMS response code
+  data_type: string
+medallion_layer: bronze
+unity_catalog: main
+fourIcli:
+  category: "Beneficiary List"
+  fileTypeCode: null
+  filePattern: "*SVA*.xlsx"
+  extractZip: false
+  refreshFrequency: "quarterly"
+  isSubmissionFile: true
+  defaultDateFilter:
+    createdWithinLastQuarter: true

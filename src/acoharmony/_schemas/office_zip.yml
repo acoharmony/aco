@@ -1,0 +1,117 @@
+version: 2
+name: office_zip
+description: Office ZIP code to market mapping for geographic service area assignment from vwzipoffice_br.csv
+file_format:
+  type: csv
+  delimiter: ','
+  encoding: utf-8
+  header: true
+columns:
+- name: Zip
+  output_name: zip_code
+  description: 5-digit ZIP code
+  data_type: string
+  required: true
+- name: State
+  output_name: state
+  description: Two-letter state code
+  data_type: string
+  required: true
+- name: lat
+  output_name: latitude
+  description: Latitude coordinate
+  data_type: float
+  required: true
+- name: lng
+  output_name: longitude
+  description: Longitude coordinate
+  data_type: float
+  required: true
+- name: Provcode
+  output_name: provider_code
+  description: Provider code (e.g., OON for out-of-network)
+  data_type: string
+  required: false
+- name: Borderlineflag
+  output_name: borderline_flag
+  description: Flag indicating borderline ZIP
+  data_type: string
+  required: false
+- name: OverrideFlag
+  output_name: override_flag
+  description: Override flag (0 or 1)
+  data_type: int
+  required: false
+- name: OfficeDistance
+  output_name: office_distance
+  description: Distance to assigned office (null if direct assignment)
+  data_type: float
+  required: false
+- name: OfficeName
+  output_name: office_name
+  description: Name of assigned office location
+  data_type: string
+  required: false
+- name: Market
+  output_name: market
+  description: Market or service area name
+  data_type: string
+  required: false
+- name: RegionID
+  output_name: region_id
+  description: Region identifier
+  data_type: string
+  required: false
+- name: RegionName
+  output_name: region_name
+  description: Region name
+  data_type: string
+  required: false
+- name: SubDivisionName
+  output_name: subdivision_name
+  description: Subdivision name
+  data_type: string
+  required: false
+- name: DivisionName
+  output_name: division_name
+  description: Division name
+  data_type: string
+  required: false
+- name: RCMOID
+  output_name: rcmo_id
+  description: RCMO identifier
+  data_type: string
+  required: false
+- name: RCMOName
+  output_name: rcmo_name
+  description: RCMO name
+  data_type: string
+  required: false
+- name: META_CreatedOn
+  output_name: meta_created_on
+  description: Metadata creation timestamp
+  data_type: string
+  required: false
+storage:
+  tier: bronze
+  bronze:
+    output_name: office_zip.parquet
+  silver:
+    output_name: office_zip.parquet
+    refresh_frequency: quarterly
+    last_updated_by: office_zip transform
+  file_patterns:
+    default: 'vwzipoffice_br.csv'
+medallion_layer: bronze
+unity_catalog: main
+metadata:
+  purpose: |
+    Maps ZIP codes to office locations and markets for beneficiary assignment.
+    - Direct assignment: ZIP has OfficeName populated
+    - Fuzzy assignment: ZIP has no office but has OfficeDistance to nearest office
+  usage: |
+    Used by consolidated_alignment to assign beneficiaries to office locations.
+    Logic:
+    1. Direct match on ZIP -> use OfficeName and Market
+    2. No direct match -> find ZIP with shortest OfficeDistance, use that office
+  data_source: vwzipoffice_br.csv from business rules database

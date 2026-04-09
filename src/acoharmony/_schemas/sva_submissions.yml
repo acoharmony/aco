@@ -1,0 +1,178 @@
+name: sva_submissions
+description: Shared Voluntary Alignment (SVA) submissions from various sources (EarthClassMail, Dropbox, Jotform)
+version: 1.0.0
+file_format:
+  type: json
+  encoding: utf-8
+storage:
+  tier: bronze
+  file_patterns:
+    main: all_svas*.json
+  silver:
+    output_name: sva_submissions.parquet
+    refresh_frequency: monthly
+    last_updated_by: aco transform sva_submissions
+medallion_layer: bronze
+unity_catalog: main
+columns:
+- name: sva_id
+  source_name: SVA ID
+  type: string
+  description: Unique SVA submission identifier (UUID)
+  required: true
+  primary_key: true
+- name: submission_id
+  source_name: Submission ID
+  type: string
+  description: Submission identifier from source system
+  required: true
+- name: submission_source
+  source_name: Submission Source
+  type: string
+  description: Source of submission (EarthClassMail, DropboxUpload, Jotform)
+  required: true
+  enum:
+  - EarthClassMail
+  - DropboxUpload
+  - Jotform
+- name: beneficiary_first_name
+  source_name: Beneficiary First Name
+  type: string
+  description: Beneficiary first name
+  required: true
+  pii: true
+- name: beneficiary_last_name
+  source_name: Beneficiary Last Name
+  type: string
+  description: Beneficiary last name
+  required: true
+  pii: true
+- name: provider_name_or_med_group
+  source_name: Provider Name Or Med Group
+  type: string
+  description: Provider name or medical group
+  required: true
+- name: mbi
+  source_name: MBI
+  type: string
+  description: Medicare Beneficiary Identifier
+  required: false
+  pii: true
+- name: updated_mbi
+  source_name: Updated MBI
+  type: string
+  description: Updated MBI if corrected
+  required: false
+  pii: true
+- name: birth_date
+  source_name: Birth Date
+  type: string
+  description: Beneficiary birth date (raw string)
+  required: false
+  pii: true
+- name: transcriber_notes
+  source_name: Transcriber Notes
+  type: string
+  description: Notes from transcriber
+  required: false
+- name: signature_date
+  source_name: Signature Date
+  type: string
+  description: Date of signature on SVA form (raw string)
+  required: false
+- name: address_primary_line
+  source_name: Address Primary Line
+  type: string
+  description: Primary address line
+  required: false
+  pii: true
+- name: city
+  source_name: City
+  type: string
+  description: City
+  required: false
+- name: state
+  source_name: State
+  type: string
+  description: State code
+  required: false
+- name: zip
+  source_name: Zip
+  type: string
+  description: ZIP code
+  required: false
+- name: provider_npi
+  source_name: Provider NPI
+  type: string
+  description: Provider National Provider Identifier
+  required: false
+- name: updated_npi
+  source_name: Updated NPI
+  type: string
+  description: Updated NPI if corrected
+  required: false
+- name: provider_name
+  source_name: Provider Name
+  type: string
+  description: Individual provider name
+  required: false
+- name: tin
+  source_name: TIN
+  type: string
+  description: Tax Identification Number
+  required: false
+- name: dc_id
+  source_name: DC ID
+  type: string
+  description: DC (Direct Contracting) identifier
+  required: false
+- name: network_number
+  source_name: Network Number
+  type: string
+  description: Network number
+  required: false
+- name: created_at
+  source_name: Created At
+  type: string
+  description: Timestamp when record was created (formatted as "Month DD, YYYY, H:MM AM/PM")
+  required: true
+- name: letter_email_id
+  source_name: Letter/Email ID
+  type: string
+  description: Associated letter or email identifier
+  required: false
+- name: network_id
+  source_name: Network ID
+  type: string
+  description: Network identifier
+  required: true
+- name: practice_name
+  source_name: Practice Name
+  type: string
+  description: Practice name
+  required: false
+- name: status
+  source_name: Status
+  type: string
+  description: Submission status
+  required: true
+  enum:
+  - Completed
+  - Invalid
+  - Pending
+- name: signature_date_parsed
+  type: date
+  description: Parsed signature date
+  required: false
+- name: created_date
+  type: date
+  description: Parsed creation date
+  required: true
+- name: created_timestamp
+  type: datetime
+  description: Parsed creation timestamp
+  required: true
+- name: birth_date_parsed
+  type: date
+  description: Parsed birth date
+  required: false

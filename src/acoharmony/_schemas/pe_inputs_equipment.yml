@@ -1,0 +1,55 @@
+version: 2
+name: pe_inputs_equipment
+description: Practice Expense Equipment Inputs - Equipment cost inputs for practice expense calculations
+storage:
+  tier: bronze
+  silver:
+    output_name: pe_inputs_equipment.parquet
+    refresh_frequency: annual
+    last_updated_by: aco transform pe_inputs_equipment
+  file_patterns:
+    annual: '*PE_EQUIPMENT*.csv'
+    annual_xlsx: '*PE_EQUIPMENT*.xlsx'
+file_format:
+  type: csv
+  delimiter: ','
+  encoding: utf-8
+  header: true
+columns:
+- name: hcpcs
+  description: HCPCS Code
+  data_type: string
+  required: true
+- name: source
+  description: Source of equipment data (CMS or RUC)
+  data_type: string
+  required: true
+- name: category
+  description: Equipment Category
+  data_type: string
+- name: cms_code
+  description: CMS Equipment Code
+  data_type: string
+- name: useful_life
+  description: Useful Life of Equipment in Years
+  data_type: int
+- name: price
+  description: Equipment Price
+  data_type: float
+- name: utilization_rate
+  description: Equipment Utilization Rate
+  data_type: float
+- name: minutes_per_year
+  description: Minutes of Use Per Year
+  data_type: float
+- name: nf_time
+  description: Non-Facility Time in Minutes
+  data_type: float
+- name: f_time
+  description: Facility Time in Minutes
+  data_type: float
+- name: global_period
+  description: Global Period
+  data_type: string
+medallion_layer: bronze
+unity_catalog: main

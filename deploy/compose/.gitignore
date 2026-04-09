@@ -1,0 +1,7 @@
+/gitea/data
+/traefik/acme
+/traefik/certs
+__pycache__
+*.log*
+*.pyc*
+*.env

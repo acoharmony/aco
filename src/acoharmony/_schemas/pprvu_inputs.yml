@@ -1,0 +1,108 @@
+version: 2
+name: pprvu_inputs
+description: Medicare Physician Fee Schedule National Physician Fee Schedule Relative Value Datatable
+storage:
+  tier: bronze
+  silver:
+    output_name: pprvu_inputs.parquet
+    refresh_frequency: annual
+    last_updated_by: aco transform pprvu_inputs
+  file_patterns:
+    annual: '*PPRVU*.csv'
+    annual_xlsx: '*PPRVU*.xlsx'
+file_format:
+  type: csv
+  delimiter: ','
+  encoding: utf-8
+  header: true
+columns:
+- name: hcpcs
+  description: HCPCS Code
+  data_type: string
+  required: true
+- name: mod
+  description: Modifier
+  data_type: string
+- name: description
+  description: Service Description
+  data_type: string
+- name: status_code
+  description: Status Code
+  data_type: string
+- name: not_used_for_medicare_flag
+  description: Not Used for Medicare Payment Flag
+  data_type: string
+- name: work_rvu
+  description: Work Relative Value Unit
+  data_type: float
+- name: nf_pe_rvu
+  description: Non-Facility Practice Expense RVU
+  data_type: float
+- name: nf_na_indicator_flag
+  description: Non-Facility Not Applicable Indicator Flag
+  data_type: string
+- name: mp_rvu
+  description: Malpractice RVU
+  data_type: float
+- name: nf_tot
+  description: Non-Facility Total RVU
+  data_type: float
+- name: f_tot
+  description: Facility Total RVU
+  data_type: float
+- name: pc_tc_indicator
+  description: Professional Component/Technical Component Indicator
+  data_type: string
+- name: global_days
+  description: Global Days
+  data_type: string
+- name: pre_op
+  description: Pre-Operative Percentage
+  data_type: float
+- name: post_op
+  description: Post-Operative Percentage
+  data_type: float
+- name: multiple_procedure_ind
+  description: Multiple Procedure Indicator
+  data_type: string
+- name: bilateral_surgery_ind
+  description: Bilateral Surgery Indicator
+  data_type: string
+- name: assisted_surg_ind
+  description: Assistant Surgeon Indicator
+  data_type: string
+- name: co_surgery_ind
+  description: Co-Surgery Indicator
+  data_type: string
+- name: team_surgery_ind
+  description: Team Surgery Indicator
+  data_type: string
+- name: end_base
+  description: Endoscopy Base Code
+  data_type: string
+- name: conversion_factor
+  description: Conversion Factor
+  data_type: float
+- name: phys_sup_diag_proc
+  description: Physician Supervision of Diagnostic Procedures
+  data_type: string
+- name: calc_flag
+  description: Calculation Flag
+  data_type: string
+- name: diag_img_fam_ind
+  description: Diagnostic Imaging Family Indicator
+  data_type: string
+- name: nf_pe_opps
+  description: Non-Facility Practice Expense Used for OPPS Payment Amount
+  data_type: float
+- name: f_pe_opps
+  description: Facility Practice Expense Used for OPPS Payment Amount
+  data_type: float
+- name: mp_opps
+  description: Malpractice Used for OPPS Payment Amount
+  data_type: float
+- name: tot_rvu
+  description: Total RVU
+  data_type: float
+medallion_layer: bronze
+unity_catalog: main

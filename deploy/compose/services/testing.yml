@@ -1,0 +1,14 @@
+services:
+  skinny-test:
+    build:
+      context: ../../../
+      dockerfile: deploy/compose/images/skinny-test/Dockerfile
+    image: acoharmony/skinny-test:latest
+    container_name: skinny-test
+    environment:
+      - ACO_PROFILE=dev
+      - PYTHONDONTWRITEBYTECODE=1
+    working_dir: /app
+    labels:
+      - "aco.type=test"
+      - "aco.description=Skinny package validation"

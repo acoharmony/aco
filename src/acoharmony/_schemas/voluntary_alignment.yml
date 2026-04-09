@@ -1,0 +1,249 @@
+version: 2
+name: voluntary_alignment
+description: Comprehensive voluntary alignment tracking consolidating all beneficiary
+  touchpoints (emails, mailings, SVA, PBVAR)
+storage:
+  tier: silver
+  staged_from: sva
+  gold:
+    output_name: voluntary_alignment.parquet
+sources:
+  - sva
+  - pbvar
+  - emails
+  - mailed
+  - email_unsubscribes
+columns:
+- name: bene_mbi
+  type: String
+  description: Original Medicare Beneficiary Identifier
+  required: true
+- name: normalized_mbi
+  type: String
+  description: Crosswalk-normalized MBI for consistent tracking
+  required: true
+- name: hcmpi
+  type: String
+  description: Master patient identifier from enterprise crosswalk
+  required: false
+- name: previous_mbi_count
+  type: UInt32
+  description: Number of previous MBIs for this beneficiary
+  required: true
+- name: email_campaigns_sent
+  type: UInt32
+  description: Total number of email campaigns sent to beneficiary
+  required: true
+- name: emails_opened
+  type: UInt32
+  description: Number of emails opened by beneficiary
+  required: true
+- name: emails_clicked
+  type: UInt32
+  description: Number of emails with clicked links
+  required: true
+- name: email_open_rate
+  type: Float32
+  description: Percentage of emails opened (0-100)
+  required: false
+- name: email_click_rate
+  type: Float32
+  description: Percentage of emails clicked (0-100)
+  required: false
+- name: email_unsubscribed
+  type: Boolean
+  description: Whether beneficiary has unsubscribed from emails
+  required: true
+- name: email_complained
+  type: Boolean
+  description: Whether beneficiary has complained about emails
+  required: true
+- name: last_email_date
+  type: Date
+  description: Date of most recent email sent
+  required: false
+- name: mailed_campaigns_sent
+  type: UInt32
+  description: Total number of mailed campaigns sent to beneficiary
+  required: true
+- name: mailed_delivered
+  type: UInt32
+  description: Number of successfully delivered mailings
+  required: true
+- name: mailed_delivery_rate
+  type: Float32
+  description: Percentage of mailings delivered (0-100)
+  required: false
+- name: last_mailed_date
+  type: Date
+  description: Date of most recent mailing
+  required: false
+- name: mailing_campaigns
+  type: String
+  description: Comma-separated list of mailing campaign names
+  required: false
+- name: sva_signature_count
+  type: UInt32
+  description: Total number of SVA signatures on record
+  required: true
+- name: first_sva_date
+  type: Date
+  description: Date of first SVA signature
+  required: false
+- name: most_recent_sva_date
+  type: Date
+  description: Date of most recent SVA signature
+  required: false
+- name: sva_provider_npi
+  type: String
+  description: NPI of most recent SVA provider
+  required: false
+- name: sva_provider_tin
+  type: String
+  description: TIN of most recent SVA provider
+  required: false
+- name: sva_provider_name
+  type: String
+  description: Name of most recent SVA provider
+  required: false
+- name: sva_provider_valid
+  type: Boolean
+  description: Whether most recent provider TIN/NPI combo is valid
+  required: true
+- name: days_since_last_sva
+  type: Int32
+  description: Days since most recent SVA signature
+  required: false
+- name: sva_pending_cms
+  type: Boolean
+  description: Whether beneficiary has signature pending CMS review
+  required: true
+- name: has_ffs_service
+  type: Boolean
+  description: Whether beneficiary has any FFS service record
+  required: true
+- name: ffs_first_date
+  type: Date
+  description: First date of FFS service for this beneficiary
+  required: false
+- name: ffs_claim_count
+  type: UInt32
+  description: Total number of FFS claims from valid providers
+  required: false
+- name: days_since_first_ffs
+  type: Int32
+  description: Days since first FFS service
+  required: false
+- name: ffs_before_alignment
+  type: Boolean
+  description: Whether FFS service occurred before alignment
+  required: true
+- name: pbvar_aligned
+  type: Boolean
+  description: Whether beneficiary is currently aligned in PBVAR
+  required: true
+- name: pbvar_aco_id
+  type: String
+  description: ACO ID from PBVAR alignment
+  required: false
+- name: pbvar_response_codes
+  type: String
+  description: SVA response codes from PBVAR
+  required: false
+- name: pbvar_file_date
+  type: Date
+  description: Most recent PBVAR file date
+  required: false
+- name: first_outreach_date
+  type: Date
+  description: Earliest date of any outreach attempt (email or mail)
+  required: false
+- name: last_outreach_date
+  type: Date
+  description: Most recent date of any outreach attempt
+  required: false
+- name: days_in_funnel
+  type: Int32
+  description: Total days from first to last outreach
+  required: false
+- name: total_touchpoints
+  type: UInt32
+  description: Total number of all outreach attempts (emails + mailings)
+  required: true
+- name: alignment_journey_status
+  type: String
+  description: Current status in alignment journey (Never Contacted, Contacted No
+    Response, Engaged, Signed, Aligned)
+  required: true
+- name: signature_status
+  type: String
+  description: Signature recency status (Never Signed, Current Year, Recent, Aging,
+    Old, Invalid Provider)
+  required: true
+- name: outreach_response_status
+  type: String
+  description: Response to outreach (No Response, Email Engaged, Unsubscribed, Complained)
+  required: true
+- name: chase_list_eligible
+  type: Boolean
+  description: Whether beneficiary should be on signature chase list
+  required: true
+- name: chase_reason
+  type: String
+  description: Reason for being on chase list if eligible
+  required: false
+- name: invalid_email_after_death
+  type: Boolean
+  description: Whether emails were sent after death date
+  required: true
+- name: invalid_mail_after_death
+  type: Boolean
+  description: Whether mailings were sent after death date
+  required: true
+- name: invalid_outreach_after_termination
+  type: Boolean
+  description: Whether outreach occurred after enrollment termination
+  required: true
+- name: processed_at
+  type: Datetime
+  description: Timestamp when this record was processed
+  required: true
+metadata:
+  purpose: 'This intermediate table provides a comprehensive view of the voluntary
+    alignment
+
+    journey for each beneficiary, consolidating data from multiple touchpoint sources.
+
+    It enables efficient analysis of alignment funnels, campaign effectiveness, and
+
+    signature chase list generation without requiring complex joins across multiple
+    tables.
+
+    '
+  usage: 'Used by analytics and reporting pipelines to:
+
+    - Generate signature chase lists for beneficiaries needing renewed signatures
+
+    - Track campaign effectiveness and beneficiary engagement
+
+    - Monitor alignment funnel conversion rates
+
+    - Identify data quality issues (invalid mailings)
+
+    - Support compliance reporting
+
+    '
+  refresh_frequency: weekly
+  data_sources: '- emails: Email campaign send and engagement data
+
+    - email_unsubscribes: Unsubscribe and complaint events
+
+    - mailed: Physical mail campaign data
+
+    - sva: Step-wise Voluntary Alignment signatures
+
+    - pbvar: Part B Volume and Risk alignment confirmations
+
+    - enterprise_crosswalk: MBI normalization and HCMPI mapping'
+medallion_layer: silver
+unity_catalog: main

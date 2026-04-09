@@ -1,0 +1,43 @@
+# LICENSE
+
+## Proprietary Code License
+
+Copyright (c) 2025 HarmonyCares. All Rights Reserved.
+
+This repository contains proprietary and confidential software owned by HarmonyCares.
+
+### Terms and Conditions
+
+1. **Ownership**: All original code, documentation, and other materials contained in this repository are the exclusive property of HarmonyCares.
+
+2. **Confidentiality**: The contents of this repository are confidential and may not be disclosed to third parties without the express written permission of HarmonyCares.
+
+3. **Usage Restrictions**: This software may only be used by authorized employees, contractors, and partners of HarmonyCares for the sole purpose of exploratory data analysis to support ACO activities which further the company's business goals and objectives.
+
+4. **No Distribution**: No part of this proprietary software may be copied, distributed, modified, or used outside of HarmonyCares without express written permission.
+
+5. **No Warranty**: The software is provided "as is" without warranty of any kind, express or implied.
+
+## Third-Party Software
+
+This repository utilizes or includes references to the following third-party open source software components, each of which is subject to its own license:
+
+1. **Python**: Used as a development language (Python Software Foundation License)
+2. **Docker**: Used for containerization (Apache License 2.0)
+3. **Minio**: Used for object storage (GNU Affero General Public License v3.0 or Apache License 2.0, depending on version)
+4. **PostgreSQL**: Used as a database (PostgreSQL License)
+5. **Marimo**: Used for data notebooks (Apache License 2.0)
+
+These components are not modified in this repository. Their use is subject to their respective licenses, which can be found in the DEPENDENCIES.md file or at their respective project websites.
+
+## No Claim on Third-Party Software
+
+This license makes no claim of ownership over any third-party software. All such software is subject to their respective licenses.
+
+## Employee/Contractor Work Product
+
+All contributions made by employees or contractors of HarmonyCares to this repository during the course of their employment or contract are considered work made for hire and are the exclusive property of HarmonyCares.
+
+---
+
+For questions regarding this license, please contact kcorwin@harmonycares.com.

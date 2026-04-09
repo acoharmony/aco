@@ -1,0 +1,165 @@
+version: 2
+name: beneficiary_demographics
+description: Beneficiary demographics from CCLF8
+storage:
+  tier: silver
+  staged_from: cclf8
+  gold:
+    output_name: beneficiary_demographics.parquet
+xref:
+  description: Apply MBI crosswalk to get current MBI
+  table: enterprise_crosswalk
+  join_key: bene_mbi_id
+  xref_key: prvs_num
+  current_column: crnt_num
+  output_column: current_bene_mbi_id
+deduplication:
+  enabled: true
+  key:
+  - current_bene_mbi_id
+  sort_by:
+  - file_date
+  keep: last
+standardization:
+  rename_columns:
+    bene_mbi_id: member_id
+    bene_fst_name: first_name
+    bene_lst_name: last_name
+    bene_mdl_name: middle_name
+    bene_dob: date_of_birth
+    bene_death_dt: date_of_death
+    bene_sex_cd: gender_code
+    bene_race_cd: race_code
+    bene_mdcr_status_cd: medicare_status_code
+    bene_dual_status_cd: dual_status_code
+    bene_fips_state_cd: state_code
+    bene_fips_cnty_cd: county_code
+    bene_zip_cd: zip_code
+medallion_layer: silver
+unity_catalog: main
+columns:
+- name: bene_mbi_id
+  type: string
+  description: Medicare Beneficiary Identifier
+  required: true
+  primary_key: true
+- name: bene_fips_state_cd
+  type: string
+  description: FIPS state code
+  required: false
+- name: bene_fips_cnty_cd
+  type: string
+  description: FIPS county code
+  required: false
+- name: bene_zip_cd
+  type: string
+  description: ZIP code
+  required: false
+- name: bene_dob
+  type: date
+  description: Date of birth
+  required: false
+- name: bene_sex_cd
+  type: string
+  description: Sex code
+  required: false
+- name: bene_race_cd
+  type: string
+  description: Race code
+  required: false
+- name: bene_age
+  type: string
+  description: Age
+  required: false
+- name: bene_mdcr_stus_cd
+  type: string
+  description: Medicare status code
+  required: false
+- name: bene_dual_stus_cd
+  type: string
+  description: Dual status code
+  required: false
+- name: bene_death_dt
+  type: date
+  description: Date of death
+  required: false
+- name: bene_rng_bgn_dt
+  type: date
+  description: Range begin date
+  required: false
+- name: bene_rng_end_dt
+  type: date
+  description: Range end date
+  required: false
+- name: bene_fst_name
+  type: string
+  description: First name
+  required: false
+- name: bene_mdl_name
+  type: string
+  description: Middle name
+  required: false
+- name: bene_lst_name
+  type: string
+  description: Last name
+  required: false
+- name: bene_orgnl_entlmt_rsn_cd
+  type: string
+  description: Original entitlement reason code
+  required: false
+- name: bene_entlmt_buyin_ind
+  type: string
+  description: Entitlement buy-in indicator
+  required: false
+- name: bene_part_a_enrlmt_bgn_dt
+  type: date
+  description: Part A enrollment begin date
+  required: false
+- name: bene_part_b_enrlmt_bgn_dt
+  type: date
+  description: Part B enrollment begin date
+  required: false
+- name: bene_line_1_adr
+  type: string
+  description: Address line 1
+  required: false
+- name: bene_line_2_adr
+  type: string
+  description: Address line 2
+  required: false
+- name: bene_line_3_adr
+  type: string
+  description: Address line 3
+  required: false
+- name: bene_line_4_adr
+  type: string
+  description: Address line 4
+  required: false
+- name: bene_line_5_adr
+  type: string
+  description: Address line 5
+  required: false
+- name: bene_line_6_adr
+  type: string
+  description: Address line 6
+  required: false
+- name: bene_city
+  type: string
+  description: City
+  required: false
+- name: bene_state
+  type: string
+  description: State
+  required: false
+- name: bene_zip
+  type: string
+  description: ZIP code
+  required: false
+- name: current_bene_mbi_id
+  type: string
+  description: Current MBI after crosswalk
+  required: false
+- name: file_date
+  type: string
+  description: File date from source
+  required: true

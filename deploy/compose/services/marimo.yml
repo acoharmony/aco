@@ -1,0 +1,40 @@
+services:
+  marimo:
+    build:
+      context: ../
+      dockerfile: images/marimo/Dockerfile
+    image: ghcr.io/acoharmony/marimo:latest
+    pull_policy: build  # Always build locally
+    container_name: marimo
+    user: "1002:1002"
+    stdin_open: true
+    tty: true
+    shm_size: '40gb'  # Increase shared memory for multiprocessing (default is 64MB)
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    networks:
+      - acoharmony-internal  # For service communication
+      - acoharmony-external  # For host port exposure
+    ports:
+      - "0.0.0.0:10012:10012"  # Marimo UI
+    volumes:
+      - /home/care/acoharmony:/home/care/acoharmony:rw  # Project directory (includes .venv)
+      - /home/care/.local:/home/care/.local:rw  # Local data (includes uv Python)
+      - /opt/s3/data/workspace:/opt/s3/data/workspace  # Data storage
+      - /opt/s3/data/notebooks:/opt/s3/data/notebooks:rw  # Notebooks directory
+      - /mnt/x:/mnt/x:ro  # X: drive (Fax2Mail/CDS_Folders) for SVA log symlinks
+      - /home/care/.ssh/id_rsa:/home/care/.ssh/id_rsa:ro  # SSH private key
+      - /home/care/.ssh/id_rsa.pub:/home/care/.ssh/id_rsa.pub:ro  # SSH public key
+      - /home/care/.ssh/config:/home/care/.ssh/config:ro  # SSH config
+      - /home/care/.gnupg:/home/care/.gnupg:rw  # GPG keys for commit signing
+      # HarmonyCares branding customization (injected at startup by entrypoint.sh)
+      - /home/care/acoharmony/deploy/conf/marimo/custom:/opt/marimo-custom:ro
+    env_file:
+      - ../.env
+    environment:
+      - PORT=10012  # Marimo exposed port
+      - ACO_PROFILE=dev  # Use dev profile for data access
+    labels:
+      - "aco.network=bridge"  # Uses bridge networks
+      - "aco.type=gui"  # GUI service exposed to host

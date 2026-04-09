@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" href="./favicon.ico" />
+    <!-- Preload is necessary because we show these images when we disconnect from the server,
+    but at that point we cannot load these images from the server -->
+    <link rel="preload" href="./assets/gradient-yHQUC_QB.png" as="image" />
+    <link rel="preload" href="./assets/noise-60BoTA8O.png" as="image" />
+    <!-- Preload the fonts -->
+    <link rel="preload" href="./assets/Lora-VariableFont_wght-B2ootaw-.ttf" as="font" crossorigin="anonymous" />
+    <link rel="preload" href="./assets/PTSans-Regular-CxL0S8W7.ttf" as="font" crossorigin="anonymous" />
+    <link rel="preload" href="./assets/PTSans-Bold-D9fedIX3.ttf" as="font" crossorigin="anonymous" />
+    <link rel="preload" href="./assets/FiraMono-Regular-BTCkDNvf.ttf" as="font" crossorigin="anonymous" />
+    <link rel="preload" href="./assets/FiraMono-Medium-DU3aDxX5.ttf" as="font" crossorigin="anonymous" />
+    <link rel="preload" href="./assets/FiraMono-Bold-CLVRCuM9.ttf" as="font" crossorigin="anonymous" />
+
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#000000" />
+    <meta name="description" content="a marimo app" />
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
+    <link rel="manifest" href="./manifest.json" />
+
+    <script data-marimo="true">
+      function __resizeIframe(obj) {
+        const scrollbarHeight = 20; // Max between windows, mac, and linux
+
+        function setHeight() {
+          // Guard against race condition where iframe isn't ready
+          if (!obj.contentWindow?.document?.documentElement) {
+            return;
+          }
+          const element = obj.contentWindow.document.documentElement;
+          // If there is no vertical scrollbar, we don't need to resize the iframe
+          if (element.scrollHeight === element.clientHeight) {
+            return;
+          }
+
+          // Create a new height that includes the scrollbar height if it's visible
+          const hasHorizontalScrollbar = element.scrollWidth > element.clientWidth;
+          const newHeight = element.scrollHeight + (hasHorizontalScrollbar ? scrollbarHeight : 0);
+
+          // Only update the height if it's different from the current height
+          if (obj.style.height !== `${newHeight}px`) {
+            obj.style.height = `${newHeight}px`;
+          }
+        }
+
+        // Resize the iframe to the height of the content and bottom scrollbar height
+        setHeight();
+
+        // Resize the iframe when the content changes
+        const resizeObserver = new ResizeObserver((_entries) => {
+          setHeight();
+        });
+        // Only observe if iframe content is ready
+        if (obj.contentWindow?.document?.body) {
+          resizeObserver.observe(obj.contentWindow.document.body);
+        }
+      }
+    </script>
+    <marimo-filename hidden>{{ filename }}</marimo-filename>
+    <!-- TODO(Trevor): Legacy, required by VS Code plugin. Remove when plugin is updated (see marimo/server/_templates/template.py) -->
+    <marimo-version data-version="{{ version }}" hidden></marimo-version>
+    <marimo-user-config data-config="{{ user_config }}" hidden></marimo-user-config>
+    <marimo-server-token data-token="{{ server_token }}" hidden></marimo-server-token>
+    <!-- /TODO -->
+    <title>{{ title }}</title>
+    <script type="module" crossorigin src="./assets/index-0n92c_W7.js"></script>
+    <link rel="modulepreload" crossorigin href="./assets/preload-helper-BW0IMuFq.js">
+    <link rel="modulepreload" crossorigin href="./assets/clsx-BDxNtGmi.js">
+    <link rel="modulepreload" crossorigin href="./assets/cn-BoaCR37F.js">
+    <link rel="modulepreload" crossorigin href="./assets/chunk-LvLJmgfZ.js">
+    <link rel="modulepreload" crossorigin href="./assets/react-Bj1aDYRI.js">
+    <link rel="modulepreload" crossorigin href="./assets/compiler-runtime-B3qBwwSJ.js">
+    <link rel="modulepreload" crossorigin href="./assets/jsx-runtime-icT_Ltz2.js">
+    <link rel="modulepreload" crossorigin href="./assets/badge-hTpPIsMT.js">
+    <link rel="modulepreload" crossorigin href="./assets/useEventListener-Dy81QR4n.js">
+    <link rel="modulepreload" crossorigin href="./assets/button-Ej3vmCIF.js">
+    <link rel="modulepreload" crossorigin href="./assets/react-dom-CSu739Rf.js">
+    <link rel="modulepreload" crossorigin href="./assets/Combination-Cs9nbinQ.js">
+    <link rel="modulepreload" crossorigin href="./assets/menu-items-UxKrm8hS.js">
+    <link rel="modulepreload" crossorigin href="./assets/dist-DJBpXGro.js">
+    <link rel="modulepreload" crossorigin href="./assets/createLucideIcon-Cm-Z7dYr.js">
+    <link rel="modulepreload" crossorigin href="./assets/check-BE0hEwVo.js">
+    <link rel="modulepreload" crossorigin href="./assets/x-BI1M8X_v.js">
+    <link rel="modulepreload" crossorigin href="./assets/select-CxT2Geqr.js">
+    <link rel="modulepreload" crossorigin href="./assets/tooltip-D9723Brr.js">
+    <link rel="modulepreload" crossorigin href="./assets/use-toast-Hc8CXlvz.js">
+    <link rel="modulepreload" crossorigin href="./assets/_Uint8Array-C0aUZfE0.js">
+    <link rel="modulepreload" crossorigin href="./assets/_baseIsEqual-EYp9AUJI.js">
+    <link rel="modulepreload" crossorigin href="./assets/useEvent-O0nX5vok.js">
+    <link rel="modulepreload" crossorigin href="./assets/invariant-CQUIhlu2.js">
+    <link rel="modulepreload" crossorigin href="./assets/isArrayLikeObject-Dx6-QZGQ.js">
+    <link rel="modulepreload" crossorigin href="./assets/merge-CfcLlFFp.js">
+    <link rel="modulepreload" crossorigin href="./assets/zod-H_cgTO0M.js">
+    <link rel="modulepreload" crossorigin href="./assets/utils-tNbLd14P.js">
+    <link rel="modulepreload" crossorigin href="./assets/Deferred-BMfCOLaw.js">
+    <link rel="modulepreload" crossorigin href="./assets/uuid-ClFZlR7U.js">
+    <link rel="modulepreload" crossorigin href="./assets/DeferredRequestRegistry-O6RDJKs0.js">
+    <link rel="modulepreload" crossorigin href="./assets/constants-Rz_lD4HK.js">
+    <link rel="modulepreload" crossorigin href="./assets/session-BrEm7qNv.js">
+    <link rel="modulepreload" crossorigin href="./assets/config-3Aq84phF.js">
+    <link rel="modulepreload" crossorigin href="./assets/requests-Bgjtqo_1.js">
+    <link rel="modulepreload" crossorigin href="./assets/isSymbol-CiGN2w5X.js">
+    <link rel="modulepreload" crossorigin href="./assets/toString-lmrYznmk.js">
+    <link rel="modulepreload" crossorigin href="./assets/_baseSlice-39dTX4Wi.js">
+    <link rel="modulepreload" crossorigin href="./assets/_hasUnicode-QS_pSfjY.js">
+    <link rel="modulepreload" crossorigin href="./assets/assertNever-DWSyoPEi.js">
+    <link rel="modulepreload" crossorigin href="./assets/_arrayReduce-BKEr35uH.js">
+    <link rel="modulepreload" crossorigin href="./assets/useLifecycle-DA9DjSPo.js">
+    <link rel="modulepreload" crossorigin href="./assets/useNonce-BtW-rR_1.js">
+    <link rel="modulepreload" crossorigin href="./assets/useTheme-BYXBU1of.js">
+    <link rel="modulepreload" crossorigin href="./assets/once-CJOnx12W.js">
+    <link rel="modulepreload" crossorigin href="./assets/capabilities-D3x_db9Y.js">
+    <link rel="modulepreload" crossorigin href="./assets/createReducer-Drh7NmIR.js">
+    <link rel="modulepreload" crossorigin href="./assets/paths-D2lG83Oh.js">
+    <link rel="modulepreload" crossorigin href="./assets/dist-B_cxg-E4.js">
+    <link rel="modulepreload" crossorigin href="./assets/dist-D0Vj4Kqc.js">
+    <link rel="modulepreload" crossorigin href="./assets/dist-CtXb4bUU.js">
+    <link rel="modulepreload" crossorigin href="./assets/dist-CQqv2gQL.js">
+    <link rel="modulepreload" crossorigin href="./assets/dist-8UD0A5sU.js">
+    <link rel="modulepreload" crossorigin href="./assets/dist-CXLJUPFl.js">
+    <link rel="modulepreload" crossorigin href="./assets/dist-BNC_tnlW.js">
+    <link rel="modulepreload" crossorigin href="./assets/dist-apDpadc4.js">
+    <link rel="modulepreload" crossorigin href="./assets/dist-CEeVCRd_.js">
+    <link rel="modulepreload" crossorigin href="./assets/stex-0ac7Aukl.js">
+    <link rel="modulepreload" crossorigin href="./assets/toDate-BqKH-Jd9.js">
+    <link rel="modulepreload" crossorigin href="./assets/purify.es-BBn8CPhf.js">
+    <link rel="modulepreload" crossorigin href="./assets/cjs-BU2qXMKx.js">
+    <link rel="modulepreload" crossorigin href="./assets/toNumber-OnFQK5Wu.js">
+    <link rel="modulepreload" crossorigin href="./assets/now-8AYn-wiF.js">
+    <link rel="modulepreload" crossorigin href="./assets/debounce-DS_VtWMt.js">
+    <link rel="modulepreload" crossorigin href="./assets/toInteger-CO3ppIfA.js">
+    <link rel="modulepreload" crossorigin href="./assets/database-zap-DTWCDKdn.js">
+    <link rel="modulepreload" crossorigin href="./assets/main-DrBRErTM.js">
+    <link rel="modulepreload" crossorigin href="./assets/cells-fq1RMGX_.js">
+    <link rel="modulepreload" crossorigin href="./assets/spinner-C5JoisA7.js">
+    <link rel="modulepreload" crossorigin href="./assets/chevron-right-D0GQBpTb.js">
+    <link rel="modulepreload" crossorigin href="./assets/dropdown-menu-DdPu5Kfu.js">
+    <link rel="modulepreload" crossorigin href="./assets/kbd-DvKpAc6K.js">
+    <link rel="modulepreload" crossorigin href="./assets/renderShortcut-CnD1Dah5.js">
+    <link rel="modulepreload" crossorigin href="./assets/multi-map-Pp1P2DOX.js">
+    <link rel="modulepreload" crossorigin href="./assets/alert-OQZHipbB.js">
+    <link rel="modulepreload" crossorigin href="./assets/card-C-c-4jyF.js">
+    <link rel="modulepreload" crossorigin href="./assets/alert-dialog-9WfvUF7e.js">
+    <link rel="modulepreload" crossorigin href="./assets/dialog-CVN1lcMF.js">
+    <link rel="modulepreload" crossorigin href="./assets/dist-BhNN2V5a.js">
+    <link rel="modulepreload" crossorigin href="./assets/label-TNNaT1M9.js">
+    <link rel="modulepreload" crossorigin href="./assets/useDebounce-B0dx2Gp0.js">
+    <link rel="modulepreload" crossorigin href="./assets/azure-BTXHztTw.js">
+    <link rel="modulepreload" crossorigin href="./assets/numbers-CYnquDho.js">
+    <link rel="modulepreload" crossorigin href="./assets/SSRProvider-DC7ElCZZ.js">
+    <link rel="modulepreload" crossorigin href="./assets/context-CIAP2NOh.js">
+    <link rel="modulepreload" crossorigin href="./assets/useNumberFormatter-DbDKSvEd.js">
+    <link rel="modulepreload" crossorigin href="./assets/usePress-BHGkpw8X.js">
+    <link rel="modulepreload" crossorigin href="./assets/input-CUwqpKjd.js">
+    <link rel="modulepreload" crossorigin href="./assets/links-DzgPOFJ-.js">
+    <link rel="modulepreload" crossorigin href="./assets/popover-BPGG2gPG.js">
+    <link rel="modulepreload" crossorigin href="./assets/switch-CVKxYu_0.js">
+    <link rel="modulepreload" crossorigin href="./assets/table-BhH-Mm8O.js">
+    <link rel="modulepreload" crossorigin href="./assets/mode-AcL8c6qH.js">
+    <link rel="modulepreload" crossorigin href="./assets/useAsyncData-D-4ifFXh.js">
+    <link rel="modulepreload" crossorigin href="./assets/errors-Bfogio62.js">
+    <link rel="modulepreload" crossorigin href="./assets/error-banner-BRG6IPhC.js">
+    <link rel="modulepreload" crossorigin href="./assets/copy-YwM0Pd7v.js">
+    <link rel="modulepreload" crossorigin href="./assets/memoize-Bw1ifb7c.js">
+    <link rel="modulepreload" crossorigin href="./assets/get-DBdMgUNq.js">
+    <link rel="modulepreload" crossorigin href="./assets/capitalize-BfkXNxmI.js">
+    <link rel="modulepreload" crossorigin href="./assets/copy-CkudG0Ej.js">
+    <link rel="modulepreload" crossorigin href="./assets/plus-dVmh0yTy.js">
+    <link rel="modulepreload" crossorigin href="./assets/refresh-cw-CHAHPgkx.js">
+    <link rel="modulepreload" crossorigin href="./assets/trash-2-CAoNMkjq.js">
+    <link rel="modulepreload" crossorigin href="./assets/triangle-alert-qZo1ox6x.js">
+    <link rel="modulepreload" crossorigin href="./assets/ai-model-dropdown-DPTa_EpU.js">
+    <link rel="modulepreload" crossorigin href="./assets/defaultLocale-OkOxlkkM.js">
+    <link rel="modulepreload" crossorigin href="./assets/precisionRound-BOmLQIKI.js">
+    <link rel="modulepreload" crossorigin href="./assets/defaultLocale-DK1MWd7f.js">
+    <link rel="modulepreload" crossorigin href="./assets/vega-loader.browser-CZV6_g2i.js">
+    <link rel="modulepreload" crossorigin href="./assets/utils-CdjCA1J8.js">
+    <link rel="modulepreload" crossorigin href="./assets/ErrorBoundary-Ba0LbbH4.js">
+    <link rel="modulepreload" crossorigin href="./assets/useInstallPackage-C9V-on2J.js">
+    <link rel="modulepreload" crossorigin href="./assets/ImperativeModal-qEtcJ95s.js">
+    <link rel="modulepreload" crossorigin href="./assets/cell-link-Q_UEP94Z.js">
+    <link rel="modulepreload" crossorigin href="./assets/datasource-F9sJtuof.js">
+    <link rel="modulepreload" crossorigin href="./assets/state-3V5UxC3B.js">
+    <link rel="modulepreload" crossorigin href="./assets/MarimoErrorOutput-az74f3Mp.js">
+    <link rel="modulepreload" crossorigin href="./assets/copy-icon-BgmMM9Zg.js">
+    <link rel="modulepreload" crossorigin href="./assets/html-to-image-BnSc-Wa0.js">
+    <link rel="modulepreload" crossorigin href="./assets/focus-DYwTiH9-.js">
+    <link rel="modulepreload" crossorigin href="./assets/LazyAnyLanguageCodeMirror-m8w66E4s.js">
+    <link rel="modulepreload" crossorigin href="./assets/chunk-5FQGJX7Z-CM1a_K7I.js">
+    <link rel="modulepreload" crossorigin href="./assets/katex-rvFxOCU-.js">
+    <link rel="modulepreload" crossorigin href="./assets/markdown-renderer-MR9df58W.js">
+    <link rel="modulepreload" crossorigin href="./assets/command-rfxSsiHU.js">
+    <link rel="modulepreload" crossorigin href="./assets/download-B9_ToVd4.js">
+    <link rel="modulepreload" crossorigin href="./assets/useRunCells-5m6jCnyo.js">
+    <link rel="modulepreload" crossorigin href="./assets/RenderHTML-DJ8khuob.js">
+    <link rel="modulepreload" crossorigin href="./assets/useIframeCapabilities-DTN9kFDq.js">
+    <link rel="modulepreload" crossorigin href="./assets/formats-rhOJovGE.js">
+    <link rel="modulepreload" crossorigin href="./assets/en-US-BO8E69bZ.js">
+    <link rel="modulepreload" crossorigin href="./assets/isValid-BGe7pJXT.js">
+    <link rel="modulepreload" crossorigin href="./assets/dates-CHaNfieI.js">
+    <link rel="modulepreload" crossorigin href="./assets/maps-OKerBHH8.js">
+    <link rel="modulepreload" crossorigin href="./assets/extends-DRbCSry7.js">
+    <link rel="modulepreload" crossorigin href="./assets/emotion-is-prop-valid.esm-D1keIaYa.js">
+    <link rel="modulepreload" crossorigin href="./assets/useDateFormatter-CpE7XQLs.js">
+    <link rel="modulepreload" crossorigin href="./assets/range-CJeRXUtp.js">
+    <link rel="modulepreload" crossorigin href="./assets/table-BCnp9gKC.js">
+    <link rel="modulepreload" crossorigin href="./assets/JsonOutput-DKXKGKvX.js">
+    <link rel="modulepreload" crossorigin href="./assets/useDeleteCell-DRUDRiy0.js">
+    <link rel="modulepreload" crossorigin href="./assets/icons-CrUXojcA.js">
+    <link rel="modulepreload" crossorigin href="./assets/process-output-CTVsT--B.js">
+    <link rel="modulepreload" crossorigin href="./assets/blob-CObhN-9g.js">
+    <link rel="modulepreload" crossorigin href="./assets/objectWithoutPropertiesLoose-DP4vAkvg.js">
+    <link rel="modulepreload" crossorigin href="./assets/esm-CBkHtTOV.js">
+    <link rel="modulepreload" crossorigin href="./assets/file-DzHkbIdO.js">
+    <link rel="modulepreload" crossorigin href="./assets/image-DXfkah9d.js">
+    <link rel="modulepreload" crossorigin href="./assets/play-DKSqmedg.js">
+    <link rel="modulepreload" crossorigin href="./assets/add-cell-with-ai-DUn4LN4W.js">
+    <link rel="modulepreload" crossorigin href="./assets/isEmpty-CfmnKtgL.js">
+    <link rel="modulepreload" crossorigin href="./assets/bot-message-square-CK6eoGWy.js">
+    <link rel="modulepreload" crossorigin href="./assets/chat-display-D_Fuuy6r.js">
+    <link rel="modulepreload" crossorigin href="./assets/chart-no-axes-column-DV8gdCvH.js">
+    <link rel="modulepreload" crossorigin href="./assets/square-function-B006EYFX.js">
+    <link rel="modulepreload" crossorigin href="./assets/spec-DbmSqx09.js">
+    <link rel="modulepreload" crossorigin href="./assets/ellipsis-vertical-CAB7tdza.js">
+    <link rel="modulepreload" crossorigin href="./assets/components-Bpgzv_5_.js">
+    <link rel="modulepreload" crossorigin href="./assets/column-preview-WsubyItX.js">
+    <link rel="modulepreload" crossorigin href="./assets/toggle-RCwU-rnE.js">
+    <link rel="modulepreload" crossorigin href="./assets/globals-BsV5fVR-.js">
+    <link rel="modulepreload" crossorigin href="./assets/share-BdH_5I58.js">
+    <link rel="modulepreload" crossorigin href="./assets/_baseSet-D5BgdrnX.js">
+    <link rel="modulepreload" crossorigin href="./assets/react-resizable-panels.browser.esm-DDRqG5ui.js">
+    <link rel="modulepreload" crossorigin href="./assets/context-aware-panel-CfsfBlhO.js">
+    <link rel="modulepreload" crossorigin href="./assets/floating-outline-BvQKiC0F.js">
+    <link rel="modulepreload" crossorigin href="./assets/useAddCell-YC7rpcmD.js">
+    <link rel="modulepreload" crossorigin href="./assets/eye-off-vwi9L975.js">
+    <link rel="modulepreload" crossorigin href="./assets/readonly-python-code-DH-1xZGq.js">
+    <link rel="modulepreload" crossorigin href="./assets/file-headphone-B5q2Ow55.js">
+    <link rel="modulepreload" crossorigin href="./assets/file-icons-CWLHDa1J.js">
+    <link rel="modulepreload" crossorigin href="./assets/refresh-ccw-DLpfIr8v.js">
+    <link rel="modulepreload" crossorigin href="./assets/form-CrQYrsUC.js">
+    <link rel="modulepreload" crossorigin href="./assets/field-B1jGbQlH.js">
+    <link rel="modulepreload" crossorigin href="./assets/useBoolean-m1e6E3Ao.js">
+    <link rel="modulepreload" crossorigin href="./assets/useDeepCompareMemoize-yyiB9aJX.js">
+    <link rel="modulepreload" crossorigin href="./assets/types-C1RN112u.js">
+    <link rel="modulepreload" crossorigin href="./assets/prop-types-RrUi-pOT.js">
+    <link rel="modulepreload" crossorigin href="./assets/es-CzkousWe.js">
+    <link rel="modulepreload" crossorigin href="./assets/hasIn-Bx4-SO9M.js">
+    <link rel="modulepreload" crossorigin href="./assets/_baseFlatten-Be7p_si8.js">
+    <link rel="modulepreload" crossorigin href="./assets/_basePickBy-Ck7z0-tq.js">
+    <link rel="modulepreload" crossorigin href="./assets/pick-BYA9UDHe.js">
+    <link rel="modulepreload" crossorigin href="./assets/code-xml-DwHPF_nL.js">
+    <link rel="modulepreload" crossorigin href="./assets/download-DBW9RXtT.js">
+    <link rel="modulepreload" crossorigin href="./assets/square-CxAsQQ77.js">
+    <link rel="modulepreload" crossorigin href="./assets/settings-CzQUw9rV.js">
+    <link rel="modulepreload" crossorigin href="./assets/bundle.esm-idScn0w0.js">
+    <link rel="stylesheet" crossorigin href="./assets/cells-jmgGt1lS.css">
+    <link rel="stylesheet" crossorigin href="./assets/markdown-renderer-DdDKmWlR.css">
+    <link rel="stylesheet" crossorigin href="./assets/JsonOutput-B7vuddcd.css">
+    <link rel="stylesheet" crossorigin href="./assets/index-GjXovVsl.css">
+  </head>
+  <body>
+    <div id="root"></div>
+    <!-- This is a portal for the data editor to render in -->
+    <div id="portal" data-testid="glide-portal" style="position: fixed; left: 0; top: 0; z-index: 9999"></div>
+    <script data-marimo="true">
+      window.__MARIMO_MOUNT_CONFIG__ = '{{ mount_config }}';
+    </script>
+    <!-- ACOharmony Custom Homepage -->
+    <script data-marimo="true">
+      // ACOharmony Homepage Override
+      // © 2025 HarmonyCares
+      (function() {
+          'use strict';
+
+          console.log('ACOharmony Homepage Override loading...');
+
+          function hideUnwantedSections() {
+              // Hide Resources, Create Notebook, and Tutorials sections using CSS
+              const style = document.createElement('style');
+              style.textContent = `
+                  /* Hide marimo logo in header to avoid duplication */
+                  header img[src*="logo"] { display: none !important; }
+
+                  /* Hide Resources section - look for links to Documentation, GitHub, Discord, etc */
+                  div.flex.flex-col.gap-2:has(a[href*="marimo.io"]) { display: none !important; }
+                  div.flex.flex-col.gap-2:has(a[href*="github.com/marimo"]) { display: none !important; }
+                  div.flex.flex-col.gap-2:has(a[href*="discord"]) { display: none !important; }
+
+                  /* Hide Tutorials dropdown */
+                  button[data-testid="open-tutorial-button"] { display: none !important; }
+
+                  /* Style workspace headers with HarmonyCares colors */
+                  div.flex.flex-col.gap-2 h2 {
+                      color: #2E3254 !important;
+                      border-bottom: 3px solid #1EDAC9 !important;
+                      padding-bottom: 0.5rem !important;
+                      margin-bottom: 1.25rem !important;
+                  }
+
+                  /* Dashboard tiles styles */
+                  .aco-tiles-grid {
+                      display: grid;
+                      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+                      gap: 1.25rem;
+                      margin-bottom: 2rem;
+                  }
+
+                  .aco-tile {
+                      background: white;
+                      border-radius: 8px;
+                      padding: 1.5rem;
+                      box-shadow: 0 2px 8px rgba(46, 50, 84, 0.1);
+                      transition: all 0.3s ease;
+                      border: 2px solid transparent;
+                      text-decoration: none;
+                      color: inherit;
+                      display: block;
+                  }
+
+                  .aco-tile:hover {
+                      transform: translateY(-4px);
+                      box-shadow: 0 8px 16px rgba(46, 50, 84, 0.15);
+                      border-color: #1EDAC9;
+                  }
+
+                  .aco-tile-header {
+                      display: flex;
+                      align-items: center;
+                      gap: 1rem;
+                      margin-bottom: 0.75rem;
+                  }
+
+                  .aco-tile-icon {
+                      width: 48px;
+                      height: 48px;
+                      border-radius: 8px;
+                      display: flex;
+                      align-items: center;
+                      justify-content: center;
+                      font-size: 1.5rem;
+                      background: linear-gradient(135deg, #2E3254 0%, #434A80 100%);
+                      color: #1EDAC9;
+                  }
+
+                  .aco-tile-title {
+                      font-size: 1.125rem;
+                      font-weight: 600;
+                      color: #2E3254;
+                  }
+
+                  .aco-tile-description {
+                      color: #666;
+                      font-size: 0.875rem;
+                      line-height: 1.5;
+                  }
+              `;
+              document.head.appendChild(style);
+          }
+
+          function isHomePage() {
+              // Check if we're on the homepage (no file parameter in URL)
+              const urlParams = new URLSearchParams(window.location.search);
+              return !urlParams.has('file');
+          }
+
+          function addCustomHeader() {
+              // Only add custom header on homepage
+              if (!isHomePage()) {
+                  return;
+              }
+
+              const root = document.querySelector('#root');
+              if (!root) {
+                  setTimeout(addCustomHeader, 100);
+                  return;
+              }
+
+              // Check if already added
+              if (document.getElementById('aco-header')) {
+                  return;
+              }
+
+              console.log('Adding ACOharmony header and dashboard...');
+
+              // Find the main content container - look for the container with max-width class
+              const mainContainer = root.querySelector('div.container') ||
+                                   root.querySelector('div[class*="max-w"]') ||
+                                   root.querySelector('div > div > div[class*="flex flex-col gap-6"]');
+
+              if (!mainContainer) {
+                  console.log('Main container not found, retrying...');
+                  setTimeout(addCustomHeader, 100);
+                  return;
+              }
+
+              console.log('Found main container:', mainContainer.className);
+
+              // Create header element
+              const header = document.createElement('div');
+              header.id = 'aco-header';
+              header.style.cssText = 'background: linear-gradient(135deg, #2E3254 0%, #434A80 100%); border-radius: 12px; padding: 2rem; margin-bottom: 2rem; box-shadow: 0 4px 12px rgba(46, 50, 84, 0.15);';
+
+              header.innerHTML = `
+                  <div style="display: flex; align-items: center; gap: 1.5rem; color: white;">
+                      <img src="logo.png" alt="HarmonyCares Logo" style="height: 60px; width: auto;" onerror="console.error('Logo failed to load')">
+                      <div>
+                          <h1 style="font-size: 2rem; font-weight: 600; margin: 0; color: white;">ACOharmony</h1>
+                          <p style="margin: 0.5rem 0 0 0; color: #1EDAC9; font-size: 1.1rem; font-weight: 500;">Interactive Data Platform</p>
+                      </div>
+                  </div>
+              `;
+
+              // Create dashboard tiles section with flex-col gap-2 wrapper to match Marimo's structure
+              const tilesWrapper = document.createElement('div');
+              tilesWrapper.className = 'flex flex-col gap-2';
+              tilesWrapper.id = 'aco-tiles-wrapper';
+
+              const tilesSection = document.createElement('div');
+              tilesSection.id = 'aco-tiles';
+              tilesSection.innerHTML = `
+                  <h2 style="color: #2E3254; border-bottom: 3px solid #1EDAC9; padding-bottom: 0.5rem; margin-bottom: 1.25rem; font-size: 1.5rem; font-weight: 600;">Quick Access</h2>
+                  <div class="aco-tiles-grid">
+                      <a href="https://github.com/acoharmony/acoharmony" class="aco-tile" target="_blank">
+                          <div class="aco-tile-header">
+                              <div class="aco-tile-icon">🔧</div>
+                              <div class="aco-tile-title">GitHub</div>
+                          </div>
+                          <div class="aco-tile-description">Source code management and Git repository</div>
+                      </a>
+                      <a href="https://github.com/acoharmony?ecosystem=container&tab=packages" class="aco-tile" target="_blank">
+                          <div class="aco-tile-header">
+                              <div class="aco-tile-icon">📦</div>
+                              <div class="aco-tile-title">Container Registry</div>
+                          </div>
+                          <div class="aco-tile-description">Docker container image registry</div>
+                      </a>
+                      <a href="http://localhost:10013" class="aco-tile" target="_blank">
+                          <div class="aco-tile-header">
+                              <div class="aco-tile-icon">📖</div>
+                              <div class="aco-tile-title">Docusaurus</div>
+                          </div>
+                          <div class="aco-tile-description">Project documentation and guides</div>
+                      </a>
+                      <a href="http://localhost:10012" class="aco-tile" target="_blank">
+                          <div class="aco-tile-header">
+                              <div class="aco-tile-icon">📓</div>
+                              <div class="aco-tile-title">Marimo</div>
+                          </div>
+                          <div class="aco-tile-description">Interactive Python notebooks and analytics</div>
+                      </a>
+                  </div>
+              `;
+
+              tilesWrapper.appendChild(tilesSection);
+
+              // Create Git Repository section
+              const gitWrapper = document.createElement('div');
+              gitWrapper.className = 'flex flex-col gap-2';
+              gitWrapper.id = 'aco-git-wrapper';
+              gitWrapper.style.marginBottom = '2rem';
+
+              const gitSection = document.createElement('div');
+              gitSection.id = 'aco-git';
+              gitSection.innerHTML = `
+                  <h2 style="color: #2E3254; border-bottom: 3px solid #1EDAC9; padding-bottom: 0.5rem; margin-bottom: 1.25rem; font-size: 1.5rem; font-weight: 600;">Git Repository</h2>
+                  <div style="background: white; border-radius: 8px; padding: 1.5rem; box-shadow: 0 2px 8px rgba(46, 50, 84, 0.1); border: 2px solid #f0f0f0;">
+                      <div style="display: flex; flex-direction: column; gap: 1rem;">
+                          <div style="display: flex; align-items: center; gap: 1rem;">
+                              <div style="width: 48px; height: 48px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; background: linear-gradient(135deg, #2E3254 0%, #434A80 100%); color: #1EDAC9;">
+                                  🔧
+                              </div>
+                              <div style="flex: 1;">
+                                  <div style="font-size: 1.25rem; font-weight: 600; color: #2E3254; margin-bottom: 0.25rem;">
+                                      acoharmony
+                                  </div>
+                                  <div style="color: #666; font-size: 0.875rem;">
+                                      HarmonyCares OS Launch
+                                  </div>
+                              </div>
+                              <a href="https://github.com/acoharmony/acoharmony" target="_blank" style="padding: 0.5rem 1rem; background: linear-gradient(135deg, #2E3254 0%, #434A80 100%); color: white; border-radius: 6px; text-decoration: none; font-weight: 500; transition: all 0.3s ease;">
+                                  View on GitHub →
+                              </a>
+                          </div>
+                          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; padding-top: 1rem; border-top: 1px solid #e0e0e0;">
+                              <div>
+                                  <div style="color: #666; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.25rem;">Branch</div>
+                                  <div style="color: #2E3254; font-weight: 500; font-family: monospace;">main</div>
+                              </div>
+                              <div>
+                                  <div style="color: #666; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.25rem;">Remote</div>
+                                  <div style="color: #2E3254; font-weight: 500; font-family: monospace;">origin</div>
+                              </div>
+                              <div>
+                                  <div style="color: #666; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.25rem;">Project</div>
+                                  <div style="color: #2E3254; font-weight: 500;">HarmonyCares OS Launch</div>
+                              </div>
+                          </div>
+                      </div>
+                  </div>
+              `;
+
+              gitWrapper.appendChild(gitSection);
+
+              // Insert header first, then tiles section, then git section
+              mainContainer.insertBefore(header, mainContainer.firstChild);
+              mainContainer.insertBefore(tilesWrapper, mainContainer.children[1]);
+              mainContainer.insertBefore(gitWrapper, mainContainer.children[2]);
+
+              console.log('✓ ACOharmony header, dashboard tiles, and git repository added');
+          }
+
+          // Apply styles immediately
+          hideUnwantedSections();
+
+          // Add header when ready
+          if (document.readyState === 'loading') {
+              document.addEventListener('DOMContentLoaded', addCustomHeader);
+          } else {
+              setTimeout(addCustomHeader, 100);
+          }
+
+          // Watch for React re-renders and reapply (only on homepage)
+          const observer = new MutationObserver(() => {
+              if (isHomePage() && (!document.getElementById('aco-header') || !document.getElementById('aco-tiles-wrapper') || !document.getElementById('aco-git-wrapper'))) {
+                  addCustomHeader();
+              }
+          });
+
+          observer.observe(document.body, {
+              childList: true,
+              subtree: true
+          });
+
+          // Handle URL changes (for client-side navigation)
+          let lastUrl = window.location.href;
+          const checkUrlChange = () => {
+              const currentUrl = window.location.href;
+              if (currentUrl !== lastUrl) {
+                  lastUrl = currentUrl;
+                  console.log('URL changed to:', currentUrl);
+                  // Remove custom elements if navigating away from homepage
+                  if (!isHomePage()) {
+                      console.log('Not on homepage, removing custom elements');
+                      const header = document.getElementById('aco-header');
+                      const tiles = document.getElementById('aco-tiles-wrapper');
+                      const git = document.getElementById('aco-git-wrapper');
+                      if (header) header.remove();
+                      if (tiles) tiles.remove();
+                      if (git) git.remove();
+                  } else {
+                      // Re-add if navigating back to homepage
+                      console.log('On homepage, adding custom elements');
+                      addCustomHeader();
+                  }
+              }
+          };
+
+          // Check for URL changes periodically
+          setInterval(checkUrlChange, 500);
+
+          // Also listen to popstate events
+          window.addEventListener('popstate', checkUrlChange);
+      })();
+    </script>
+  </body>
+</html>

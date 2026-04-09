@@ -1,0 +1,222 @@
+dataset_name: Medicare Geographic Locality and ZIP Code Files
+dataset_key: zipcarrier
+description: ZIP code to carrier locality crosswalk files for Medicare geographic
+  payment adjustments and fee schedule lookups
+base_url: https://www.cms.gov
+years:
+  '2014':
+    metadata:
+      description: 2014 end of year ZIP code file
+    rules:
+      Final:
+        rule_type: Final
+        metadata:
+          description: CY 2014 ZIP code carrier locality reference file
+        files:
+          zipcarrier14:
+            key: zipcarrier14
+            url: https://www.cms.gov/medicare/medicare-fee-for-service-payment/prospmedicarefeesvcpmtgen/downloads/2014-yearend-zipcodefile.zip
+            category: locality
+            schema_mapping: zip_to_county
+            description: 2014 end of year ZIP code file
+            format: zip
+  '2015':
+    metadata:
+      description: 2015 end of year ZIP code file
+    rules:
+      Final:
+        rule_type: Final
+        metadata:
+          description: CY 2015 ZIP code carrier locality reference file
+        files:
+          zipcarrier15:
+            key: zipcarrier15
+            url: https://www.cms.gov/medicare/medicare-fee-for-service-payment/prospmedicarefeesvcpmtgen/downloads/2015-yearend-zipcodefile.zip
+            category: locality
+            schema_mapping: zip_to_county
+            description: 2015 end of year ZIP code file
+            format: zip
+  '2016':
+    metadata:
+      description: 2016 end of year ZIP code file
+    rules:
+      Final:
+        rule_type: Final
+        metadata:
+          description: CY 2016 ZIP code carrier locality reference file
+        files:
+          zipcarrier16:
+            key: zipcarrier16
+            url: https://www.cms.gov/medicare/medicare-fee-for-service-payment/prospmedicarefeesvcpmtgen/downloads/2016-yearend-zipcodefile.zip
+            category: locality
+            schema_mapping: zip_to_county
+            description: 2016 end of year ZIP code file
+            format: zip
+  '2017':
+    metadata:
+      description: 2017 end of year ZIP code file
+    rules:
+      Final:
+        rule_type: Final
+        metadata:
+          description: CY 2017 ZIP code carrier locality reference file
+        files:
+          zipcarrier17:
+            key: zipcarrier17
+            url: https://www.cms.gov/medicare/medicare-fee-for-service-payment/prospmedicarefeesvcpmtgen/downloads/end-of-year-zip-code.zip
+            category: locality
+            schema_mapping: zip_to_county
+            description: 2017 end of year ZIP code file
+            format: zip
+  '2018':
+    metadata:
+      description: 2018 end of year ZIP code file
+    rules:
+      Final:
+        rule_type: Final
+        metadata:
+          description: CY 2018 ZIP code carrier locality reference file
+        files:
+          zipcarrier18:
+            key: zipcarrier18
+            url: https://www.cms.gov/medicare/medicare-fee-for-service-payment/prospmedicarefeesvcpmtgen/downloads/2018-yearend-zipcodefile.zip
+            category: locality
+            schema_mapping: zip_to_county
+            description: 2018 end of year ZIP code file
+            format: zip
+  '2019':
+    metadata:
+      description: 2019 end of year ZIP code file
+    rules:
+      Final:
+        rule_type: Final
+        metadata:
+          description: CY 2019 ZIP code carrier locality reference file
+        files:
+          zipcarrier19:
+            key: zipcarrier19
+            url: https://www.cms.gov/files/zip/2019-end-year-zip-code-file.zip
+            category: locality
+            schema_mapping: zip_to_county
+            description: 2019 end of year ZIP code file
+            format: zip
+  '2020':
+    metadata:
+      description: 2020 end of year ZIP code file
+    rules:
+      Final:
+        rule_type: Final
+        metadata:
+          description: CY 2020 ZIP code carrier locality reference file
+        files:
+          zipcarrier20:
+            key: zipcarrier20
+            url: https://www.cms.gov/files/zip/2020-end-year-zip-code-file.zip
+            category: locality
+            schema_mapping: zip_to_county
+            description: 2020 end of year ZIP code file
+            format: zip
+  '2021':
+    metadata:
+      description: 2021 end of year ZIP code file (revised 05/27/2022)
+    rules:
+      Final:
+        rule_type: Final
+        metadata:
+          description: CY 2021 ZIP code carrier locality reference file
+        files:
+          zipcarrier21:
+            key: zipcarrier21
+            url: https://www.cms.gov/files/zip/2021-end-year-zip-code-file-revised-05/27/2022.zip
+            category: locality
+            schema_mapping: zip_to_county
+            description: 2021 end of year ZIP code file (revised 05/27/2022)
+            format: zip
+  '2022':
+    metadata:
+      description: 2022 end of year ZIP code file
+    rules:
+      Final:
+        rule_type: Final
+        metadata:
+          description: CY 2022 ZIP code carrier locality reference file
+        files:
+          zipcarrier22:
+            key: zipcarrier22
+            url: https://www.cms.gov/files/zip/2022-end-year-zip-code-file.zip
+            category: locality
+            schema_mapping: zip_to_county
+            description: 2022 end of year ZIP code file
+            format: zip
+  '2023':
+    metadata:
+      description: 2023 end of year ZIP code file
+    rules:
+      Final:
+        rule_type: Final
+        metadata:
+          description: CY 2023 ZIP code carrier locality reference file
+        files:
+          zipcarrier23:
+            key: zipcarrier23
+            url: https://www.cms.gov/files/zip/2023-end-year-zip-code-file.zip
+            category: locality
+            schema_mapping: zip_to_county
+            description: 2023 end of year ZIP code file
+            format: zip
+  '2024':
+    metadata:
+      description: 2024 end of year ZIP code file
+    rules:
+      Final:
+        rule_type: Final
+        metadata:
+          description: CY 2024 ZIP code carrier locality reference file
+        files:
+          zipcarrier24:
+            key: zipcarrier24
+            url: https://www.cms.gov/files/zip/2024-end-year-zip-code-file.zip
+            category: locality
+            schema_mapping: zip_to_county
+            description: 2024 end of year ZIP code file
+            format: zip
+  '2025':
+    metadata:
+      description: 2025 end of year ZIP code file
+    rules:
+      Final:
+        rule_type: Final
+        metadata:
+          description: CY 2025 ZIP code carrier locality reference file
+        files:
+          zipcarrier25:
+            key: zipcarrier25
+            url: https://www.cms.gov/files/zip/2025-end-year-zip-code-file.zip
+            category: locality
+            schema_mapping: cms_geo_zips
+            description: 2025 end of year ZIP code file
+            format: zip
+  '2026':
+    metadata:
+      description: 2026 ZIP code carrier locality file (revised 11/18/2025)
+      additional_files: Includes ZIP+4 extension requirements
+    rules:
+      Final:
+        rule_type: Final
+        metadata:
+          description: CY 2026 ZIP code carrier locality reference file
+        files:
+          zipcarrier26:
+            key: zipcarrier26
+            url: https://www.cms.gov/files/zip/zip-code-carrier-locality-file-revised-11-18-2025.zip
+            category: locality
+            schema_mapping: cms_geo_zips
+            description: 2026 ZIP code carrier locality file (revised 11/18/2025, contains JAN2026 data)
+            format: zip
+          zip5_ext:
+            key: zip5_ext
+            url: https://www.cms.gov/medicare/medicare-fee-for-service-payment/prospmedicarefeesvcpmtgen/downloads/zip5-requiring-4ext.zip
+            category: locality
+            schema_mapping: zip_to_county
+            description: ZIP+4 extension requirements reference file
+            format: zip

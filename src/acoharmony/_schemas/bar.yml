@@ -1,0 +1,231 @@
+version: 2
+name: bar
+description: Beneficiary Alignment Report (ALGC/ALGR) - Excel file containing beneficiary
+  assignment information for ACO REACH
+storage:
+  tier: bronze
+  file_patterns:
+    reach:
+    - '*ALGC*.xlsx'
+    - '*ALGR*.xlsx'
+  silver:
+    output_name: bar.parquet
+    refresh_frequency: monthly
+    last_updated_by: aco transform bar
+file_format:
+  type: excel
+  sheet_name: 0
+  encoding: utf-8
+columns:
+- name: Beneficiary MBI ID
+  output_name: bene_mbi
+  description: Medicare Beneficiary Identifier
+  data_type: string
+  required: true
+- name: Beneficiary Alignment Effective Start Date
+  output_name: start_date
+  description: Alignment effective start date
+  data_type: date
+  date_format:
+  - '%Y-%m-%d %H:%M:%S'
+  - '%Y-%m-%d'
+  - '%m/%d/%Y'
+  - '%-m/%-d/%Y'
+  transform:
+    type: date_parse
+    formats:
+    - '%Y-%m-%d'
+    - '%m/%d/%Y'
+- name: Beneficiary Alignment Effective Termination Date
+  output_name: end_date
+  description: Alignment effective termination date
+  data_type: date
+  date_format:
+  - '%Y-%m-%d %H:%M:%S'
+  - '%Y-%m-%d'
+  - '%m/%d/%Y'
+  - '%-m/%-d/%Y'
+  - '%-m/%-d/%Y'
+  transform:
+    type: date_parse
+    formats:
+    - '%Y-%m-%d'
+    - '%m/%d/%Y'
+    - '%-m/%-d/%Y'
+- name: Beneficiary First Name
+  output_name: bene_first_name
+  description: Beneficiary First Name
+  data_type: string
+- name: Beneficiary Last Name
+  output_name: bene_last_name
+  description: Beneficiary Last Name
+  data_type: string
+- name: Beneficiary Line 1 Address
+  output_name: bene_address_line_1
+  description: Address Line 1
+  data_type: string
+- name: Beneficiary Line 2 Address
+  output_name: bene_address_line_2
+  description: Address Line 2
+  data_type: string
+- name: Beneficiary Line 3 Address
+  output_name: bene_address_line_3
+  description: Address Line 3
+  data_type: string
+- name: Beneficiary Line 4 Address
+  output_name: bene_address_line_4
+  description: Address Line 4
+  data_type: string
+- name: Beneficiary Line 5 Address
+  output_name: bene_address_line_5
+  description: Address Line 5
+  data_type: string
+- name: Beneficiary Line 6 Address
+  output_name: bene_address_line_6
+  description: Address Line 6
+  data_type: string
+- name: Beneficiary City
+  output_name: bene_city
+  description: City
+  data_type: string
+- name: Beneficiary USPS State Code
+  output_name: bene_state
+  description: State code
+  data_type: string
+- name: Beneficiary Zip 5
+  output_name: bene_zip_5
+  description: 5-digit ZIP code
+  data_type: string
+- name: Beneficiary Zip 4
+  output_name: bene_zip_4
+  description: ZIP+4 extension
+  data_type: string
+- name: Beneficiary State-County of Residence SSA
+  output_name: bene_county_ssa
+  description: SSA State-County code
+  data_type: string
+- name: Beneficiary State-County of Residence FIPS
+  output_name: bene_county_fips
+  description: FIPS county code
+  data_type: string
+- name: Beneficiary Gender
+  output_name: bene_gender
+  description: Gender
+  data_type: string
+- name: Race-Ethnicity
+  output_name: bene_race_ethnicity
+  description: Race/Ethnicity code
+  data_type: string
+- name: Beneficiary Date of Birth
+  output_name: bene_date_of_birth
+  description: Date of Birth
+  data_type: date
+  date_format:
+  - '%Y-%m-%d %H:%M:%S'
+  - '%m/%d/%Y'
+  - '%-m/%-d/%Y'
+  - '%Y-%m-%d'
+- name: Beneficiary Age
+  output_name: bene_age
+  description: Age in years
+  data_type: integer
+- name: Beneficiary Date of Death
+  output_name: bene_date_of_death
+  description: Date of Death if applicable
+  data_type: date
+  required: false
+  date_format:
+  - '%Y-%m-%d %H:%M:%S'
+  - '%m/%d/%Y'
+  - '%-m/%-d/%Y'
+  - '%Y-%m-%d'
+- name: Beneficiary Eligibility Alignment Year 1
+  output_name: bene_eligibility_year_1
+  description: Eligibility for Year 1
+  data_type: string
+- name: Beneficiary Eligibility Alignment Year 2
+  output_name: bene_eligibility_year_2
+  description: Eligibility for Year 2
+  data_type: string
+- name: Beneficiary Part D Coverage Alignment Year 1
+  output_name: bene_part_d_year_1
+  description: Part D Coverage Year 1
+  data_type: string
+- name: Beneficiary Part D Coverage Alignment Year 2
+  output_name: bene_part_d_year_2
+  description: Part D Coverage Year 2
+  data_type: string
+- name: Newly Aligned Beneficiary Flag
+  output_name: newly_aligned_flag
+  description: New alignment indicator
+  data_type: string
+- name: Prospective Plus Alignment
+  output_name: prospective_plus_flag
+  description: Prospective Plus indicator
+  data_type: string
+- name: Claim Based Alignment Indicator
+  output_name: claims_based_flag
+  description: Claims-based alignment flag
+  data_type: string
+- name: Voluntary Alignment Type
+  output_name: voluntary_alignment_type
+  description: Type of voluntary alignment
+  data_type: string
+- name: Mobility Impairment Indicator
+  output_name: mobility_impairment_flag
+  description: Mobility impairment flag
+  data_type: string
+- name: Frailty Indicator
+  output_name: frailty_flag
+  description: Frailty flag
+  data_type: string
+- name: Medium Risk with Unplanned Admissions Indicator
+  output_name: medium_risk_unplanned_flag
+  description: Medium risk with unplanned admissions
+  data_type: string
+- name: High Risk Score Indicator
+  output_name: high_risk_flag
+  description: High risk score flag
+  data_type: string
+keys:
+  primary_key:
+  - bene_mbi_id
+  - start_date
+  - aco_id
+  natural_key:
+  - bene_mbi_id
+  - aco_id
+  foreign_keys:
+  - column: bene_mbi_id
+    references: cclf8.bene_mbi_id
+  - column: pcp_npi
+    references: provider.npi
+xref:
+  description: Apply MBI crosswalk to get current MBI
+  table: beneficiary_xref
+  join_key: bene_mbi
+  xref_key: prvs_num
+  current_column: crnt_num
+  output_column: current_bene_mbi
+foreign_keys:
+  description: Relationships to other tables
+  keys:
+  - column: bene_mbi
+    references: beneficiary_demographics.bene_mbi_id
+    type: many-to-one
+  - column: current_bene_mbi
+    references: beneficiary_xref.crnt_num
+    type: many-to-one
+  - column: bene_county_fips
+    references: zip_to_county.fips_code
+    type: many-to-one
+medallion_layer: bronze
+unity_catalog: main
+fourIcli:
+  category: Beneficiary List
+  fileTypeCode: 159
+  filePattern: P.D????.ALG???.RP.D??????.T*.xlsx
+  extractZip: false
+  refreshFrequency: monthly
+  defaultDateFilter:
+    createdWithinLastMonth: true

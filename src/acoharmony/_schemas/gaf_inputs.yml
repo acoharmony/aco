@@ -1,0 +1,43 @@
+version: 2
+name: gaf_inputs
+description: "ADDENDUM D. FINAL CY 20XX GEOGRAPHIC ADJUSTMENT FACTORS (GAFs) BY STATE AND MEDICARE LOCALITY"
+storage:
+  tier: bronze
+  silver:
+    output_name: gaf_inputs.parquet
+    refresh_frequency: annual
+    last_updated_by: aco transform gaf_inputs
+  file_patterns:
+    annual: '*GAF*.csv'
+    annual_xlsx: '*GAF*.xlsx'
+file_format:
+  type: csv
+  delimiter: ','
+  encoding: utf-8
+  header: true
+columns:
+- name: medicare_administrative_contractor_id
+  description: Medicare Administrative Contractor (MAC) ID
+  data_type: string
+- name: geo_locality_state_cd
+  description: Geographic Locality State Code
+  data_type: string
+  required: true
+- name: geo_locality_num
+  description: Geographic Locality Number
+  data_type: string
+  required: true
+- name: geo_locality_name
+  description: Geographic Locality Name
+  data_type: string
+- name: cy_gaf_with_work_floor
+  description: Current Year GAF with Work Floor
+  data_type: float
+- name: cy_plus_one_gaf_with_work_floor
+  description: Current Year Plus One GAF with Work Floor
+  data_type: float
+- name: inter_year_percent_change
+  description: Inter-Year Percent Change
+  data_type: float
+medallion_layer: bronze
+unity_catalog: main

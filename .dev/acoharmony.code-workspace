@@ -1,0 +1,116 @@
+{
+  "folders": [
+    {
+      "name": "home",
+      "path": "/home/care"
+    },
+    {
+      "name": "acoharmony",
+      "path": "/home/care/acoharmony"
+    },
+    {
+      "name": "data",
+      "path": "/opt/s3/data"
+    },
+    {
+      "name": "pipline",
+      "path": "/home/care/pipeline_demo"
+    }
+  ],
+  "settings": {
+    // Python configuration - always use UV-managed environment
+    "python.defaultInterpreterPath": "/home/care/acoharmony/.venv/bin/python",
+    "python.terminal.activateEnvironment": true,
+    "python.terminal.activateEnvInCurrentTerminal": true,
+    "jupyter.notebookFileRoot": "/home/care/acoharmony",
+    "jupyter.themeMatplotlibPlots": true,
+
+    // Ensure UV is used for all Python operations
+    "python.poetryPath": "uv",
+    "python.pipenvPath": "uv",
+    "python.condaPath": "uv",
+
+    // Terminal configuration - UV environment
+    "terminal.integrated.env.linux": {
+      "UV_PROJECT_ENVIRONMENT": "/home/care/acoharmony/.venv",
+      "UV_PYTHON": "3.13",
+      "PATH": "${env:HOME}/.local/share/uv/python/cpython-3.13.7-linux-x86_64-gnu/bin:/home/care/acoharmony/.venv/bin:${env:HOME}/.local/bin:${env:PATH}",
+      "DONT_PROMPT_WSL_INSTALL": "1"
+    },
+
+    // Python testing
+    "python.testing.pytestEnabled": true,
+    "python.testing.pytestPath": "/home/care/acoharmony/.venv/bin/pytest",
+    "python.testing.cwd": "/home/care/acoharmony",
+
+    // Linting and formatting - use UV environment tools
+    "ruff.path": ["/home/care/acoharmony/.venv/bin/ruff"],
+    "ruff.enable": true,
+    "ruff.lint.enable": true,
+    "ruff.format.args": [],
+    "ruff.importStrategy": "fromEnvironment",
+
+    // Mypy type checking
+    "mypy-type-checker.path": ["/home/care/acoharmony/.venv/bin/mypy"],
+    "mypy-type-checker.importStrategy": "fromEnvironment",
+    "mypy-type-checker.args": [],
+
+    // Python formatting and linting configuration
+    "[python]": {
+      "editor.defaultFormatter": "charliermarsh.ruff",
+      "editor.formatOnSave": true,
+      "editor.codeActionsOnSave": {
+        "source.fixAll.ruff": "explicit",
+        "source.organizeImports.ruff": "explicit"
+      }
+    },
+
+    // File associations
+    "files.associations": {
+      "*.toml": "toml",
+      "uv.lock": "toml",
+      "*.duckdb": "sqlite"
+    },
+
+    // Marimo configuration
+    "marimo.pythonPath": "/home/care/acoharmony/.venv/bin/python",
+    "marimo.marimoPath": "/home/care/acoharmony/.venv/bin/marimo",
+
+    // Exclude large data files from search
+    "files.exclude": {
+      "**/*.duckdb": true,
+      "**/*.parquet": false,
+      "**/__pycache__": true,
+      "**/.pytest_cache": true,
+      "**/.mypy_cache": true,
+      "**/.ruff_cache": true,
+      "**/.hypothesis": true
+    },
+
+    // Search configuration
+    "search.exclude": {
+      "**/*.duckdb": true,
+      "**/*.db": true,
+      "**/node_modules": true,
+      "**/.venv": true,
+      "**/uv.lock": true
+    },
+
+    // Databricks extension settings
+    "databricks.python.envFile": "/home/care/acoharmony/.env",
+
+    // Allow venv kernel for Jupyter/Marimo
+    "jupyter.kernels.excludePythonEnvironments": []
+  },
+  "extensions": {
+    "recommendations": [
+      "ms-python.python",
+      "ms-python.vscode-pylance",
+      "ms-toolsai.jupyter",
+      "ms-azuretools.vscode-docker",
+      "ms-vscode-remote.remote-containers",
+      "databricks.databricks",
+      "charliermarsh.ruff"
+    ]
+  }
+}

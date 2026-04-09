@@ -1,0 +1,20 @@
+version: 2
+name: cclf_management_report
+description: 5-1 CCLF Management Report
+storage:
+  tier: bronze
+  file_patterns:
+    reach:
+    - 'P.D*.MCMXP.RP.D*.T*.xlsx'
+  silver:
+    output_name: cclf_management_report.parquet
+    refresh_frequency: monthly
+file_format:
+  type: excel
+columns: []
+fourIcli:
+  category: Reports
+  fileTypeCode: 198
+  extractZip: false
+  refreshFrequency: monthly
+  filePattern: P.D????.MCMXP.RP.D??????.T*.xlsx

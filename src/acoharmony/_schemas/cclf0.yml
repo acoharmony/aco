@@ -1,0 +1,54 @@
+version: 2
+name: cclf0
+description: CCLF0 Summary Statistics File - Pipe-delimited file containing record
+  counts for all CCLF files
+storage:
+  tier: bronze
+  file_patterns:
+    mssp: P.A*.ACO.ZC0Y*.D*.T*
+    reach: P.D*.ACO.ZC0Y*.D*.T*
+    mssp_regular: P.A*.ACO.ZC0Y*.D*.T*
+    mssp_runout: P.A*.ACO.ZC0R*.D*.T*
+    reach_monthly: P.D*.ACO.ZC0Y*.D*.T*
+    reach_runout: P.D*.ACO.ZC0R*.D*.T*
+    mssp_weekly: P.A*.ACO.ZC0WY*.D*.T*
+  silver:
+    output_name: cclf0.parquet
+    refresh_frequency: weekly
+    last_updated_by: scripts/process_raw_to_parquet.py
+  gold:
+    output_name: null
+    refresh_frequency: null
+    last_updated_by: null
+file_format:
+  type: delimited
+  delimiter: '|'
+  encoding: utf-8
+  has_header: false
+columns:
+- name: file_type
+  description: Type of CCLF file (CCLF1, CCLF2, etc.)
+  data_type: string
+  required: true
+- name: file_description
+  description: Description of the CCLF file type
+  data_type: string
+  required: true
+- name: record_count
+  description: Total number of records in the file
+  data_type: integer
+  required: true
+- name: record_length
+  description: Length of each record in the file
+  data_type: integer
+  required: true
+medallion_layer: bronze
+unity_catalog: main
+fourIcli:
+  category: Claim and Claim Line Feed (CCLF) Files
+  fileTypeCode: 113
+  filePattern: P.?????.ACO.ZC*??.D??????.T*.zip, P.?????.ACO.ZCWY??.S??????.E??????.D??????.T*.zip, P.?????.ACO.ZC*Y??.D??????.T*, P.?????.ACO.ZC*WY??.D??????.T*, P.?????.ACO.ZC*R??.D??????.T*
+  extractZip: true
+  refreshFrequency: weekly
+  defaultDateFilter:
+    createdWithinLastWeek: true

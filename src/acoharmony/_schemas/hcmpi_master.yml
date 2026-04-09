@@ -1,0 +1,63 @@
+version: 2
+name: hcmpi_master
+description: HarmonyCares Master Patient Index - Patient identifier crosswalk
+storage:
+storage:
+  tier: bronze
+  file_patterns:
+    main: hcmpi_master.csv
+  silver:
+    output_name: hcmpi_master.parquet
+    refresh_frequency: weekly
+    last_updated_by: aco transform hcmpi
+  gold:
+    output_name: null
+    refresh_frequency: null
+    last_updated_by: null
+file_format:
+  type: csv
+  encoding: utf-8
+columns:
+- name: hcmpi
+  output_name: hcmpi
+  description: HarmonyCares Master Patient Index
+  data_type: string
+  required: true
+- name: identifiersrcfield
+  output_name: identifier_src_field
+  description: Source field for identifier
+  data_type: string
+- name: identifiersrc
+  output_name: identifier_src
+  description: Source system for identifier
+  data_type: string
+- name: identifier
+  output_name: identifier
+  description: Patient identifier (MRN, MBI, etc.)
+  data_type: string
+  required: true
+- name: datasource
+  output_name: data_source
+  description: Data source system
+  data_type: string
+- name: rcd_active
+  output_name: rcd_active
+  description: Record active flag
+  data_type: boolean
+- name: eff_start_dt
+  output_name: eff_start_dt
+  description: Effective start date
+  data_type: date
+  date_format: "%Y-%m-%dT%H:%M:%S%.fZ"
+- name: eff_end_dt
+  output_name: eff_end_dt
+  description: Effective end date
+  data_type: date
+  date_format: "%Y-%m-%dT%H:%M:%S%.fZ"
+- name: last_touch_dttm
+  output_name: last_touch_dttm
+  description: Last known HCMG touchpoint
+  data_type: datetime
+  date_format: "%Y-%m-%dT%H:%M:%S%.fZ"
+medallion_layer: silver
+unity_catalog: main

@@ -1,0 +1,6 @@
+include:
+  - ./services/networks.yml
+  - ./services/marimo.yml
+  - ./services/docs.yml
+  - ./services/4icli.yml
+  - ./services/aco.yml

@@ -1,0 +1,144 @@
+version: 2
+name: recon
+description: Shared Savings/Value Agreement Report - Delimited file with financial
+  performance metrics
+file_format:
+  type: delimited
+  delimiter: '|'
+  encoding: utf-8
+  header: true
+  quote_char: '"'
+columns:
+- name: aco_id
+  description: ACO Identifier
+  data_type: string
+  required: true
+- name: performance_year
+  description: Performance Year (YYYY)
+  data_type: integer
+  required: true
+- name: report_quarter
+  description: Report Quarter (Q1-Q4, or ANNUAL)
+  data_type: string
+- name: total_assigned_benes
+  description: Total Assigned Beneficiaries
+  data_type: integer
+- name: person_years
+  description: Total Person Years
+  data_type: decimal
+  precision: 2
+- name: avg_risk_score
+  description: Average HCC Risk Score
+  data_type: decimal
+  precision: 3
+- name: benchmark_expenditure
+  description: Benchmark Expenditure
+  data_type: decimal
+  precision: 2
+- name: actual_expenditure
+  description: Actual Expenditure
+  data_type: decimal
+  precision: 2
+- name: gross_savings
+  description: Gross Savings/Loss Amount
+  data_type: decimal
+  precision: 2
+- name: msr_percent
+  description: Minimum Savings Rate Percentage
+  data_type: decimal
+  precision: 3
+- name: msr_amount
+  description: Minimum Savings Rate Amount
+  data_type: decimal
+  precision: 2
+- name: mlr_percent
+  description: Minimum Loss Rate Percentage
+  data_type: decimal
+  precision: 3
+- name: mlr_amount
+  description: Minimum Loss Rate Amount
+  data_type: decimal
+  precision: 2
+- name: quality_score
+  description: Overall Quality Score
+  data_type: decimal
+  precision: 2
+- name: quality_adjustment
+  description: Quality Score Adjustment Factor
+  data_type: decimal
+  precision: 3
+- name: earned_savings
+  description: Earned Shared Savings
+  data_type: decimal
+  precision: 2
+- name: owed_losses
+  description: Owed Shared Losses
+  data_type: decimal
+  precision: 2
+- name: final_sharing_rate
+  description: Final Sharing Rate
+  data_type: decimal
+  precision: 3
+- name: risk_arrangement
+  description: Risk Arrangement Type (ONE_SIDED, TWO_SIDED, ENHANCED, GLOBAL)
+  data_type: string
+- name: benchmark_type
+  description: Benchmark Type (HISTORICAL, REGIONAL, BLEND)
+  data_type: string
+- name: trend_factor
+  description: Trend Factor Applied
+  data_type: decimal
+  precision: 4
+- name: regional_adjustment
+  description: Regional Adjustment Factor
+  data_type: decimal
+  precision: 4
+- name: prior_savings_adjustment
+  description: Prior Savings Adjustment
+  data_type: decimal
+  precision: 2
+- name: sequestration_amount
+  description: Sequestration Reduction Amount
+  data_type: decimal
+  precision: 2
+- name: total_part_a_exp
+  description: Total Part A Expenditure
+  data_type: decimal
+  precision: 2
+- name: total_part_b_exp
+  description: Total Part B Expenditure
+  data_type: decimal
+  precision: 2
+- name: total_part_d_exp
+  description: Total Part D Expenditure
+  data_type: decimal
+  precision: 2
+- name: ip_admits_per_1000
+  description: Inpatient Admits per 1000 Person Years
+  data_type: decimal
+  precision: 1
+- name: readmit_rate
+  description: 30-Day Readmission Rate
+  data_type: decimal
+  precision: 3
+- name: er_visits_per_1000
+  description: ER Visits per 1000 Person Years
+  data_type: decimal
+  precision: 1
+- name: awv_rate
+  description: Annual Wellness Visit Rate
+  data_type: decimal
+  precision: 3
+- name: generic_rx_rate
+  description: Generic Prescription Rate
+  data_type: decimal
+  precision: 3
+storage:
+  bronze:
+    output_name: reconciliation_report.parquet
+  silver:
+    output_name: reconciliation_report.parquet
+  gold:
+    output_name: reconciliation_report.parquet
+medallion_layer: gold
+unity_catalog: main

@@ -1,0 +1,81 @@
+/* ACOharmony Marimo UI Customization */
+/* © 2025 HarmonyCares */
+
+/* HarmonyCares Color Variables */
+:root {
+    --aco-navy: #2E3254;
+    --aco-teal: #1EDAC9;
+    --aco-purple: #434A80;
+    --aco-coral: #E39B7A;
+}
+
+/* Hide ALL Marimo boilerplate sections */
+/* Hide "Create a new notebook" section */
+div[class*="rounded-lg"][class*="p-6"][class*="group"][class*="text-primary"] {
+    display: none !important;
+}
+
+/* Hide Resources section with tutorials, GitHub, Discord, etc. */
+div:has(> div > h2:contains("Resources")) {
+    display: none !important;
+}
+
+/* Hide individual tutorial/resource cards */
+a[class*="flex items-start gap-3"][href*="marimo"] {
+    display: none !important;
+}
+
+/* Style the header and logo */
+.header-content,
+header {
+    background-color: var(--aco-navy) !important;
+}
+
+/* Hide Marimo tutorials dropdown button */
+button[data-testid="open-tutorial-button"] {
+    display: none !important;
+}
+
+/* Customize workspace file cards to match HarmonyCares style */
+.service-card-custom {
+    background: white;
+    border-radius: 8px;
+    padding: 1.75rem;
+    box-shadow: 0 2px 8px rgba(46, 50, 84, 0.1);
+    transition: all 0.3s ease;
+    text-decoration: none;
+    color: inherit;
+    display: block;
+    border: 1px solid #e0e0e0;
+}
+
+.service-card-custom:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 16px rgba(46, 50, 84, 0.15);
+    border-color: var(--aco-teal);
+}
+
+/* Style notebook links with HarmonyCares colors */
+a[href*="?file="] {
+    border-left: 3px solid var(--aco-teal) !important;
+    transition: all 0.3s ease;
+}
+
+a[href*="?file="]:hover {
+    background-color: rgba(30, 218, 201, 0.05) !important;
+    border-left-color: var(--aco-navy) !important;
+}
+
+/* Style section headers with HarmonyCares branding */
+h2[class*="text-xl font-semibold"] {
+    color: var(--aco-navy) !important;
+    border-bottom: 3px solid var(--aco-teal) !important;
+    padding-bottom: 0.5rem !important;
+    margin-bottom: 1.5rem !important;
+}
+
+/* Inject HarmonyCares branding into page title */
+.page-title::before {
+    content: "ACOharmony - ";
+    color: var(--aco-teal);
+}

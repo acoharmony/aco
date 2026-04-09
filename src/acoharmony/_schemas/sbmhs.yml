@@ -1,0 +1,142 @@
+version: 2
+name: sbmhs
+description: 'Shadow Bundles Monthly Hospice'
+storage:
+  tier: bronze
+  file_patterns:
+    reach:
+    - 'D????.PY????.??.SBMHS.D??????.T*.csv'
+  silver:
+    output_name: sbmhs.parquet
+    refresh_frequency: monthly
+file_format:
+  type: csv
+  delimiter: ','
+  has_header: true
+columns:
+  - name: episode_id
+    data_type: string
+    description: Episode identifier
+  - name: curhic_uneq
+    data_type: string
+    description: Current HIC unique identifier
+  - name: mbi_id
+    data_type: string
+    description: Medicare Beneficiary Identifier
+  - name: claimno
+    data_type: string
+    description: Claim number
+  - name: sgmt_num
+    data_type: integer
+    description: Segment number
+  - name: fac_type
+    data_type: string
+    description: Facility type code
+  - name: from_dt
+    data_type: date
+    description: Service from date
+  - name: thru_dt
+    data_type: date
+    description: Service through date
+  - name: provider
+    data_type: string
+    description: Provider number
+  - name: pmt_amt
+    data_type: decimal
+    description: Payment amount
+  - name: prpayamt
+    data_type: decimal
+    description: Primary payer amount
+  - name: clm_allowed
+    data_type: decimal
+    description: Claim allowed amount
+  - name: std_allowed
+    data_type: decimal
+    description: Standardized allowed amount
+  - name: std_cost_epi_total
+    data_type: decimal
+    description: Standardized cost episode total
+  - name: typesrvc
+    data_type: string
+    description: Type of service code
+  - name: dgnscd01
+    data_type: string
+    description: Diagnosis code 1
+  - name: dgnscd02
+    data_type: string
+    description: Diagnosis code 2
+  - name: dgnscd03
+    data_type: string
+    description: Diagnosis code 3
+  - name: dgnscd04
+    data_type: string
+    description: Diagnosis code 4
+  - name: dgnscd05
+    data_type: string
+    description: Diagnosis code 5
+  - name: dgnscd06
+    data_type: string
+    description: Diagnosis code 6
+  - name: dgnscd07
+    data_type: string
+    description: Diagnosis code 7
+  - name: dgnscd08
+    data_type: string
+    description: Diagnosis code 8
+  - name: dgnscd09
+    data_type: string
+    description: Diagnosis code 9
+  - name: dgnscd10
+    data_type: string
+    description: Diagnosis code 10
+  - name: dgnscd11
+    data_type: string
+    description: Diagnosis code 11
+  - name: dgnscd12
+    data_type: string
+    description: Diagnosis code 12
+  - name: dgnscd13
+    data_type: string
+    description: Diagnosis code 13
+  - name: dgnscd14
+    data_type: string
+    description: Diagnosis code 14
+  - name: dgnscd15
+    data_type: string
+    description: Diagnosis code 15
+  - name: dgnscd16
+    data_type: string
+    description: Diagnosis code 16
+  - name: dgnscd17
+    data_type: string
+    description: Diagnosis code 17
+  - name: dgnscd18
+    data_type: string
+    description: Diagnosis code 18
+  - name: dgnscd19
+    data_type: string
+    description: Diagnosis code 19
+  - name: dgnscd20
+    data_type: string
+    description: Diagnosis code 20
+  - name: dgnscd21
+    data_type: string
+    description: Diagnosis code 21
+  - name: dgnscd22
+    data_type: string
+    description: Diagnosis code 22
+  - name: dgnscd23
+    data_type: string
+    description: Diagnosis code 23
+  - name: dgnscd24
+    data_type: string
+    description: Diagnosis code 24
+  - name: dgnscd25
+    data_type: string
+    description: Diagnosis code 25
+fourIcli:
+  category: Reports
+  fileTypeCode: 243
+  extractZip: false
+  refreshFrequency: monthly
+  filePattern: D????.PY????.??.SBMHS.D??????.T*.csv

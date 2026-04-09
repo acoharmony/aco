@@ -1,0 +1,20 @@
+version: 2
+name: risk_adjustment_reach
+description: 'Risk Adjustment Data'
+storage:
+  tier: bronze
+  file_patterns:
+    reach:
+    - '*RAP*'
+  silver:
+    output_name: risk_adjustment_data.parquet
+    refresh_frequency: monthly
+file_format:
+  type: csv
+columns: []
+fourIcli:
+  category: Reports
+  fileTypeCode: 140
+  extractZip: false
+  refreshFrequency: monthly
+  filePattern: P.D????.RAP??.D??????.T*.csv

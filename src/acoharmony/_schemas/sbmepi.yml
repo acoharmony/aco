@@ -1,0 +1,547 @@
+version: 2
+name: sbmepi
+description: 'Shadow Bundles Monthly Episode (bundled episodes)'
+storage:
+  tier: bronze
+  file_patterns:
+    reach:
+    - 'D????.PY????.??.SBMEPI.D??????.T*.csv'
+  silver:
+    output_name: sbmepi.parquet
+    refresh_frequency: monthly
+file_format:
+  type: csv
+  delimiter: ','
+  has_header: true
+columns:
+  - name: episode_id
+    data_type: string
+    description: Episode identifier
+  - name: aco_org_id
+    data_type: string
+    description: ACO organization identifier
+  - name: aco_org_id_name
+    data_type: string
+    description: ACO organization name
+  - name: episode_group_name
+    data_type: string
+    description: Episode group name
+  - name: service_line_group
+    data_type: string
+    description: Service line group
+  - name: curhic_uneq
+    data_type: string
+    description: Current HIC unique identifier
+  - name: mbi_id
+    data_type: string
+    description: Medicare Beneficiary Identifier
+  - name: bene_gvn_name
+    data_type: string
+    description: Beneficiary given name
+  - name: bene_mdl_name
+    data_type: string
+    description: Beneficiary middle name
+  - name: bene_srnm_name
+    data_type: string
+    description: Beneficiary surname
+  - name: bene_age
+    data_type: integer
+    description: Beneficiary age
+  - name: bene_gender
+    data_type: string
+    description: Beneficiary gender
+  - name: bene_birth_dt
+    data_type: date
+    description: Beneficiary birth date
+  - name: bene_death_dt
+    data_type: date
+    description: Beneficiary death date
+  - name: anchor_type
+    data_type: string
+    description: Anchor type (IP or OP)
+  - name: anchor_trigger_cd
+    data_type: string
+    description: Anchor trigger code
+  - name: anchor_apc
+    data_type: string
+    description: Anchor APC code
+  - name: anchor_apc_pmt_rate
+    data_type: decimal
+    description: Anchor APC payment rate
+  - name: anchor_c_apc_flag
+    data_type: integer
+    description: Anchor comprehensive APC flag
+  - name: anchor_provider
+    data_type: string
+    description: Anchor provider number
+  - name: anchor_at_npi
+    data_type: string
+    description: Anchor attending NPI
+  - name: anchor_op_npi
+    data_type: string
+    description: Anchor operating NPI
+  - name: anchor_beg_dt
+    data_type: date
+    description: Anchor begin date
+  - name: anchor_end_dt
+    data_type: date
+    description: Anchor end date
+  - name: post_dsch_beg_dt
+    data_type: date
+    description: Post-discharge begin date
+  - name: post_dsch_end_dt
+    data_type: date
+    description: Post-discharge end date
+  - name: anchor_standard_allowed_amt
+    data_type: decimal
+    description: Anchor standardized allowed amount
+  - name: anchor_allowed_amt
+    data_type: decimal
+    description: Anchor allowed amount
+  - name: transfer_stay
+    data_type: integer
+    description: Transfer stay indicator
+  - name: drop_episode
+    data_type: integer
+    description: Drop episode indicator
+  - name: epi_pre_overlap
+    data_type: integer
+    description: Episode pre-overlap indicator
+  - name: epi_post_overlap
+    data_type: integer
+    description: Episode post-overlap indicator
+  - name: dropflag_non_ach
+    data_type: integer
+    description: Drop flag for non-ACH
+  - name: dropflag_excluded_state
+    data_type: integer
+    description: Drop flag for excluded state
+  - name: dropflag_not_cont_enr_ab_no_c
+    data_type: integer
+    description: Drop flag for not continuously enrolled in AB without C
+  - name: dropflag_esrd
+    data_type: integer
+    description: Drop flag for ESRD
+  - name: dropflag_other_primary_payer
+    data_type: integer
+    description: Drop flag for other primary payer
+  - name: dropflag_no_bene_enr_info
+    data_type: integer
+    description: Drop flag for no beneficiary enrollment info
+  - name: dropflag_los_gt_59
+    data_type: integer
+    description: Drop flag for length of stay greater than 59
+  - name: dropflag_non_highest_j1
+    data_type: integer
+    description: Drop flag for non-highest J1
+  - name: dropflag_death_dur_anchor
+    data_type: integer
+    description: Drop flag for death during anchor
+  - name: dropflag_trans_w_cah_cancer
+    data_type: integer
+    description: Drop flag for transfer with CAH cancer
+  - name: dropflag_rch_demo
+    data_type: integer
+    description: Drop flag for REACH demo
+  - name: dropflag_rural_pa
+    data_type: integer
+    description: Drop flag for rural PA
+  - name: dropflag_cjr
+    data_type: integer
+    description: Drop flag for CJR
+  - name: dropflag_prelim_cjr_overlap
+    data_type: integer
+    description: Drop flag for preliminary CJR overlap
+  - name: dropflag_natural_disaster
+    data_type: integer
+    description: Drop flag for natural disaster
+  - name: dropflag_prelim_overlap
+    data_type: integer
+    description: Drop flag for preliminary overlap
+  - name: dropflag_trans_w_exc_drg_mdc
+    data_type: integer
+    description: Drop flag for transfer with excluded DRG/MDC
+  - name: hem_stroke_flag
+    data_type: integer
+    description: Hemorrhagic stroke flag
+  - name: ibd_fistula_flag
+    data_type: integer
+    description: IBD fistula flag
+  - name: ibd_uc_flag
+    data_type: integer
+    description: IBD ulcerative colitis flag
+  - name: prior_hosp_w_non_pac_ip_flag_180
+    data_type: integer
+    description: Prior hospitalization with non-PAC IP flag (180 days)
+  - name: prior_pac_flag
+    data_type: integer
+    description: Prior PAC flag
+  - name: death_dur_postdschrg
+    data_type: integer
+    description: Death during post-discharge flag
+  - name: tot_std_allowed
+    data_type: decimal
+    description: Total standardized allowed
+  - name: tot_raw_allowed
+    data_type: decimal
+    description: Total raw allowed
+  - name: tot_std_allowed_opl
+    data_type: decimal
+    description: Total standardized allowed outpatient
+  - name: tot_std_allowed_ip
+    data_type: decimal
+    description: Total standardized allowed inpatient
+  - name: tot_std_allowed_dm
+    data_type: decimal
+    description: Total standardized allowed DME
+  - name: tot_std_allowed_pb
+    data_type: decimal
+    description: Total standardized allowed Part B
+  - name: tot_std_allowed_sn
+    data_type: decimal
+    description: Total standardized allowed SNF
+  - name: tot_std_allowed_hs
+    data_type: decimal
+    description: Total standardized allowed hospice
+  - name: tot_std_allowed_hh_nonrap
+    data_type: decimal
+    description: Total standardized allowed home health non-RAP
+  - name: winsorize_epi_1_99
+    data_type: integer
+    description: Winsorize episode 1-99 percentile
+  - name: epi_std_pmt_fctr_win_1_99
+    data_type: decimal
+    description: Episode standardized payment factor winsorized 1-99
+  - name: anchor_claimno
+    data_type: string
+    description: Anchor claim number
+  - name: anchor_lineitem
+    data_type: string
+    description: Anchor line item
+  - name: anchor_stay_id
+    data_type: string
+    description: Anchor stay ID
+  - name: trans_ip_stay_1
+    data_type: string
+    description: Transfer inpatient stay 1
+  - name: trans_ip_stay_2
+    data_type: string
+    description: Transfer inpatient stay 2
+  - name: trans_ip_stay_3
+    data_type: string
+    description: Transfer inpatient stay 3
+  - name: trans_ip_stay_4
+    data_type: string
+    description: Transfer inpatient stay 4
+  - name: trans_ip_stay_5
+    data_type: string
+    description: Transfer inpatient stay 5
+  - name: trans_ip_stay_6
+    data_type: string
+    description: Transfer inpatient stay 6
+  - name: origds
+    data_type: integer
+    description: Original disability status
+  - name: lti
+    data_type: integer
+    description: Long-term institutional indicator
+  - name: any_dual
+    data_type: integer
+    description: Any dual eligible status
+  - name: hcc1
+    data_type: integer
+    description: HCC 1
+  - name: hcc2
+    data_type: integer
+    description: HCC 2
+  - name: hcc6
+    data_type: integer
+    description: HCC 6
+  - name: hcc8
+    data_type: integer
+    description: HCC 8
+  - name: hcc9
+    data_type: integer
+    description: HCC 9
+  - name: hcc10
+    data_type: integer
+    description: HCC 10
+  - name: hcc11
+    data_type: integer
+    description: HCC 11
+  - name: hcc12
+    data_type: integer
+    description: HCC 12
+  - name: hcc17
+    data_type: integer
+    description: HCC 17
+  - name: hcc18
+    data_type: integer
+    description: HCC 18
+  - name: hcc19
+    data_type: integer
+    description: HCC 19
+  - name: hcc21
+    data_type: integer
+    description: HCC 21
+  - name: hcc22
+    data_type: integer
+    description: HCC 22
+  - name: hcc23
+    data_type: integer
+    description: HCC 23
+  - name: hcc27
+    data_type: integer
+    description: HCC 27
+  - name: hcc28
+    data_type: integer
+    description: HCC 28
+  - name: hcc29
+    data_type: integer
+    description: HCC 29
+  - name: hcc33
+    data_type: integer
+    description: HCC 33
+  - name: hcc34
+    data_type: integer
+    description: HCC 34
+  - name: hcc35
+    data_type: integer
+    description: HCC 35
+  - name: hcc39
+    data_type: integer
+    description: HCC 39
+  - name: hcc40
+    data_type: integer
+    description: HCC 40
+  - name: hcc46
+    data_type: integer
+    description: HCC 46
+  - name: hcc47
+    data_type: integer
+    description: HCC 47
+  - name: hcc48
+    data_type: integer
+    description: HCC 48
+  - name: hcc54
+    data_type: integer
+    description: HCC 54
+  - name: hcc55
+    data_type: integer
+    description: HCC 55
+  - name: hcc57
+    data_type: integer
+    description: HCC 57
+  - name: hcc58
+    data_type: integer
+    description: HCC 58
+  - name: hcc70
+    data_type: integer
+    description: HCC 70
+  - name: hcc71
+    data_type: integer
+    description: HCC 71
+  - name: hcc72
+    data_type: integer
+    description: HCC 72
+  - name: hcc73
+    data_type: integer
+    description: HCC 73
+  - name: hcc74
+    data_type: integer
+    description: HCC 74
+  - name: hcc75
+    data_type: integer
+    description: HCC 75
+  - name: hcc76
+    data_type: integer
+    description: HCC 76
+  - name: hcc77
+    data_type: integer
+    description: HCC 77
+  - name: hcc78
+    data_type: integer
+    description: HCC 78
+  - name: hcc79
+    data_type: integer
+    description: HCC 79
+  - name: hcc80
+    data_type: integer
+    description: HCC 80
+  - name: hcc82
+    data_type: integer
+    description: HCC 82
+  - name: hcc83
+    data_type: integer
+    description: HCC 83
+  - name: hcc84
+    data_type: integer
+    description: HCC 84
+  - name: hcc85
+    data_type: integer
+    description: HCC 85
+  - name: hcc86
+    data_type: integer
+    description: HCC 86
+  - name: hcc87
+    data_type: integer
+    description: HCC 87
+  - name: hcc88
+    data_type: integer
+    description: HCC 88
+  - name: hcc96
+    data_type: integer
+    description: HCC 96
+  - name: hcc99
+    data_type: integer
+    description: HCC 99
+  - name: hcc100
+    data_type: integer
+    description: HCC 100
+  - name: hcc103
+    data_type: integer
+    description: HCC 103
+  - name: hcc104
+    data_type: integer
+    description: HCC 104
+  - name: hcc106
+    data_type: integer
+    description: HCC 106
+  - name: hcc107
+    data_type: integer
+    description: HCC 107
+  - name: hcc108
+    data_type: integer
+    description: HCC 108
+  - name: hcc110
+    data_type: integer
+    description: HCC 110
+  - name: hcc111
+    data_type: integer
+    description: HCC 111
+  - name: hcc112
+    data_type: integer
+    description: HCC 112
+  - name: hcc114
+    data_type: integer
+    description: HCC 114
+  - name: hcc115
+    data_type: integer
+    description: HCC 115
+  - name: hcc122
+    data_type: integer
+    description: HCC 122
+  - name: hcc124
+    data_type: integer
+    description: HCC 124
+  - name: hcc134
+    data_type: integer
+    description: HCC 134
+  - name: hcc135
+    data_type: integer
+    description: HCC 135
+  - name: hcc136
+    data_type: integer
+    description: HCC 136
+  - name: hcc137
+    data_type: integer
+    description: HCC 137
+  - name: hcc157
+    data_type: integer
+    description: HCC 157
+  - name: hcc158
+    data_type: integer
+    description: HCC 158
+  - name: hcc161
+    data_type: integer
+    description: HCC 161
+  - name: hcc162
+    data_type: integer
+    description: HCC 162
+  - name: hcc166
+    data_type: integer
+    description: HCC 166
+  - name: hcc167
+    data_type: integer
+    description: HCC 167
+  - name: hcc169
+    data_type: integer
+    description: HCC 169
+  - name: hcc170
+    data_type: integer
+    description: HCC 170
+  - name: hcc173
+    data_type: integer
+    description: HCC 173
+  - name: hcc176
+    data_type: integer
+    description: HCC 176
+  - name: hcc186
+    data_type: integer
+    description: HCC 186
+  - name: hcc188
+    data_type: integer
+    description: HCC 188
+  - name: hcc189
+    data_type: integer
+    description: HCC 189
+  - name: sepsis_card_resp_fail
+    data_type: integer
+    description: Sepsis cardiorespiratory failure
+  - name: cancer_immune
+    data_type: integer
+    description: Cancer immune
+  - name: diabetes_chf
+    data_type: integer
+    description: Diabetes CHF
+  - name: chf_copd
+    data_type: integer
+    description: CHF COPD
+  - name: chf_renal
+    data_type: integer
+    description: CHF renal
+  - name: copd_card_resp_fail
+    data_type: integer
+    description: COPD cardiorespiratory failure
+  - name: partial_hip
+    data_type: integer
+    description: Partial hip
+  - name: partial_ka
+    data_type: integer
+    description: Partial KA
+  - name: tka
+    data_type: integer
+    description: Total knee arthroplasty
+  - name: ankle_reattach_other
+    data_type: integer
+    description: Ankle reattachment other
+  - name: tha_hip_resurf
+    data_type: integer
+    description: Total hip arthroplasty hip resurfacing
+  - name: disabled_hcc6
+    data_type: integer
+    description: Disabled HCC 6
+  - name: disabled_hcc34
+    data_type: integer
+    description: Disabled HCC 34
+  - name: disabled_hcc46
+    data_type: integer
+    description: Disabled HCC 46
+  - name: disabled_hcc54
+    data_type: integer
+    description: Disabled HCC 54
+  - name: disabled_hcc55
+    data_type: integer
+    description: Disabled HCC 55
+  - name: disabled_hcc110
+    data_type: integer
+    description: Disabled HCC 110
+  - name: disabled_hcc176
+    data_type: integer
+    description: Disabled HCC 176
+fourIcli:
+  category: Reports
+  fileTypeCode: 243
+  extractZip: false
+  refreshFrequency: monthly
+  filePattern: D????.PY????.??.SBMEPI.D??????.T*.csv

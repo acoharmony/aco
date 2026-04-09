@@ -1,0 +1,1042 @@
+dataset_name: Medicare Physician Fee Schedule - Relative Value Files
+dataset_key: rvu
+description: Quarterly RVU files (A/B/C/D) for each calendar year, containing relative
+  value units and related payment information
+base_url: https://www.cms.gov
+years:
+  '2003':
+    metadata:
+      quarters_available:
+      - A
+      - B
+      - C
+      - D
+    rules:
+      Final:
+        rule_type: Final
+        metadata:
+          description: CY 2003 Physician Fee Schedule Final Rule RVU files
+        files:
+          rvu03a:
+            key: rvu03a
+            url: https://www.cms.gov/files/zip/rvu03a.zip
+            quarter: A
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q1 2003 RVU file
+            format: zip
+          rvu03b:
+            key: rvu03b
+            url: https://www.cms.gov/files/zip/rvu03b.zip
+            quarter: B
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q2 2003 RVU file
+            format: zip
+          rvu03c:
+            key: rvu03c
+            url: https://www.cms.gov/files/zip/rvu03c.zip
+            quarter: C
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q3 2003 RVU file
+            format: zip
+          rvu03d:
+            key: rvu03d
+            url: https://www.cms.gov/files/zip/rvu03d.zip
+            quarter: D
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q4 2003 RVU file
+            format: zip
+  '2004':
+    metadata:
+      quarters_available:
+      - A
+      - B
+      - C
+      - D
+    rules:
+      Final:
+        rule_type: Final
+        metadata:
+          description: CY 2004 Physician Fee Schedule Final Rule RVU files
+        files:
+          rvu04a:
+            key: rvu04a
+            url: https://www.cms.gov/files/zip/rvu04a.zip
+            quarter: A
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q1 2004 RVU file
+            format: zip
+          rvu04b:
+            key: rvu04b
+            url: https://www.cms.gov/files/zip/rvu04b.zip
+            quarter: B
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q2 2004 RVU file
+            format: zip
+          rvu04c:
+            key: rvu04c
+            url: https://www.cms.gov/files/zip/rvu04c.zip
+            quarter: C
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q3 2004 RVU file
+            format: zip
+          rvu04d:
+            key: rvu04d
+            url: https://www.cms.gov/files/zip/rvu04d.zip
+            quarter: D
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q4 2004 RVU file
+            format: zip
+  '2005':
+    metadata:
+      quarters_available:
+      - A
+      - B
+      - C
+      - D
+    rules:
+      Final:
+        rule_type: Final
+        metadata:
+          description: CY 2005 Physician Fee Schedule Final Rule RVU files
+        files:
+          rvu05a:
+            key: rvu05a
+            url: https://www.cms.gov/files/zip/rvu05a.zip
+            quarter: A
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q1 2005 RVU file
+            format: zip
+          rvu05b:
+            key: rvu05b
+            url: https://www.cms.gov/files/zip/rvu05b.zip
+            quarter: B
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q2 2005 RVU file
+            format: zip
+          rvu05c:
+            key: rvu05c
+            url: https://www.cms.gov/files/zip/rvu05c.zip
+            quarter: C
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q3 2005 RVU file
+            format: zip
+          rvu05d:
+            key: rvu05d
+            url: https://www.cms.gov/files/zip/rvu05d.zip
+            quarter: D
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q4 2005 RVU file
+            format: zip
+  '2006':
+    metadata:
+      quarters_available:
+      - A
+      - B
+      - C
+      - D
+    rules:
+      Final:
+        rule_type: Final
+        metadata:
+          description: CY 2006 Physician Fee Schedule Final Rule RVU files
+        files:
+          rvu06a:
+            key: rvu06a
+            url: https://www.cms.gov/files/zip/rvu06a.zip
+            quarter: A
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q1 2006 RVU file
+            format: zip
+          rvu06b:
+            key: rvu06b
+            url: https://www.cms.gov/files/zip/rvu06b.zip
+            quarter: B
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q2 2006 RVU file
+            format: zip
+          rvu06c:
+            key: rvu06c
+            url: https://www.cms.gov/files/zip/rvu06c.zip
+            quarter: C
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q3 2006 RVU file
+            format: zip
+          rvu06d:
+            key: rvu06d
+            url: https://www.cms.gov/files/zip/rvu06d.zip
+            quarter: D
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q4 2006 RVU file
+            format: zip
+  '2007':
+    metadata:
+      quarters_available:
+      - A
+      - B
+      - C
+      - D
+    rules:
+      Final:
+        rule_type: Final
+        metadata:
+          description: CY 2007 Physician Fee Schedule Final Rule RVU files
+        files:
+          rvu07a:
+            key: rvu07a
+            url: https://www.cms.gov/files/zip/rvu07a.zip
+            quarter: A
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q1 2007 RVU file
+            format: zip
+          rvu07b:
+            key: rvu07b
+            url: https://www.cms.gov/files/zip/rvu07b.zip
+            quarter: B
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q2 2007 RVU file
+            format: zip
+          rvu07c:
+            key: rvu07c
+            url: https://www.cms.gov/files/zip/rvu07c.zip
+            quarter: C
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q3 2007 RVU file
+            format: zip
+          rvu07d:
+            key: rvu07d
+            url: https://www.cms.gov/files/zip/rvu07d.zip
+            quarter: D
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q4 2007 RVU file
+            format: zip
+  '2008':
+    metadata:
+      quarters_available:
+      - A
+      - B
+      - C
+      - D
+    rules:
+      Final:
+        rule_type: Final
+        metadata:
+          description: CY 2008 Physician Fee Schedule Final Rule RVU files
+        files:
+          rvu08a:
+            key: rvu08a
+            url: https://www.cms.gov/files/zip/rvu08a.zip
+            quarter: A
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q1 2008 RVU file
+            format: zip
+          rvu08b:
+            key: rvu08b
+            url: https://www.cms.gov/files/zip/rvu08b.zip
+            quarter: B
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q2 2008 RVU file
+            format: zip
+          rvu08c:
+            key: rvu08c
+            url: https://www.cms.gov/files/zip/rvu08c.zip
+            quarter: C
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q3 2008 RVU file
+            format: zip
+          rvu08d:
+            key: rvu08d
+            url: https://www.cms.gov/files/zip/rvu08d.zip
+            quarter: D
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q4 2008 RVU file
+            format: zip
+  '2009':
+    metadata:
+      quarters_available:
+      - A
+      - B
+      - C
+      - D
+    rules:
+      Final:
+        rule_type: Final
+        metadata:
+          description: CY 2009 Physician Fee Schedule Final Rule RVU files
+        files:
+          rvu09a:
+            key: rvu09a
+            url: https://www.cms.gov/files/zip/rvu09a.zip
+            quarter: A
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q1 2009 RVU file
+            format: zip
+          rvu09b:
+            key: rvu09b
+            url: https://www.cms.gov/files/zip/rvu09b.zip
+            quarter: B
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q2 2009 RVU file
+            format: zip
+          rvu09c:
+            key: rvu09c
+            url: https://www.cms.gov/files/zip/rvu09c.zip
+            quarter: C
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q3 2009 RVU file
+            format: zip
+          rvu09d:
+            key: rvu09d
+            url: https://www.cms.gov/files/zip/rvu09d.zip
+            quarter: D
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q4 2009 RVU file
+            format: zip
+  '2010':
+    metadata:
+      quarters_available:
+      - A
+      - B
+      - C
+      - D
+    rules:
+      Final:
+        rule_type: Final
+        metadata:
+          description: CY 2010 Physician Fee Schedule Final Rule RVU files
+        files:
+          rvu10a:
+            key: rvu10a
+            url: https://www.cms.gov/files/zip/rvu10a.zip
+            quarter: A
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q1 2010 RVU file
+            format: zip
+          rvu10b:
+            key: rvu10b
+            url: https://www.cms.gov/files/zip/rvu10b.zip
+            quarter: B
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q2 2010 RVU file
+            format: zip
+          rvu10c:
+            key: rvu10c
+            url: https://www.cms.gov/files/zip/rvu10c.zip
+            quarter: C
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q3 2010 RVU file
+            format: zip
+          rvu10d:
+            key: rvu10d
+            url: https://www.cms.gov/files/zip/rvu10d.zip
+            quarter: D
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q4 2010 RVU file
+            format: zip
+  '2011':
+    metadata:
+      quarters_available:
+      - A
+      - B
+      - C
+      - D
+    rules:
+      Final:
+        rule_type: Final
+        metadata:
+          description: CY 2011 Physician Fee Schedule Final Rule RVU files
+        files:
+          rvu11a:
+            key: rvu11a
+            url: https://www.cms.gov/files/zip/rvu11a.zip
+            quarter: A
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q1 2011 RVU file
+            format: zip
+          rvu11b:
+            key: rvu11b
+            url: https://www.cms.gov/files/zip/rvu11b.zip
+            quarter: B
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q2 2011 RVU file
+            format: zip
+          rvu11c:
+            key: rvu11c
+            url: https://www.cms.gov/files/zip/rvu11c.zip
+            quarter: C
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q3 2011 RVU file
+            format: zip
+          rvu11d:
+            key: rvu11d
+            url: https://www.cms.gov/files/zip/rvu11d.zip
+            quarter: D
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q4 2011 RVU file
+            format: zip
+  '2012':
+    metadata:
+      quarters_available:
+      - A
+      - B
+      - C
+      - D
+    rules:
+      Final:
+        rule_type: Final
+        metadata:
+          description: CY 2012 Physician Fee Schedule Final Rule RVU files
+        files:
+          rvu12a:
+            key: rvu12a
+            url: https://www.cms.gov/files/zip/rvu12a.zip
+            quarter: A
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q1 2012 RVU file
+            format: zip
+          rvu12b:
+            key: rvu12b
+            url: https://www.cms.gov/files/zip/rvu12b.zip
+            quarter: B
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q2 2012 RVU file
+            format: zip
+          rvu12c:
+            key: rvu12c
+            url: https://www.cms.gov/files/zip/rvu12c.zip
+            quarter: C
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q3 2012 RVU file
+            format: zip
+          rvu12d:
+            key: rvu12d
+            url: https://www.cms.gov/files/zip/rvu12d.zip
+            quarter: D
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q4 2012 RVU file
+            format: zip
+  '2013':
+    metadata:
+      quarters_available:
+      - A
+      - B
+      - C
+      - D
+    rules:
+      Final:
+        rule_type: Final
+        metadata:
+          description: CY 2013 Physician Fee Schedule Final Rule RVU files
+        files:
+          rvu13a:
+            key: rvu13a
+            url: https://www.cms.gov/files/zip/rvu13a.zip
+            quarter: A
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q1 2013 RVU file
+            format: zip
+          rvu13b:
+            key: rvu13b
+            url: https://www.cms.gov/files/zip/rvu13b.zip
+            quarter: B
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q2 2013 RVU file
+            format: zip
+          rvu13c:
+            key: rvu13c
+            url: https://www.cms.gov/files/zip/rvu13c.zip
+            quarter: C
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q3 2013 RVU file
+            format: zip
+          rvu13d:
+            key: rvu13d
+            url: https://www.cms.gov/files/zip/rvu13d.zip
+            quarter: D
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q4 2013 RVU file
+            format: zip
+  '2014':
+    metadata:
+      quarters_available:
+      - A
+      - B
+      - C
+      - D
+    rules:
+      Final:
+        rule_type: Final
+        metadata:
+          description: CY 2014 Physician Fee Schedule Final Rule RVU files
+        files:
+          rvu14a:
+            key: rvu14a
+            url: https://www.cms.gov/files/zip/rvu14a.zip
+            quarter: A
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q1 2014 RVU file
+            format: zip
+          rvu14b:
+            key: rvu14b
+            url: https://www.cms.gov/files/zip/rvu14b.zip
+            quarter: B
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q2 2014 RVU file
+            format: zip
+          rvu14c:
+            key: rvu14c
+            url: https://www.cms.gov/files/zip/rvu14c.zip
+            quarter: C
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q3 2014 RVU file
+            format: zip
+          rvu14d:
+            key: rvu14d
+            url: https://www.cms.gov/files/zip/rvu14d.zip
+            quarter: D
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q4 2014 RVU file
+            format: zip
+  '2015':
+    metadata:
+      quarters_available:
+      - A
+      - B
+      - C
+      - D
+    rules:
+      Final:
+        rule_type: Final
+        metadata:
+          description: CY 2015 Physician Fee Schedule Final Rule RVU files
+        files:
+          rvu15a:
+            key: rvu15a
+            url: https://www.cms.gov/files/zip/rvu15a.zip
+            quarter: A
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q1 2015 RVU file
+            format: zip
+          rvu15b:
+            key: rvu15b
+            url: https://www.cms.gov/files/zip/rvu15b.zip
+            quarter: B
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q2 2015 RVU file
+            format: zip
+          rvu15c:
+            key: rvu15c
+            url: https://www.cms.gov/files/zip/rvu15c.zip
+            quarter: C
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q3 2015 RVU file
+            format: zip
+          rvu15d:
+            key: rvu15d
+            url: https://www.cms.gov/files/zip/rvu15d.zip
+            quarter: D
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q4 2015 RVU file
+            format: zip
+  '2016':
+    metadata:
+      quarters_available:
+      - A
+      - B
+      - C
+      - D
+    rules:
+      Final:
+        rule_type: Final
+        metadata:
+          description: CY 2016 Physician Fee Schedule Final Rule RVU files
+        files:
+          rvu16a:
+            key: rvu16a
+            url: https://www.cms.gov/files/zip/rvu16a.zip
+            quarter: A
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q1 2016 RVU file
+            format: zip
+          rvu16b:
+            key: rvu16b
+            url: https://www.cms.gov/files/zip/rvu16b.zip
+            quarter: B
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q2 2016 RVU file
+            format: zip
+          rvu16c:
+            key: rvu16c
+            url: https://www.cms.gov/files/zip/rvu16c.zip
+            quarter: C
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q3 2016 RVU file
+            format: zip
+          rvu16d:
+            key: rvu16d
+            url: https://www.cms.gov/files/zip/rvu16d.zip
+            quarter: D
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q4 2016 RVU file
+            format: zip
+  '2017':
+    metadata:
+      quarters_available:
+      - A
+      - B
+      - C
+      - D
+    rules:
+      Final:
+        rule_type: Final
+        metadata:
+          description: CY 2017 Physician Fee Schedule Final Rule RVU files
+        files:
+          rvu17a:
+            key: rvu17a
+            url: https://www.cms.gov/files/zip/rvu17a.zip
+            quarter: A
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q1 2017 RVU file
+            format: zip
+          rvu17b:
+            key: rvu17b
+            url: https://www.cms.gov/files/zip/rvu17b.zip
+            quarter: B
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q2 2017 RVU file
+            format: zip
+          rvu17c:
+            key: rvu17c
+            url: https://www.cms.gov/files/zip/rvu17c.zip
+            quarter: C
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q3 2017 RVU file
+            format: zip
+          rvu17d:
+            key: rvu17d
+            url: https://www.cms.gov/files/zip/rvu17d.zip
+            quarter: D
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q4 2017 RVU file
+            format: zip
+  '2018':
+    metadata:
+      quarters_available:
+      - A
+      - B
+      - C
+      - D
+    rules:
+      Final:
+        rule_type: Final
+        metadata:
+          description: CY 2018 Physician Fee Schedule Final Rule RVU files
+        files:
+          rvu18a:
+            key: rvu18a
+            url: https://www.cms.gov/files/zip/rvu18a.zip
+            quarter: A
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q1 2018 RVU file
+            format: zip
+          rvu18b:
+            key: rvu18b
+            url: https://www.cms.gov/files/zip/rvu18b.zip
+            quarter: B
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q2 2018 RVU file
+            format: zip
+          rvu18c:
+            key: rvu18c
+            url: https://www.cms.gov/files/zip/rvu18c.zip
+            quarter: C
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q3 2018 RVU file
+            format: zip
+          rvu18d:
+            key: rvu18d
+            url: https://www.cms.gov/files/zip/rvu18d.zip
+            quarter: D
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q4 2018 RVU file
+            format: zip
+  '2019':
+    metadata:
+      quarters_available:
+      - A
+      - B
+      - C
+      - D
+    rules:
+      Final:
+        rule_type: Final
+        metadata:
+          description: CY 2019 Physician Fee Schedule Final Rule RVU files
+        files:
+          rvu19a:
+            key: rvu19a
+            url: https://www.cms.gov/files/zip/rvu19a.zip
+            quarter: A
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q1 2019 RVU file
+            format: zip
+          rvu19b:
+            key: rvu19b
+            url: https://www.cms.gov/files/zip/rvu19b.zip
+            quarter: B
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q2 2019 RVU file
+            format: zip
+          rvu19c:
+            key: rvu19c
+            url: https://www.cms.gov/files/zip/rvu19c.zip
+            quarter: C
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q3 2019 RVU file
+            format: zip
+          rvu19d:
+            key: rvu19d
+            url: https://www.cms.gov/files/zip/rvu19d.zip
+            quarter: D
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q4 2019 RVU file
+            format: zip
+  '2020':
+    metadata:
+      quarters_available:
+      - A
+      - B
+      - C
+      - D
+    rules:
+      Final:
+        rule_type: Final
+        metadata:
+          description: CY 2020 Physician Fee Schedule Final Rule RVU files
+        files:
+          rvu20a:
+            key: rvu20a
+            url: https://www.cms.gov/files/zip/rvu20a.zip
+            quarter: A
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q1 2020 RVU file
+            format: zip
+          rvu20b:
+            key: rvu20b
+            url: https://www.cms.gov/files/zip/rvu20b.zip
+            quarter: B
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q2 2020 RVU file
+            format: zip
+          rvu20c:
+            key: rvu20c
+            url: https://www.cms.gov/files/zip/rvu20c.zip
+            quarter: C
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q3 2020 RVU file
+            format: zip
+          rvu20d:
+            key: rvu20d
+            url: https://www.cms.gov/files/zip/rvu20d.zip
+            quarter: D
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q4 2020 RVU file
+            format: zip
+  '2021':
+    metadata:
+      quarters_available:
+      - A
+      - B
+      - C
+      - D
+    rules:
+      Final:
+        rule_type: Final
+        metadata:
+          description: CY 2021 Physician Fee Schedule Final Rule RVU files
+        files:
+          rvu21a:
+            key: rvu21a
+            url: https://www.cms.gov/files/zip/rvu21a.zip
+            quarter: A
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q1 2021 RVU file
+            format: zip
+          rvu21b:
+            key: rvu21b
+            url: https://www.cms.gov/files/zip/rvu21b.zip
+            quarter: B
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q2 2021 RVU file
+            format: zip
+          rvu21c:
+            key: rvu21c
+            url: https://www.cms.gov/files/zip/rvu21c.zip
+            quarter: C
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q3 2021 RVU file
+            format: zip
+          rvu21d:
+            key: rvu21d
+            url: https://www.cms.gov/files/zip/rvu21d.zip
+            quarter: D
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q4 2021 RVU file
+            format: zip
+  '2022':
+    metadata:
+      quarters_available:
+      - A
+      - B
+      - C
+      - D
+    rules:
+      Final:
+        rule_type: Final
+        metadata:
+          description: CY 2022 Physician Fee Schedule Final Rule RVU files
+        files:
+          rvu22a:
+            key: rvu22a
+            url: https://www.cms.gov/files/zip/rvu22a.zip
+            quarter: A
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q1 2022 RVU file
+            format: zip
+          rvu22b:
+            key: rvu22b
+            url: https://www.cms.gov/files/zip/rvu22b.zip
+            quarter: B
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q2 2022 RVU file
+            format: zip
+          rvu22c:
+            key: rvu22c
+            url: https://www.cms.gov/files/zip/rvu22c.zip
+            quarter: C
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q3 2022 RVU file
+            format: zip
+          rvu22d:
+            key: rvu22d
+            url: https://www.cms.gov/files/zip/rvu22d.zip
+            quarter: D
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q4 2022 RVU file
+            format: zip
+  '2023':
+    metadata:
+      quarters_available:
+      - A
+      - B
+      - C
+      - D
+    rules:
+      Final:
+        rule_type: Final
+        metadata:
+          description: CY 2023 Physician Fee Schedule Final Rule RVU files
+        files:
+          rvu23a:
+            key: rvu23a
+            url: https://www.cms.gov/files/zip/rvu23a.zip
+            quarter: A
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q1 2023 RVU file
+            format: zip
+          rvu23b:
+            key: rvu23b
+            url: https://www.cms.gov/files/zip/rvu23b.zip
+            quarter: B
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q2 2023 RVU file
+            format: zip
+          rvu23c:
+            key: rvu23c
+            url: https://www.cms.gov/files/zip/rvu23c.zip
+            quarter: C
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q3 2023 RVU file
+            format: zip
+          rvu23d:
+            key: rvu23d
+            url: https://www.cms.gov/files/zip/rvu23d.zip
+            quarter: D
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q4 2023 RVU file
+            format: zip
+  '2024':
+    metadata:
+      quarters_available:
+      - A
+      - B
+      - C
+      - D
+    rules:
+      Final:
+        rule_type: Final
+        metadata:
+          description: CY 2024 Physician Fee Schedule Final Rule RVU files
+        files:
+          rvu24a:
+            key: rvu24a
+            url: https://www.cms.gov/files/zip/rvu24a.zip
+            quarter: A
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q1 2024 RVU file
+            format: zip
+          rvu24b:
+            key: rvu24b
+            url: https://www.cms.gov/files/zip/rvu24b.zip
+            quarter: B
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q2 2024 RVU file
+            format: zip
+          rvu24c:
+            key: rvu24c
+            url: https://www.cms.gov/files/zip/rvu24c.zip
+            quarter: C
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q3 2024 RVU file
+            format: zip
+          rvu24d:
+            key: rvu24d
+            url: https://www.cms.gov/files/zip/rvu24d.zip
+            quarter: D
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q4 2024 RVU file
+            format: zip
+  '2025':
+    metadata:
+      quarters_available:
+      - A
+      - B
+      - C
+      - D
+      latest_update: '2025-01-10'
+    rules:
+      Final:
+        rule_type: Final
+        metadata:
+          description: CY 2025 Physician Fee Schedule Final Rule RVU files
+        files:
+          rvu25a:
+            key: rvu25a
+            url: https://www.cms.gov/files/zip/rvu25a-updated-01/10/2025.zip
+            quarter: A
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q1 2025 RVU file (updated 01/10/2025)
+            format: zip
+          rvu25b:
+            key: rvu25b
+            url: https://www.cms.gov/files/zip/rvu25b-updated-06/05/2025.zip
+            quarter: B
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q2 2025 RVU file (updated 06/05/2025)
+            format: zip
+          rvu25c:
+            key: rvu25c
+            url: https://www.cms.gov/files/zip/rvu25c-updated-06/05/2025.zip
+            quarter: C
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q3 2025 RVU file (updated 06/05/2025)
+            format: zip
+          rvu25d:
+            key: rvu25d
+            url: https://www.cms.gov/files/zip/rvu25d-updated-09/11/2025.zip
+            quarter: D
+            category: rvu_quarterly
+            schema_mapping: pprvu_inputs
+            description: Q4 2025 RVU file (updated 09/11/2025)
+            format: zip

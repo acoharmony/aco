@@ -1,0 +1,55 @@
+version: 2
+name: needs_signature
+description: Schema for needs_signature dataset
+storage:
+  tier: silver
+  output_name: needs_signature.parquet
+columns:
+- name: bene_mbi
+  description: bene_mbi field
+  data_type: string
+  required: false
+- name: bene_first_name
+  description: bene_first_name field
+  data_type: string
+  required: false
+- name: bene_last_name
+  description: bene_last_name field
+  data_type: string
+  required: false
+- name: start_date
+  description: start_date field
+  data_type: date
+  required: false
+- name: end_date
+  description: end_date field
+  data_type: date
+  required: false
+- name: signature_date
+  description: signature_date field
+  data_type: date
+  required: false
+- name: bene_sex_cd
+  description: bene_sex_cd field
+  data_type: string
+  required: false
+- name: bene_birth_dt
+  description: bene_birth_dt field
+  data_type: date
+  required: false
+- name: death_date
+  description: death_date field
+  data_type: string
+  required: false
+- name: master_id
+  description: master_id field
+  data_type: integer
+  required: false
+file_format:
+  type: parquet
+standardization:
+  add_columns:
+  - name: source_file
+    value: needs_signature
+medallion_layer: silver
+unity_catalog: main

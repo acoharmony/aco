@@ -1,0 +1,164 @@
+# Schema Crosswalk Reference: BAR to CRR Beneficiary Alignment Report
+# Target: prd_bronze.crr.beneficiaryalignmentreportmonthlydata
+#
+# This crosswalk serves as a REFERENCE DOCUMENT for understanding the relationship
+# between the BAR (Beneficiary Alignment Report) schema and the CRR
+# beneficiaryalignmentreportmonthlydata table structure.
+#
+# PURPOSE: Documentation only - to understand schema differences and column mappings
+
+crosswalk:
+  name: bar_to_crr
+  version: "1.0.0"
+  description: "Reference documentation for BAR to CRR schema column relationships"
+
+  source:
+    schema: bar
+    description: "Beneficiary Alignment Report (ALGC/ALGR) - Excel file containing beneficiary assignment information for ACO REACH"
+    file_format: excel
+    file_patterns:
+      - '*ALGC*.xlsx'
+      - '*ALGR*.xlsx'
+
+  target:
+    catalog: prd_bronze
+    schema: crr
+    table: beneficiaryalignmentreportmonthlydata
+    description: "CRR beneficiary alignment report monthly data"
+    location: "abfss://dbrkscatalog-bronze@stedlprd01.dfs.core.windows.net/crr/__unitystorage/schemas/9b7d7c77-53c1-4d82-b941-ae38b946738c/tables/c3c0fc8d-4c51-4e9b-b6cd-5e591888c1ba"
+    provider: delta
+    type: MANAGED
+
+  # Direct column mappings that exist in both schemas
+  # Note: BAR and CRR have very different structures - most columns don't map directly
+  mappings:
+    - source_column: bene_mbi
+      target_column: MedicareBeneficiaryID
+      data_type: string
+      notes: "Primary beneficiary identifier"
+
+    - source_column: bene_date_of_birth
+      target_column: BirthDate
+      data_type: timestamp
+      notes: "Beneficiary date of birth"
+
+  # CRR columns that don't exist in BAR
+  unmapped_target_columns:
+    - column: YearNBR
+      data_type: string
+      notes: "Not in BAR - could derive from start_date"
+
+    - column: MonthNBR
+      data_type: string
+      notes: "Not in BAR - could derive from start_date"
+
+    - column: MedicalDataSharingPreferenceFLG
+      data_type: string
+      notes: "Not available in BAR schema"
+
+    - column: AdministrativeSuppressionFLG
+      data_type: string
+      notes: "Not available in BAR schema"
+
+    - column: PartDPrescriptionIndicatorFLG
+      data_type: string
+      notes: "BAR has bene_part_d_year_1 and bene_part_d_year_2"
+
+    - column: AlignmentStatusCD
+      data_type: string
+      notes: "Not in BAR - could derive from end_date presence"
+
+    - column: FileNM
+      data_type: string
+      notes: "File metadata"
+
+    - column: FileType
+      data_type: string
+      notes: "File metadata"
+
+    - column: FileDate
+      data_type: date
+      notes: "File metadata"
+
+    - column: DataSource
+      data_type: string
+      notes: "Source system identifier"
+
+    - column: InsertDateTime
+      data_type: timestamp
+      notes: "Audit timestamp"
+
+    - column: UpdateDateTime
+      data_type: timestamp
+      notes: "Audit timestamp"
+
+    - column: SuppInsuranceFLG
+      data_type: string
+      notes: "Not available in BAR schema"
+
+    - column: META_CreatedOn
+      data_type: timestamp
+      notes: "Metadata timestamp"
+
+  # Available BAR columns not mapped to CRR
+  available_bar_columns:
+    demographic:
+      - bene_first_name
+      - bene_last_name
+      - bene_gender
+      - bene_race_ethnicity
+      - bene_age
+      - bene_date_of_death
+
+    address:
+      - bene_address_line_1
+      - bene_address_line_2
+      - bene_address_line_3
+      - bene_address_line_4
+      - bene_address_line_5
+      - bene_address_line_6
+      - bene_city
+      - bene_state
+      - bene_zip_5
+      - bene_zip_4
+      - bene_county_ssa
+      - bene_county_fips
+
+    alignment:
+      - start_date  # Beneficiary Alignment Effective Start Date
+      - end_date  # Beneficiary Alignment Effective Termination Date
+      - bene_eligibility_year_1
+      - bene_eligibility_year_2
+      - bene_part_d_year_1
+      - bene_part_d_year_2
+      - newly_aligned_flag
+      - prospective_plus_flag
+      - claims_based_flag
+      - voluntary_alignment_type
+
+    risk_indicators:
+      - mobility_impairment_flag
+      - frailty_flag
+      - medium_risk_unplanned_flag
+      - high_risk_flag
+
+  # Schema comparison summary
+  notes: |
+    REFERENCE DOCUMENTATION ONLY
+
+    Schema Structure Differences:
+
+    1. BAR contains rich beneficiary demographic and address data
+    2. CRR has minimal beneficiary info plus file metadata and flags
+    3. BAR uses alignment dates (start_date, end_date)
+    4. CRR uses temporal keys (YearNBR, MonthNBR)
+
+    Direct Mappings (2 columns):
+    - bene_mbi → MedicareBeneficiaryID
+    - bene_date_of_birth → BirthDate
+
+    Unmapped CRR Columns (12 columns):
+    - Temporal fields, flags, and metadata not present in BAR
+
+    Unmapped BAR Columns (33 columns):
+    - Rich demographic, address, alignment, and risk data not in CRR

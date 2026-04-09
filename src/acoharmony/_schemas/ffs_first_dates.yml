@@ -1,0 +1,51 @@
+version: 2
+name: ffs_first_dates
+description: Pre-computed first FFS service dates for beneficiaries with valid provider
+  matches
+storage:
+  tier: silver
+  staged_from: cclf5
+  gold:
+    output_name: ffs_first_dates.parquet
+columns:
+- name: bene_mbi
+  type: String
+  description: Beneficiary Medicare Beneficiary Identifier
+  required: true
+- name: ffs_first_date
+  type: Date
+  description: First date of FFS service for this beneficiary
+  required: true
+- name: claim_count
+  type: UInt32
+  description: Total number of claims for this beneficiary from valid providers
+  required: true
+- name: extracted_at
+  type: Datetime
+  description: Timestamp when this data was extracted
+  required: true
+processing:
+  chunk_size: 1000000
+  output_format: parquet
+  compression: snappy
+metadata:
+  purpose: 'This table pre-computes the first FFS service dates for each beneficiary
+
+    by joining CCLF5 claims data with the provider list to identify valid
+
+    providers. This significantly speeds up the consolidated alignment pipeline
+
+    by avoiding the need to join the large CCLF5 table repeatedly.
+
+    '
+  usage: 'Used by consolidated_alignment pipeline as an optimized alternative to
+
+    joining CCLF5 and provider_list tables directly. Contains one row per
+
+    beneficiary with their earliest FFS service date.
+
+    '
+  refresh_frequency: monthly
+  data_source: CCLF5 claims matched with valid provider TINs
+medallion_layer: silver
+unity_catalog: main

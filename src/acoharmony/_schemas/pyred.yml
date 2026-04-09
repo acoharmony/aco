@@ -1,0 +1,293 @@
+version: 2
+name: pyred
+description: Monthly Provider Specific Payment Reduction Report
+storage:
+  tier: bronze
+  file_patterns:
+    reach:
+    - P.D*.PYRED*.RP.D*.T*.xlsx
+  silver:
+    output_name: pyred.parquet
+    refresh_frequency: monthly
+file_format:
+  type: excel_multi_sheet
+  parser: excel_multi_sheet
+  sheet_config:
+    header_row: 4
+    data_start_row: 5
+    end_marker_column: 0
+    end_marker_value: Total
+    column_mapping_strategy: position
+    header_search_text: Provider Type
+columns:
+- name: sheet_type
+  data_type: string
+  description: Sheet type identifier
+matrix_fields:
+- matrix:
+  - null
+  - 1
+  - 0
+  field_name: performance_year
+  data_type: string
+  extract_pattern: \d{4}
+  default_value: null
+  description: Performance year extracted from report header
+- matrix:
+  - null
+  - 1
+  - 4
+  field_name: report_period
+  data_type: string
+  extract_pattern: ([A-Za-z]+\s+\d{4})
+  default_value: null
+  description: Report period extracted from column header
+sheets:
+- sheet_index: 0
+  sheet_type: inpatient
+  description: Inpatient Expenditure from Participating Facilities
+  columns:
+  - name: provider_type
+    position: 0
+    data_type: string
+    description: Provider type classification
+  - name: organization_npi
+    position: 2
+    data_type: string
+    description: Organization NPI
+  - name: ccn
+    position: 3
+    data_type: string
+    description: CMS Certification Number
+  - name: provider_name
+    position: 4
+    data_type: string
+    description: Provider name
+  - name: beneficiaries_with_claims
+    position: 7
+    data_type: integer
+    description: Number of beneficiaries with claims
+  - name: total_incurred_claims
+    position: 9
+    data_type: decimal
+    description: Total incurred claims
+  - name: claims_incurred_by_optouts
+    position: 11
+    data_type: decimal
+    description: Claims incurred by opt-outs
+  - name: full_ffs_payment_amount
+    position: 12
+    data_type: decimal
+    description: Full FFS payment amount
+  - name: ffs_fee_reduction_amount
+    position: 13
+    data_type: decimal
+    description: FFS fee reduction amount
+- sheet_index: 1
+  sheet_type: snf
+  description: SNF Expenditure from Participating Facilities
+  columns:
+  - name: provider_type
+    position: 0
+    data_type: string
+    description: Provider type classification
+  - name: organization_npi
+    position: 2
+    data_type: string
+    description: Organization NPI
+  - name: ccn
+    position: 3
+    data_type: string
+    description: CMS Certification Number
+  - name: provider_name
+    position: 4
+    data_type: string
+    description: Provider name
+  - name: beneficiaries_with_claims
+    position: 7
+    data_type: integer
+    description: Number of beneficiaries with claims
+  - name: total_incurred_claims
+    position: 9
+    data_type: decimal
+    description: Total incurred claims
+  - name: claims_incurred_by_optouts
+    position: 11
+    data_type: decimal
+    description: Claims incurred by opt-outs
+  - name: full_ffs_payment_amount
+    position: 12
+    data_type: decimal
+    description: Full FFS payment amount
+  - name: ffs_fee_reduction_amount
+    position: 13
+    data_type: decimal
+    description: FFS fee reduction amount
+- sheet_index: 2
+  sheet_type: hh
+  description: Home Health Expenditure from Participating Facilities
+  columns:
+  - name: provider_type
+    position: 0
+    data_type: string
+    description: Provider type classification
+  - name: organization_npi
+    position: 2
+    data_type: string
+    description: Organization NPI
+  - name: ccn
+    position: 3
+    data_type: string
+    description: CMS Certification Number
+  - name: provider_name
+    position: 4
+    data_type: string
+    description: Provider name
+  - name: beneficiaries_with_claims
+    position: 7
+    data_type: integer
+    description: Number of beneficiaries with claims
+  - name: total_incurred_claims
+    position: 9
+    data_type: decimal
+    description: Total incurred claims
+  - name: claims_incurred_by_optouts
+    position: 11
+    data_type: decimal
+    description: Claims incurred by opt-outs
+  - name: full_ffs_payment_amount
+    position: 12
+    data_type: decimal
+    description: Full FFS payment amount
+  - name: ffs_fee_reduction_amount
+    position: 13
+    data_type: decimal
+    description: FFS fee reduction amount
+- sheet_index: 3
+  sheet_type: hospice
+  description: Hospice Expenditure from Participating Facilities
+  columns:
+  - name: provider_type
+    position: 0
+    data_type: string
+    description: Provider type classification
+  - name: organization_npi
+    position: 2
+    data_type: string
+    description: Organization NPI
+  - name: ccn
+    position: 3
+    data_type: string
+    description: CMS Certification Number
+  - name: provider_name
+    position: 4
+    data_type: string
+    description: Provider name
+  - name: beneficiaries_with_claims
+    position: 7
+    data_type: integer
+    description: Number of beneficiaries with claims
+  - name: total_incurred_claims
+    position: 9
+    data_type: decimal
+    description: Total incurred claims
+  - name: claims_incurred_by_optouts
+    position: 11
+    data_type: decimal
+    description: Claims incurred by opt-outs
+  - name: full_ffs_payment_amount
+    position: 12
+    data_type: decimal
+    description: Full FFS payment amount
+  - name: ffs_fee_reduction_amount
+    position: 13
+    data_type: decimal
+    description: FFS fee reduction amount
+- sheet_index: 4
+  sheet_type: outpatient
+  description: Outpatient Expenditure from Participating Facilities
+  columns:
+  - name: provider_type
+    position: 0
+    data_type: string
+    description: Provider type classification
+  - name: organization_npi
+    position: 2
+    data_type: string
+    description: Organization NPI
+  - name: ccn
+    position: 3
+    data_type: string
+    description: CMS Certification Number
+  - name: provider_name
+    position: 4
+    data_type: string
+    description: Provider name
+  - name: beneficiaries_with_claims
+    position: 7
+    data_type: integer
+    description: Number of beneficiaries with claims
+  - name: total_incurred_claims
+    position: 9
+    data_type: decimal
+    description: Total incurred claims
+  - name: claims_incurred_by_optouts
+    position: 11
+    data_type: decimal
+    description: Claims incurred by opt-outs
+  - name: full_ffs_payment_amount
+    position: 12
+    data_type: decimal
+    description: Full FFS payment amount
+  - name: ffs_fee_reduction_amount
+    position: 13
+    data_type: decimal
+    description: FFS fee reduction amount
+- sheet_index: 5
+  sheet_type: physician
+  description: Physician Expenditure from Participating Facilities
+  columns:
+  - name: provider_type
+    position: 0
+    data_type: string
+    description: Provider type classification
+  - name: individual_npi
+    position: 2
+    data_type: string
+    description: Individual NPI
+  - name: first_name
+    position: 3
+    data_type: string
+    description: Provider first name
+  - name: last_name
+    position: 4
+    data_type: string
+    description: Provider last name
+  - name: beneficiaries_with_claims
+    position: 7
+    data_type: integer
+    description: Number of beneficiaries with claims
+  - name: total_incurred_claims
+    position: 9
+    data_type: decimal
+    description: Total incurred claims
+  - name: claims_incurred_by_optouts
+    position: 11
+    data_type: decimal
+    description: Claims incurred by opt-outs
+  - name: full_ffs_payment_amount
+    position: 12
+    data_type: decimal
+    description: Full FFS payment amount
+  - name: ffs_fee_reduction_amount
+    position: 13
+    data_type: decimal
+    description: FFS fee reduction amount
+fourIcli:
+  category: Reports
+  fileTypeCode: null
+  extractZip: false
+  refreshFrequency: monthly
+  filePattern: P.D????.PYRED??.RP.D??????.T*.xlsx
+  notes: PYRED files exist in DataHub but are not listed in official 4icli file type
+    codes. Pattern matching only. Must be downloaded without file type filter.
