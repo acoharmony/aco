@@ -75,7 +75,7 @@ Source = "https://github.com/acoharmony/aco"
 source = "vcs"
 
 [tool.hatch.version.raw-options]
-version_scheme = "guess-next-dev"
+version_scheme = "no-guess-dev"
 local_scheme = "no-local-version"
 
 [tool.hatch.build.hooks.vcs]
