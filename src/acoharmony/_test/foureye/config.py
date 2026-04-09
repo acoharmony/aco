@@ -161,23 +161,17 @@ class TestFourICLIConfigCredentials:
 
     @pytest.mark.unit
     def test_ensure_config_file_from_compose(self, tmp_path: Path) -> None:
-        """ensure_config_file finds config.txt in compose/conf/4icli."""
+        """ensure_config_file finds config.txt in working directory."""
         config = FourICLIConfig.from_profile("dev")
         config.working_dir = tmp_path / "working"
         config.working_dir.mkdir()
 
-        # Ensure the compose fallback config.txt exists (gitignored, may not be in CI)
-        project_root = Path(__file__).parent.parent.parent.parent
-        compose_config = project_root / "deploy" / "compose" / "conf" / "4icli" / "config.txt"
-        compose_config.parent.mkdir(parents=True, exist_ok=True)
-        if not compose_config.exists():
-            compose_config.write_text("dummy_config=true\n")
+        # Place config.txt in the working directory (search priority #2)
+        (config.working_dir / "config.txt").write_text("dummy\n")
 
-        # Should find config.txt (either in profile location or compose/conf/4icli)
         config_file = config.ensure_config_file()
 
         assert config_file.exists()
-        # Config file found in one of the search locations
         assert config_file.name == "config.txt"
 
     @pytest.mark.unit
@@ -336,20 +330,15 @@ class TestFourICLIConfigEdgeCases:
         mock_config.sync_config_to_deployment()
 
     @pytest.mark.unit
-    def test_ensure_config_file_returns_existing_compose_config(self) -> None:
-        """ensure_config_file returns compose config when it exists."""
-        # Ensure the compose fallback config.txt exists (gitignored, may not be in CI)
-        project_root = Path(__file__).parent.parent.parent.parent
-        compose_config = project_root / "deploy" / "compose" / "conf" / "4icli" / "config.txt"
-        compose_config.parent.mkdir(parents=True, exist_ok=True)
-        if not compose_config.exists():
-            compose_config.write_text("dummy_config=true\n")
-
-        # This test relies on the actual config.txt from deploy/compose/conf/4icli
-        # existing in the project. In from_profile, config is set.
+    def test_ensure_config_file_returns_existing_compose_config(self, tmp_path) -> None:
+        """ensure_config_file returns config.txt from working dir."""
         config = FourICLIConfig.from_profile("dev")
+        config.working_dir = tmp_path / "bronze"
+        config.working_dir.mkdir()
 
-        # Should find config.txt via ensure_config_file
+        # Place config.txt in the working directory
+        (config.working_dir / "config.txt").write_text("dummy\n")
+
         config_file = config.ensure_config_file()
 
         assert config_file.exists()
