@@ -390,6 +390,7 @@ norecursedirs = [
     "*.egg-info",
     "workspace",
     "_helpers",  # Test utilities, not tests
+    "_fixtures",  # Test data fixtures (e.g. vendored notebooks), not tests
 ]
 addopts = [
     "--strict-markers",

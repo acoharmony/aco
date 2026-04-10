@@ -24,30 +24,10 @@ from acoharmony._test._import_magic import auto_import
 class _:
     pass  # noqa: E701
 
-import sys
-from pathlib import Path
 
 import polars as pl
 import pytest
 import acoharmony
-
-# Add notebooks directory to path
-sys.path.insert(0, str(Path("/opt/s3/data/notebooks")))
-
-# Import the notebook module
-
-try:
-    import consolidated_alignments
-except ModuleNotFoundError:
-    import pytest
-    pytest.skip("consolidated_alignments notebook not on path", allow_module_level=True)
-
-
-@pytest.fixture(scope="module")
-def notebook_defs():
-    """Run notebook once and cache definitions for all tests."""
-    _, defs = consolidated_alignments.app.run()
-    return defs
 
 
 class TestCalculateVoluntaryAlignmentStats:
