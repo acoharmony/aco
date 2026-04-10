@@ -22,23 +22,11 @@ from acoharmony._test._import_magic import auto_import
 class _:
     pass  # noqa: E701
 
-import sys
-from pathlib import Path
 
 import polars as pl
 import pytest
 import acoharmony
 
-# Add notebooks directory to path
-sys.path.insert(0, str(Path("/opt/s3/data/notebooks")))
-
-# Import the notebook module
-
-try:
-    import consolidated_alignments
-except ModuleNotFoundError:
-    import pytest
-    pytest.skip("consolidated_alignments notebook not on path", allow_module_level=True)
 
 
 class TestOfficeEnrollmentStats:
@@ -60,10 +48,9 @@ class TestOfficeEnrollmentStats:
         })
 
     @pytest.mark.unit
-    def test_calculate_office_enrollment_stats_valid_yearmo(self, sample_data):
+    def test_calculate_office_enrollment_stats_valid_yearmo(self, sample_data, notebook_defs):
         """calculate_office_enrollment_stats returns correct stats for valid yearmo."""
-        _, defs = consolidated_alignments.app.run()
-        calc_func = defs["calculate_office_enrollment_stats"]
+        calc_func = notebook_defs["calculate_office_enrollment_stats"]
 
         result = calc_func(sample_data, "202401")
 
@@ -77,10 +64,9 @@ class TestOfficeEnrollmentStats:
         assert "total_aco" in result.columns
 
     @pytest.mark.unit
-    def test_calculate_office_enrollment_stats_idempotent(self, sample_data):
+    def test_calculate_office_enrollment_stats_idempotent(self, sample_data, notebook_defs):
         """calculate_office_enrollment_stats is idempotent."""
-        _, defs = consolidated_alignments.app.run()
-        calc_func = defs["calculate_office_enrollment_stats"]
+        calc_func = notebook_defs["calculate_office_enrollment_stats"]
 
         result1 = calc_func(sample_data, "202401").sort("office_name")
         result2 = calc_func(sample_data, "202401").sort("office_name")
@@ -88,10 +74,9 @@ class TestOfficeEnrollmentStats:
         assert result1.equals(result2)
 
     @pytest.mark.unit
-    def test_calculate_office_enrollment_stats_no_double_counting(self, sample_data):
+    def test_calculate_office_enrollment_stats_no_double_counting(self, sample_data, notebook_defs):
         """Beneficiaries enrolled in REACH or MSSP are counted once, not twice."""
-        _, defs = consolidated_alignments.app.run()
-        calc_func = defs["calculate_office_enrollment_stats"]
+        calc_func = notebook_defs["calculate_office_enrollment_stats"]
 
         result = calc_func(sample_data, "202401")
 
@@ -103,10 +88,9 @@ class TestOfficeEnrollmentStats:
                 f"Office {row['office_name']}: total_aco ({row['total_aco']}) != reach + mssp ({expected_total})"
 
     @pytest.mark.unit
-    def test_calculate_office_enrollment_stats_mutually_exclusive_programs(self, sample_data):
+    def test_calculate_office_enrollment_stats_mutually_exclusive_programs(self, sample_data, notebook_defs):
         """REACH and MSSP enrollment are mutually exclusive in a given month."""
-        _, defs = consolidated_alignments.app.run()
-        calc_func = defs["calculate_office_enrollment_stats"]
+        calc_func = notebook_defs["calculate_office_enrollment_stats"]
 
         # Verify in source data that no beneficiary is in both programs
         collected = sample_data.collect()
@@ -125,10 +109,9 @@ class TestOfficeEnrollmentStats:
         assert north_dallas["total_aco"][0] == 2
 
     @pytest.mark.unit
-    def test_calculate_office_enrollment_stats_invalid_yearmo(self, sample_data):
+    def test_calculate_office_enrollment_stats_invalid_yearmo(self, sample_data, notebook_defs):
         """Returns None for invalid/missing year-month."""
-        _, defs = consolidated_alignments.app.run()
-        calc_func = defs["calculate_office_enrollment_stats"]
+        calc_func = notebook_defs["calculate_office_enrollment_stats"]
 
         result = calc_func(sample_data, "202412")  # Missing columns
         # Function returns a DataFrame with zero counts when yearmo columns don't exist
@@ -137,10 +120,9 @@ class TestOfficeEnrollmentStats:
         assert result["mssp_count"].sum() == 0
 
     @pytest.mark.unit
-    def test_calculate_office_enrollment_stats_empty_yearmo(self, sample_data):
+    def test_calculate_office_enrollment_stats_empty_yearmo(self, sample_data, notebook_defs):
         """Returns None for empty year-month."""
-        _, defs = consolidated_alignments.app.run()
-        calc_func = defs["calculate_office_enrollment_stats"]
+        calc_func = notebook_defs["calculate_office_enrollment_stats"]
 
         result = calc_func(sample_data, "")
         assert result is None
@@ -164,10 +146,9 @@ class TestOfficeAlignmentTypes:
         })
 
     @pytest.mark.unit
-    def test_calculate_office_alignment_types_valid(self, sample_data):
+    def test_calculate_office_alignment_types_valid(self, sample_data, notebook_defs):
         """calculate_office_alignment_types returns correct breakdown."""
-        _, defs = consolidated_alignments.app.run()
-        calc_func = defs["calculate_office_alignment_types"]
+        calc_func = notebook_defs["calculate_office_alignment_types"]
 
         result = calc_func(sample_data, "202401")
 
@@ -179,10 +160,9 @@ class TestOfficeAlignmentTypes:
         assert "office_name" in result.columns
 
     @pytest.mark.unit
-    def test_calculate_office_alignment_types_percentages(self, sample_data):
+    def test_calculate_office_alignment_types_percentages(self, sample_data, notebook_defs):
         """Voluntary and claims percentages sum correctly."""
-        _, defs = consolidated_alignments.app.run()
-        calc_func = defs["calculate_office_alignment_types"]
+        calc_func = notebook_defs["calculate_office_alignment_types"]
 
         result = calc_func(sample_data, "202401")
 
@@ -213,10 +193,9 @@ class TestOfficeProgramDistribution:
         })
 
     @pytest.mark.unit
-    def test_calculate_office_program_distribution_valid(self, sample_data):
+    def test_calculate_office_program_distribution_valid(self, sample_data, notebook_defs):
         """calculate_office_program_distribution returns correct distribution."""
-        _, defs = consolidated_alignments.app.run()
-        calc_func = defs["calculate_office_program_distribution"]
+        calc_func = notebook_defs["calculate_office_program_distribution"]
 
         result = calc_func(sample_data, "202401")
 
@@ -227,10 +206,9 @@ class TestOfficeProgramDistribution:
         assert "neither_count" in result.columns
 
     @pytest.mark.unit
-    def test_calculate_office_program_distribution_counts(self, sample_data):
+    def test_calculate_office_program_distribution_counts(self, sample_data, notebook_defs):
         """Program distribution counts are accurate."""
-        _, defs = consolidated_alignments.app.run()
-        calc_func = defs["calculate_office_program_distribution"]
+        calc_func = notebook_defs["calculate_office_program_distribution"]
 
         result = calc_func(sample_data, "202401")
 
@@ -268,10 +246,9 @@ class TestOfficeTransitionStats:
         })
 
     @pytest.mark.unit
-    def test_calculate_office_transition_stats_valid(self, sample_data):
+    def test_calculate_office_transition_stats_valid(self, sample_data, notebook_defs):
         """calculate_office_transition_stats returns correct stats."""
-        _, defs = consolidated_alignments.app.run()
-        calc_func = defs["calculate_office_transition_stats"]
+        calc_func = notebook_defs["calculate_office_transition_stats"]
 
         result = calc_func(sample_data)
 
@@ -283,10 +260,9 @@ class TestOfficeTransitionStats:
         assert "office_name" in result.columns
 
     @pytest.mark.unit
-    def test_calculate_office_transition_stats_calculations(self, sample_data):
+    def test_calculate_office_transition_stats_calculations(self, sample_data, notebook_defs):
         """Transition percentages calculated correctly."""
-        _, defs = consolidated_alignments.app.run()
-        calc_func = defs["calculate_office_transition_stats"]
+        calc_func = notebook_defs["calculate_office_transition_stats"]
 
         result = calc_func(sample_data)
 
@@ -331,13 +307,12 @@ class TestOfficeCampaignEffectiveness:
         })
 
     @pytest.mark.unit
-    def test_calculate_office_campaign_effectiveness_valid(self, enriched_data, email_campaigns, mail_campaigns):
+    def test_calculate_office_campaign_effectiveness_valid(self, enriched_data, email_campaigns, mail_campaigns, notebook_defs):
         """calculate_office_campaign_effectiveness returns campaign metrics by office."""
-        _, defs = consolidated_alignments.app.run()
-        calc_func = defs["calculate_office_campaign_effectiveness"]
+        calc_func = notebook_defs["calculate_office_campaign_effectiveness"]
 
         # Import pl from the notebook's definitions
-        pl_module = defs["pl"]
+        pl_module = notebook_defs["pl"]
 
         result = calc_func(enriched_data, email_campaigns, mail_campaigns, pl_module)
 
@@ -349,11 +324,10 @@ class TestOfficeCampaignEffectiveness:
         assert "overall_conversion_rate" in result.columns
 
     @pytest.mark.unit
-    def test_calculate_office_campaign_effectiveness_conversion_rates(self, enriched_data, email_campaigns, mail_campaigns):
+    def test_calculate_office_campaign_effectiveness_conversion_rates(self, enriched_data, email_campaigns, mail_campaigns, notebook_defs):
         """Campaign conversion rates calculated correctly."""
-        _, defs = consolidated_alignments.app.run()
-        calc_func = defs["calculate_office_campaign_effectiveness"]
-        pl_module = defs["pl"]
+        calc_func = notebook_defs["calculate_office_campaign_effectiveness"]
+        pl_module = notebook_defs["pl"]
 
         result = calc_func(enriched_data, email_campaigns, mail_campaigns, pl_module)
 
@@ -383,11 +357,10 @@ class TestOfficeVintageDistribution:
         })
 
     @pytest.mark.unit
-    def test_calculate_office_vintage_distribution_valid(self, vintage_data):
+    def test_calculate_office_vintage_distribution_valid(self, vintage_data, notebook_defs):
         """calculate_office_vintage_distribution returns vintage stats by office."""
-        _, defs = consolidated_alignments.app.run()
-        calc_func = defs["calculate_office_vintage_distribution"]
-        pl_module = defs["pl"]
+        calc_func = notebook_defs["calculate_office_vintage_distribution"]
+        pl_module = notebook_defs["pl"]
 
         result = calc_func(vintage_data, "202401", pl_module)
 
@@ -399,11 +372,10 @@ class TestOfficeVintageDistribution:
         assert "pct_of_office_enrolled" in result.columns
 
     @pytest.mark.unit
-    def test_calculate_office_vintage_distribution_mutually_exclusive(self, vintage_data):
+    def test_calculate_office_vintage_distribution_mutually_exclusive(self, vintage_data, notebook_defs):
         """Beneficiaries counted in exactly one program."""
-        _, defs = consolidated_alignments.app.run()
-        calc_func = defs["calculate_office_vintage_distribution"]
-        pl_module = defs["pl"]
+        calc_func = notebook_defs["calculate_office_vintage_distribution"]
+        pl_module = notebook_defs["pl"]
 
         result = calc_func(vintage_data, "202401", pl_module)
 
@@ -413,11 +385,10 @@ class TestOfficeVintageDistribution:
             assert row["currently_enrolled"] <= row["count"]
 
     @pytest.mark.unit
-    def test_calculate_office_vintage_distribution_cohort_breakdown(self, vintage_data):
+    def test_calculate_office_vintage_distribution_cohort_breakdown(self, vintage_data, notebook_defs):
         """Vintage cohorts grouped correctly by office."""
-        _, defs = consolidated_alignments.app.run()
-        calc_func = defs["calculate_office_vintage_distribution"]
-        pl_module = defs["pl"]
+        calc_func = notebook_defs["calculate_office_vintage_distribution"]
+        pl_module = notebook_defs["pl"]
 
         result = calc_func(vintage_data, "202401", pl_module)
 
