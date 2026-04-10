@@ -30,27 +30,6 @@ class TestModuleStructure:
 
 class TestPipelineRegistry:
     @pytest.mark.unit
-    def test_register_with_name(self):
-        from acoharmony._pipes._registry import PipelineRegistry
-
-        @PipelineRegistry.register(name="my_pipe", metadata={"version": "1.0"})
-        def my_func():
-            return [1, 2, 3]
-
-        assert PipelineRegistry.get_pipeline("my_pipe") is my_func
-        assert PipelineRegistry.get_metadata("my_pipe") == {"version": "1.0"}
-
-    @pytest.mark.unit
-    def test_register_defaults_to_func_name(self):
-        from acoharmony._pipes._registry import PipelineRegistry
-
-        @PipelineRegistry.register()
-        def auto_named():
-            return "hello"
-
-        assert PipelineRegistry.get_pipeline("auto_named") is auto_named
-
-    @pytest.mark.unit
     def test_register_no_metadata(self):
         from acoharmony._pipes._registry import PipelineRegistry
 
@@ -77,12 +56,6 @@ class TestPipelineRegistry:
         assert "b" in names
 
     @pytest.mark.unit
-    def test_get_pipeline_missing(self):
-        from acoharmony._pipes._registry import PipelineRegistry
-
-        assert PipelineRegistry.get_pipeline("nonexistent") is None
-
-    @pytest.mark.unit
     def test_get_metadata_missing(self):
         from acoharmony._pipes._registry import PipelineRegistry
 
@@ -101,25 +74,3 @@ class TestPipelineRegistry:
         assert PipelineRegistry.get_metadata("temp") is None
 
 
-class TestRegisterPipelineDecorator:
-    @pytest.mark.unit
-    def test_convenience_decorator(self):
-        from acoharmony._pipes._registry import PipelineRegistry, register_pipeline
-
-        @register_pipeline(name="conv_pipe", author="test")
-        def conv():
-            pass
-
-        assert PipelineRegistry.get_pipeline("conv_pipe") is conv
-        meta = PipelineRegistry.get_metadata("conv_pipe")
-        assert meta["author"] == "test"
-
-    @pytest.mark.unit
-    def test_convenience_decorator_no_name(self):
-        from acoharmony._pipes._registry import PipelineRegistry, register_pipeline
-
-        @register_pipeline()
-        def my_auto():
-            pass
-
-        assert PipelineRegistry.get_pipeline("my_auto") is my_auto

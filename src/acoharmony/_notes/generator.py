@@ -12,7 +12,6 @@ from pathlib import Path
 from typing import Any
 
 import jinja2
-import yaml
 
 from acoharmony import Catalog
 from acoharmony._store import StorageBackend
@@ -70,41 +69,16 @@ class NotebookGenerator:
                 Returns:
                     Dictionary with table metadata including full column information
         """
-        # Get table metadata from catalog
         schema = self.catalog.get_table_metadata(schema_name)
-
-        # Also load the raw YAML to get complete column details
-        import acoharmony
-
-        schemas_dir = Path(acoharmony.__file__).parent / "_schemas"
-        schema_file = schemas_dir / f"{schema_name}.yml"
-
-        if schema_file.exists():
-            with open(schema_file) as f:
-                yaml_data = yaml.safe_load(f)
-
-            # Create a dict representation with all details
-            return {
-                "name": schema.name,
-                "description": schema.description,
-                "storage": schema.storage,
-                "columns": yaml_data.get("columns", []),
-                "file_format": schema.file_format,
-                "keys": schema.keys,
-                "transformation_pipeline": schema.transformation_pipeline,
-                "medallion_layer": schema.medallion_layer,
-                "unity_catalog": schema.unity_catalog,
-            }
-        else:
-            # Fallback to metadata object attributes
-            return {
-                "name": schema.name,
-                "description": schema.description,
-                "storage": schema.storage,
-                "columns": schema.columns if hasattr(schema, "columns") else [],
-                "file_format": schema.file_format if hasattr(schema, "file_format") else {},
-                "keys": schema.keys if hasattr(schema, "keys") else {},
-            }
+        return {
+            "name": schema.name,
+            "description": schema.description,
+            "storage": schema.storage,
+            "columns": schema.columns,
+            "file_format": schema.file_format,
+            "medallion_layer": schema.medallion_layer,
+            "unity_catalog": schema.unity_catalog,
+        }
 
     def get_data_path_for_schema(self, schema_name: str) -> str:
         """

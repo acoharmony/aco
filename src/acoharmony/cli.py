@@ -143,9 +143,6 @@ def main():
         "--metadata", action="store_true", help="Generate ACO metadata documentation"
     )
     generate_parser.add_argument(
-        "--lineage", action="store_true", help="Generate data lineage documentation"
-    )
-    generate_parser.add_argument(
         "--notebooks",
         action="store_true",
         help="Generate notebook documentation from Marimo notebooks",
@@ -163,7 +160,7 @@ def main():
     generate_parser.add_argument(
         "--all-docs",
         action="store_true",
-        help="Generate all documentation (modules, metadata, lineage, notebooks, pipelines)",
+        help="Generate all documentation (modules, metadata, notebooks, pipelines)",
     )
     generate_parser.add_argument(
         "--force", action="store_true", help="Force regeneration/overwrite"
@@ -809,10 +806,6 @@ notes:
                     )
                     print(f"  Storage tier: {tier}")
 
-                # Source tracking is now handled via transformation_pipeline
-                has_tracking = metadata.transformation_pipeline is not None
-                print(f"  Has transformation pipeline: {has_tracking}")
-
                 print("  Table config:")
                 for key, value in schema_config.__dict__.items():
                     print(f"    {key}: {value}")
@@ -871,7 +864,6 @@ notes:
             if args.all_docs:
                 from acoharmony._dev import (
                     generate_aco_metadata,
-                    generate_data_lineage,
                     generate_module_docs,
                 )
                 from acoharmony._dev.docs.pipelines import generate_full_documentation
@@ -899,14 +891,6 @@ notes:
                     print("  [OK] ACO_METADATA.md generated")
                 else:
                     print("  [ERROR] Failed to generate ACO_METADATA.md")
-
-                # Generate data lineage
-                success = generate_data_lineage()
-                results.append(("DATA_LINEAGE.md", success))
-                if success:
-                    print("  [OK] DATA_LINEAGE.md generated")
-                else:
-                    print("  [ERROR] Failed to generate DATA_LINEAGE.md")
 
                 # Generate pipeline docs
                 try:
@@ -940,16 +924,6 @@ notes:
                     print("[OK] ACO_METADATA.md generated successfully in docs folder")
                 else:
                     print("[ERROR] Failed to generate ACO metadata documentation")
-                    return 1
-
-            elif args.lineage:
-                from acoharmony._dev import generate_data_lineage
-
-                success = generate_data_lineage()
-                if success:
-                    print("[OK] DATA_LINEAGE.md generated successfully in docs folder")
-                else:
-                    print("[ERROR] Failed to generate data lineage documentation")
                     return 1
 
             elif args.notebooks:
@@ -1095,14 +1069,14 @@ notes:
         elif args.schema_command == "history":
             print(f"Schema history for: {args.schema_name}")
             print("Schema versioning moved to git-based tracking")
-            print(f"Use: git log -- src/acoharmony/_schemas/{args.schema_name}.yml")
+            print(f"Use: git log -- src/acoharmony/_tables/{args.schema_name}.py")
             return 0
 
         elif args.schema_command == "diff":
             print(f"Schema diff: {args.schema_name} {args.from_version}..{args.to_version}")
             print("Schema diffs moved to git-based tracking")
             print(
-                f"Use: git diff {args.from_version}..{args.to_version} -- src/acoharmony/_schemas/{args.schema_name}.yml"
+                f"Use: git diff {args.from_version}..{args.to_version} -- src/acoharmony/_tables/{args.schema_name}.py"
             )
             return 0
 

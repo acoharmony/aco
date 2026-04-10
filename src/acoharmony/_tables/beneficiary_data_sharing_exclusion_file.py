@@ -4,8 +4,6 @@
 """
 Pydantic dataclass model for beneficiary_data_sharing_exclusion_file schema.
 
-Generated from: _schemas/beneficiary_data_sharing_exclusion_file.yml
-
  a type-safe Pydantic dataclass for the schema with:
 - Runtime type validation
 - Field-level validators for known patterns (MBI, NPI, ICD codes, etc.)
@@ -21,7 +19,6 @@ from acoharmony._registry import (
     with_four_icli,
     with_parser,
     with_storage,
-    with_transform,
 )
 
 
@@ -29,7 +26,6 @@ from acoharmony._registry import (
     name="beneficiary_data_sharing_exclusion_file", version=2, tier="bronze", description="""\2"""
 )
 @with_parser(type="unknown", encoding="utf-8", has_header=False, embedded_transforms=False)
-@with_transform()
 @with_storage(
     tier="bronze",
     silver={

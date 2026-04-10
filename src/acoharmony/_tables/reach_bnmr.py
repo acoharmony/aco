@@ -4,8 +4,6 @@
 """
 Pydantic dataclass model for reach_bnmr schema.
 
-Generated from: _schemas/reach_bnmr.yml
-
  a type-safe Pydantic dataclass for the schema with:
 - Runtime type validation
 - Field-level validators for known patterns (MBI, NPI, ICD codes, etc.)
@@ -23,7 +21,6 @@ from acoharmony._registry import (
     with_parser,
     with_sheets,
     with_storage,
-    with_transform,
 )
 
 
@@ -49,7 +46,6 @@ from acoharmony._registry import (
         "end_marker_value": "__NO_MARKER__",
     },
 )
-@with_transform()
 @with_storage(
     tier="bronze",
     file_patterns={"reach": ["REACH.D*.BNMR.*.xlsx"]},

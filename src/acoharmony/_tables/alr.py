@@ -4,8 +4,6 @@
 """
 Pydantic dataclass model for alr schema.
 
-Generated from: _schemas/alr.yml
-
  a type-safe Pydantic dataclass for the schema with:
 - Runtime type validation
 - Field-level validators for known patterns (MBI, NPI, ICD codes, etc.)
@@ -21,14 +19,9 @@ from pydantic.dataclasses import dataclass
 
 from acoharmony._registry import (
     register_schema,
-    with_foreign_keys,
-    with_keys,
     with_parser,
     with_polars,
-    with_standardization,
     with_storage,
-    with_transform,
-    with_xref,
 )
 from acoharmony._validators.field_validators import (
     MBI,
@@ -50,7 +43,6 @@ from acoharmony._validators.field_validators import (
 @with_parser(
     type="csv", delimiter=",", encoding="utf-8", has_header=False, embedded_transforms=False
 )
-@with_transform()
 @with_storage(
     tier="bronze",
     file_patterns={
@@ -64,52 +56,6 @@ from acoharmony._validators.field_validators import (
         "refresh_frequency": "quarterly",
         "last_updated_by": "aco transform alr",
     },
-)
-@with_standardization(
-    rename_columns={
-        "bene_mbi": "member_id",
-        "bene_first_name": "first_name",
-        "bene_last_name": "last_name",
-        "bene_birth_dt": "date_of_birth",
-        "bene_death_dt": "date_of_death",
-        "bene_sex_cd": "gender_code",
-    },
-    add_columns=[
-        {"name": "assignment_type", "value": "MSSP"},
-        {"name": "processed_date", "value": "current_timestamp()"},
-        {"name": "source_file", "value": "alr"},
-    ],
-)
-@with_xref(
-    table="beneficiary_xref",
-    join_key="bene_mbi",
-    xref_key="prvs_num",
-    current_column="crnt_num",
-    output_column="current_bene_mbi",
-    description="Apply MBI crosswalk to get current MBI",
-)
-@with_keys(
-    primary_key=["bene_mbi"],
-    natural_key=["bene_mbi"],
-    deduplication_key=["bene_mbi", "master_id"],
-    foreign_keys=[
-        {"column": "bene_mbi", "references": "cclf8.bene_mbi"},
-    ],
-)
-@with_foreign_keys(
-    description="Relationships to other tables",
-    keys=[
-        {
-            "column": "bene_mbi",
-            "references": "beneficiary_demographics.bene_mbi_id",
-            "type": "many-to-one",
-        },
-        {
-            "column": "current_bene_mbi",
-            "references": "beneficiary_xref.crnt_num",
-            "type": "many-to-one",
-        },
-    ],
 )
 @with_polars(
     lazy_evaluation=True,

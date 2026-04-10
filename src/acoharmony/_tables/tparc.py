@@ -4,8 +4,6 @@
 """
 Pydantic dataclass model for tparc schema.
 
-Generated from: _schemas/tparc.yml
-
  a type-safe Pydantic dataclass for the schema with:
 - Runtime type validation
 - Field-level validators for known patterns (MBI, NPI, ICD codes, etc.)
@@ -26,7 +24,6 @@ from acoharmony._registry import (
     with_parser,
     with_record_types,
     with_storage,
-    with_transform,
 )
 from acoharmony._validators.field_validators import (
     NPI,
@@ -99,7 +96,6 @@ from acoharmony._validators.field_validators import (
         },
     }
 )
-@with_transform()
 @with_storage(
     tier="bronze",
     file_patterns={"reach": ["*TPARC*.txt"]},

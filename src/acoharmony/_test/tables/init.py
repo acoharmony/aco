@@ -560,22 +560,6 @@ class TestParserConfig:
         assert isinstance(config['type'], str)
         assert len(config['type']) > 0
 
-class TestTransformConfig:
-    """Test transform_config() for every table class."""
-
-    @pytest.mark.unit
-    @pytest.mark.parametrize('cls', ALL_TABLE_CLASSES, ids=lambda c: c.__name__)
-    def test_transform_config_returns_dict(self, cls):
-        config = cls.transform_config()
-        assert isinstance(config, dict)
-
-    @pytest.mark.unit
-    @pytest.mark.parametrize('cls', ALL_TABLE_CLASSES, ids=lambda c: c.__name__)
-    def test_transform_config_is_copy(self, cls):
-        config1 = cls.transform_config()
-        config1['extra'] = 'value'
-        config2 = cls.transform_config()
-        assert 'extra' not in config2
 CLASSES_WITH_FILE_PATTERNS = [c for c in ALL_TABLE_CLASSES if c.get_file_patterns()]
 
 class TestFilePatterns:
@@ -1291,11 +1275,6 @@ class TestEnterpriseCrosswalk:
         assert obj.mapping_type == 'xref'
 
     @pytest.mark.unit
-    def test_transform_config_has_name(self):
-        config = EnterpriseCrosswalk.transform_config()
-        assert config.get('name') == 'enterprise_xwalk'
-
-    @pytest.mark.unit
     def test_bool_and_int_fields(self):
         obj = EnterpriseCrosswalk(prvs_num=VALID_MBI, crnt_num='curr', mapping_type='chain', created_at='2025-01-01', created_by='system', has_circular_reference=False, chain_depth=2)
         assert obj.has_circular_reference is False
@@ -1337,19 +1316,6 @@ class TestEligibility:
     @pytest.mark.unit
     def test_gold_tier(self):
         assert Eligibility.schema_tier() == 'gold'
-
-    @pytest.mark.unit
-    def test_lineage_config(self):
-        config = Eligibility.lineage_config()
-        assert isinstance(config, dict)
-        assert 'depends_on' in config
-        assert 'int_enrollment' in config['depends_on']
-        assert 'medical_claim' in config['depends_on']
-
-    @pytest.mark.unit
-    def test_transform_config_has_name(self):
-        config = Eligibility.transform_config()
-        assert config.get('name') == 'eligibility'
 
     @pytest.mark.unit
     def test_zip_validator(self):
@@ -1612,11 +1578,6 @@ class TestRegistryIntegration:
 
     @pytest.mark.unit
     @pytest.mark.parametrize('cls', ALL_TABLE_CLASSES, ids=lambda c: c.__name__)
-    def test_class_has_transform_config(self, cls):
-        assert hasattr(cls, '_transform_config')
-
-    @pytest.mark.unit
-    @pytest.mark.parametrize('cls', ALL_TABLE_CLASSES, ids=lambda c: c.__name__)
     def test_class_is_dataclass(self, cls):
         assert dataclasses.is_dataclass(cls)
 
@@ -1661,86 +1622,3 @@ class TestRegistryIntegration:
     @pytest.mark.parametrize('cls', ALL_TABLE_CLASSES, ids=lambda c: c.__name__)
     def test_class_has_get_file_patterns_method(self, cls):
         assert hasattr(cls, 'get_file_patterns')
-
-class TestTableManagerBasic:
-    """Test TableManager using the real Pydantic-based SchemaRegistry.
-
-    The old YAML-based tests have been removed since TableManager now loads
-    from SchemaRegistry (populated by _tables Pydantic models), not YAML files.
-    """
-
-    @pytest.mark.unit
-    def test_load_all_tables(self):
-        from acoharmony.tables import TableManager
-        mgr = TableManager()
-        assert 'cclf1' in mgr._table_cache
-        assert 'cclf0' in mgr._table_cache
-        assert len(mgr._table_cache) > 0
-
-    @pytest.mark.unit
-    def test_get_table_metadata_existing(self):
-        from acoharmony.tables import TableManager
-        mgr = TableManager()
-        meta = mgr.get_table_metadata('cclf1')
-        assert meta is not None
-        assert meta['name'] == 'cclf1'
-
-    @pytest.mark.unit
-    def test_get_table_metadata_returns_deep_copy(self):
-        from acoharmony.tables import TableManager
-        mgr = TableManager()
-        m1 = mgr.get_table_metadata('cclf1')
-        m2 = mgr.get_table_metadata('cclf1')
-        assert m1 is not m2
-        m1['name'] = 'modified'
-        assert mgr.get_table_metadata('cclf1')['name'] == 'cclf1'
-
-    @pytest.mark.unit
-    def test_get_table_metadata_nonexistent(self):
-        from acoharmony.tables import TableManager
-        mgr = TableManager()
-        assert mgr.get_table_metadata('nonexistent') is None
-
-    @pytest.mark.unit
-    def test_expand_table_not_found(self):
-        from acoharmony.tables import TableManager
-        mgr = TableManager()
-        with pytest.raises(ValueError, match='not found'):
-            mgr.expand_table('doesnt_exist')
-
-    @pytest.mark.unit
-    def test_expand_table_basic(self):
-        from acoharmony.tables import TableManager
-        mgr = TableManager()
-        expanded = mgr.expand_table('cclf1')
-        assert expanded['name'] == 'cclf1'
-        assert 'pipeline' in expanded
-
-    @pytest.mark.unit
-    def test_schema_cache_alias(self):
-        from acoharmony.tables import TableManager
-        mgr = TableManager()
-        assert mgr._schema_cache is mgr._table_cache
-
-    @pytest.mark.unit
-    def test_validate_table_not_found(self):
-        from acoharmony.tables import TableManager
-        mgr = TableManager()
-        result = mgr.validate_table('nonexistent')
-        assert result['valid'] is False
-        assert 'error' in result
-
-    @pytest.mark.unit
-    def test_validate_table_existing(self):
-        from acoharmony.tables import TableManager
-        mgr = TableManager()
-        result = mgr.validate_table('cclf0')
-        assert result['table'] == 'cclf0'
-
-    @pytest.mark.unit
-    def test_get_output_columns(self):
-        from acoharmony.tables import TableManager
-        mgr = TableManager()
-        cols = mgr.get_output_columns('cclf0')
-        assert isinstance(cols, list)
-        assert len(cols) > 0

@@ -14,7 +14,6 @@ from acoharmony._registry import (
     register_schema,
     with_parser,
     with_storage,
-    with_transform,
 )
 
 
@@ -28,7 +27,6 @@ from acoharmony._registry import (
 @with_parser(
     type="csv", delimiter=",", encoding="utf-8", has_header=False, embedded_transforms=False
 )
-@with_transform()
 @with_storage(
     tier="bronze",
     file_patterns={"annual": "*GAF*.csv", "annual_xlsx": "*GAF*.xlsx"},

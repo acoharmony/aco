@@ -4,8 +4,6 @@
 """
 Pydantic dataclass model for estimated_cisep_change_threshold_report schema.
 
-Generated from: _schemas/estimated_cisep_change_threshold_report.yml
-
  a type-safe Pydantic dataclass for the schema with:
 - Runtime type validation
 - Field-level validators for known patterns (MBI, NPI, ICD codes, etc.)
@@ -22,7 +20,6 @@ from acoharmony._registry import (
     with_parser,
     with_sheets,
     with_storage,
-    with_transform,
 )
 
 
@@ -34,7 +31,6 @@ from acoharmony._registry import (
     file_patterns={"reach": ["*ECCTR*"]},
 )
 @with_parser(type="unknown", encoding="utf-8", has_header=False, embedded_transforms=False)
-@with_transform()
 @with_storage(
     tier="bronze",
     file_patterns={"reach": ["*ECCTR*"]},

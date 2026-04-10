@@ -3,6 +3,10 @@ FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim
 
 LABEL org.opencontainers.image.source=https://github.com/acoharmony/aco
 
+# Install git (required by hatch-vcs for dynamic versioning during uv run)
+RUN apt-get update && apt-get install -y --no-install-recommends git && \
+    rm -rf /var/lib/apt/lists/*
+
 # Create care group and user with matching IDs from host
 RUN groupadd -g 1002 care && \
     groupadd -g 989 docker && \

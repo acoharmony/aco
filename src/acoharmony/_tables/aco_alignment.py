@@ -4,8 +4,6 @@
 """
 Pydantic dataclass model for aco_alignment schema.
 
-Generated from: _schemas/aco_alignment.yml
-
  a type-safe Pydantic dataclass for the schema with:
 - Runtime type validation
 - Field-level validators for known patterns (MBI, NPI, ICD codes, etc.)
@@ -19,7 +17,10 @@ from datetime import date, datetime
 from pydantic import Field
 from pydantic.dataclasses import dataclass
 
-from acoharmony._registry import register_schema, with_storage, with_transform
+from acoharmony._registry import (
+    register_schema,
+    with_storage,
+)
 from acoharmony._validators.field_validators import (
     MBI,
     NPI,
@@ -33,7 +34,6 @@ from acoharmony._validators.field_validators import (
 
 
 @register_schema(name="aco_alignment", version=2, tier="silver", description="""\2""")
-@with_transform()
 @with_storage(
     tier="silver",
     medallion_layer="silver",

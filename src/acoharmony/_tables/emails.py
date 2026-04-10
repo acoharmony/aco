@@ -4,8 +4,6 @@
 """
 Pydantic dataclass model for emails schema.
 
-Generated from: _schemas/emails.yml
-
  a type-safe Pydantic dataclass for the schema with:
 - Runtime type validation
 - Field-level validators for known patterns (MBI, NPI, ICD codes, etc.)
@@ -21,10 +19,8 @@ from pydantic.dataclasses import dataclass
 
 from acoharmony._registry import (
     register_schema,
-    with_deduplication,
     with_parser,
     with_storage,
-    with_transform,
 )
 from acoharmony._validators.field_validators import (
     MBI,
@@ -40,7 +36,6 @@ from acoharmony._validators.field_validators import (
     file_patterns={"main": "all_sent_emails*.json"},
 )
 @with_parser(type="json", encoding="utf-8", has_header=False, embedded_transforms=False)
-@with_transform()
 @with_storage(
     tier="bronze",
     file_patterns={"main": "all_sent_emails*.json"},
@@ -50,11 +45,6 @@ from acoharmony._validators.field_validators import (
         "refresh_frequency": "monthly",
         "last_updated_by": "aco transform emails",
     },
-)
-@with_deduplication(
-    key=["email_id", "patient_id", "send_datetime"],
-    sort_by=["file_date"],
-    keep="last",
 )
 @dataclass
 class Emails:

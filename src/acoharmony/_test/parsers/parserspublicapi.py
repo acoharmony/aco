@@ -92,6 +92,21 @@ class TestParsersPublicAPI:
         result = parse_file(str(csv), schema, add_tracking=True)
         assert result is not None
 
+    @pytest.mark.unit
+    def test_parse_file_without_medallion_layer(self, tmp_path):
+        """Branch 118→121 (False path): schema lacks medallion_layer attribute."""
+
+        # Use a plain class so hasattr(schema, "medallion_layer") returns False
+        class _Schema:
+            file_format = {"type": "csv"}
+            columns: list = []
+            name = "test_schema"
+
+        csv = tmp_path / "test.csv"
+        csv.write_text("a,b\n1,2\n3,4")
+        result = parse_file(str(csv), _Schema(), add_tracking=True)
+        assert result is not None
+
 
 # ---------------------------------------------------------------------------
 # _tuva/_depends/setup.py

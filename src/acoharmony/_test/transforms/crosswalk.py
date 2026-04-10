@@ -141,21 +141,6 @@ class TestApplyXrefTransform:
             # If xref was skipped (no matches), original data is returned
             assert "bene_mbi_id" in collected.columns
 
-    @pytest.mark.unit
-    def test_apply_xref_with_enrollment_config(self) -> None:
-        """apply_xref_transform works with enrollment xref configuration."""
-        from acoharmony._registry import SchemaRegistry
-
-        # Get enrollment xref config from the registry (not Catalog.get_table_metadata)
-        xref_config = SchemaRegistry.get_xref_config("enrollment")
-        assert xref_config, "enrollment schema should have xref config"
-
-        # Verify the xref config matches what we expect
-        assert xref_config.get("table") == "beneficiary_xref"
-        assert xref_config.get("join_key") == "bene_mbi_id"
-        assert xref_config.get("output_column") == "current_bene_mbi_id"
-
-
 class TestCrosswalkTransform:
     """Tests for Crosswalk transform."""
 

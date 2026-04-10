@@ -12,10 +12,7 @@ from acoharmony._test._import_magic import auto_import
 class _:
     pass  # noqa: E701
 
-from pathlib import Path
-
 import pytest
-import yaml
 
 from acoharmony._4icli.inventory import _load_schema_patterns, _match_file_type_code
 
@@ -55,31 +52,29 @@ class TestSchemaPatternLoading:
         assert 159 in type_codes or 165 in type_codes or 175 in type_codes
 
     @pytest.mark.unit
-    def test_schema_files_have_fouricli_block(self) -> None:
-        """Schema files with fourIcli block are valid."""
-        schemas_dir = Path(__file__).parent.parent.parent / "_schemas"
+    def test_schemas_with_fouricli_block_are_valid(self) -> None:
+        """Schemas registered with @with_four_icli have valid metadata."""
+        from acoharmony import _tables as _  # noqa: F401  - populate registry
+        from acoharmony._registry import SchemaRegistry
+
+        allowed_categories = {
+            "Beneficiary List",
+            "CCLF",
+            "Claim and Claim Line Feed (CCLF) Files",
+            "Reports",
+        }
 
         schemas_with_fouricli = []
-        for schema_file in schemas_dir.glob("*.yml"):
-            with open(schema_file) as f:
-                schema_data = yaml.safe_load(f)
-
-            if "fourIcli" in schema_data:
-                schemas_with_fouricli.append(schema_file.stem)
-                fouricli = schema_data["fourIcli"]
-
-                # Validate required fields
-                assert "category" in fouricli, f"{schema_file.name} missing category"
-                assert "fileTypeCode" in fouricli, f"{schema_file.name} missing fileTypeCode"
-                # filePattern is optional for stub schemas without actual files
-
-                # Validate category is one of the three allowed
-                assert fouricli["category"] in [
-                    "Beneficiary List",
-                    "CCLF",
-                    "Claim and Claim Line Feed (CCLF) Files",
-                    "Reports"
-                ], f"{schema_file.name} has invalid category: {fouricli['category']}"
+        for name in SchemaRegistry.list_schemas():
+            cfg = SchemaRegistry.get_four_icli_config(name)
+            if not cfg:
+                continue
+            schemas_with_fouricli.append(name)
+            assert "category" in cfg, f"{name} missing category"
+            assert "fileTypeCode" in cfg, f"{name} missing fileTypeCode"
+            assert cfg["category"] in allowed_categories, (
+                f"{name} has invalid category: {cfg['category']}"
+            )
 
         # Should have at least some schemas with fourIcli blocks
         assert len(schemas_with_fouricli) > 5

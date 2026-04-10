@@ -19,8 +19,8 @@ from typing import TYPE_CHECKING
 import polars as pl
 import pytest
 
+from acoharmony import Catalog
 from acoharmony._parsers._excel_multi_sheet import parse_excel_multi_sheet
-from acoharmony.tables import TableManager
 
 if TYPE_CHECKING:
     pass
@@ -47,8 +47,8 @@ def test_parse_monthly_expenditure_report_real_file() -> None:
         pytest.skip(f"Test file not found: {file_path}")
 
     # Load schema
-    table_mgr = TableManager()
-    schema = table_mgr.get_table_metadata("mexpr")
+    catalog = Catalog()
+    schema = catalog.get_table_metadata("mexpr")
 
     # Parse file
     result = parse_excel_multi_sheet(file_path, schema)
@@ -89,17 +89,17 @@ def test_parse_monthly_expenditure_report_real_file() -> None:
 @pytest.mark.unit
 def test_monthly_expenditure_report_schema() -> None:
     """Verify monthly expenditure report schema is correctly configured."""
-    table_mgr = TableManager()
-    schema = table_mgr.get_table_metadata("mexpr")
+    catalog = Catalog()
+    schema = catalog.get_table_metadata("mexpr")
 
     # Verify schema basics
-    assert schema["name"] == "mexpr"
-    assert schema["file_format"]["type"] == "excel_multi_sheet"
-    assert schema["file_format"]["parser"] == "excel_multi_sheet"
+    assert schema.name == "mexpr"
+    assert schema.file_format["type"] == "excel_multi_sheet"
+    assert schema.file_format["parser"] == "excel_multi_sheet"
 
     # Verify sheets configuration
-    assert "sheets" in schema
-    sheets = schema["sheets"]
+    assert schema.sheets is not None
+    sheets = schema.sheets
     assert len(sheets) >= 2, "Should have at least 2 sheets defined"
 
     # Verify data sheets are present

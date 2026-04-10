@@ -63,10 +63,14 @@ class FourICLI:
         # Use ACO Harmony LogWriter for state tracking
         self.log_writer = log_writer or LogWriter(name="4icli")
 
-        # State tracker for duplicate detection
+        # State tracker for duplicate detection (rooted in this config's tracking_dir)
         self.enable_duplicate_detection = enable_duplicate_detection
         if enable_duplicate_detection:
-            self.state_tracker = FourICLIStateTracker(log_writer=self.log_writer)
+            self.state_tracker = FourICLIStateTracker(
+                log_writer=self.log_writer,
+                state_file=self.config.tracking_dir / "4icli_state.json",
+                search_paths=[self.config.bronze_dir, self.config.archive_dir],
+            )
         else:
             self.state_tracker = None
 

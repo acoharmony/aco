@@ -11,7 +11,6 @@ from acoharmony._registry import (
     with_four_icli,
     with_parser,
     with_storage,
-    with_transform,
 )
 
 
@@ -23,7 +22,6 @@ from acoharmony._registry import (
     file_patterns={"reach": ["*BLQQR*.Exclusions.csv"]},
 )
 @with_parser(type="csv", delimiter=",", encoding="utf-8", has_header=True)
-@with_transform()
 @with_storage(
     tier="bronze",
     file_patterns={"reach": ["*BLQQR*.Exclusions.csv"]},

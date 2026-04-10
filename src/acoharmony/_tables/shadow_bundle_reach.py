@@ -4,8 +4,6 @@
 """
 Pydantic dataclass model for shadow_bundle_reach schema.
 
-Generated from: _schemas/shadow_bundle_reach.yml
-
  a type-safe Pydantic dataclass for the schema with:
 - Runtime type validation
 - Field-level validators for known patterns (MBI, NPI, ICD codes, etc.)
@@ -21,7 +19,6 @@ from acoharmony._registry import (
     with_four_icli,
     with_parser,
     with_storage,
-    with_transform,
 )
 
 
@@ -35,7 +32,6 @@ from acoharmony._registry import (
     },
 )
 @with_parser(type="unknown", encoding="utf-8", has_header=False, embedded_transforms=False)
-@with_transform()
 @with_storage(
     tier="bronze",
     file_patterns={"reach": ["D????.PY????.??.SBM*.D??????.T*.*"]},

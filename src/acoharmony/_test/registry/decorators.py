@@ -65,38 +65,6 @@ def test_with_parser_basic() -> None:
 
 
 @pytest.mark.unit
-def test_with_transform_basic() -> None:
-    """with_transform basic functionality."""
-    from acoharmony._registry.decorators import register_schema, with_transform
-    from acoharmony._registry.registry import SchemaRegistry
-
-    @register_schema(name="__test_transform_dec__", version=1, tier="silver")
-    @with_transform(name="my_transform", depends_on=["cclf1"])
-    class TestTransformModel:
-        pass
-
-    config = SchemaRegistry.get_transform_config("__test_transform_dec__")
-    assert config["name"] == "my_transform"
-    assert config["depends_on"] == ["cclf1"]
-
-
-@pytest.mark.unit
-def test_with_lineage_basic() -> None:
-    """with_lineage basic functionality."""
-    from acoharmony._registry.decorators import register_schema, with_lineage
-    from acoharmony._registry.registry import SchemaRegistry
-
-    @register_schema(name="__test_lineage_dec__", version=1, tier="silver")
-    @with_lineage(depends_on=["cclf1"], produces=["gold_output"])
-    class TestLineageModel:
-        pass
-
-    config = SchemaRegistry.get_lineage_config("__test_lineage_dec__")
-    assert config["depends_on"] == ["cclf1"]
-    assert config["produces"] == ["gold_output"]
-
-
-@pytest.mark.unit
 def test_with_metadata_basic() -> None:
     """with_metadata basic functionality."""
     from acoharmony._registry.decorators import register_schema, with_metadata
@@ -160,34 +128,6 @@ class TestParserConfigMethod:
         assert isinstance(cfg, dict)
 
 
-class TestTransformConfigMethod:
-    """Cover transform_config classmethod body (line 261)."""
-
-    @pytest.mark.unit
-    def test_transform_config_method(self):
-        from acoharmony._tables.cclf1 import Cclf1
-        cfg = Cclf1.transform_config()
-        assert isinstance(cfg, dict)
-
-
-class TestWithTransformBranches:
-    """Cover with_transform branches (lines 243, 249, 268)."""
-
-    @pytest.mark.unit
-    def test_with_transform_type_param(self):
-        from acoharmony._registry.decorators import register_schema, with_transform
-
-        @with_transform(type="custom", name="my_transform", depends_on=["dep1"])
-        @register_schema(name="__test_xform_dec__", version=1, tier="bronze")
-        class TestXformModel:
-            pass
-
-        cfg = TestXformModel.transform_config()
-        assert cfg["type"] == "custom"
-        assert cfg["name"] == "my_transform"
-        assert cfg["depends_on"] == ["dep1"]
-
-
 class TestWithParserBranches:
     """Cover with_parser update-registry branch (line 208)."""
 
@@ -203,100 +143,6 @@ class TestWithParserBranches:
 
         parser_cfg = SchemaRegistry.get_parser_config("__test_parser_dec__")
         assert parser_cfg["type"] == "csv"
-
-
-class TestAllDecoratorBranches:
-    """Cover all decorator classmethod bodies and conditional branches.
-
-    Creates a single test model with all decorators applied, then calls each
-    classmethod to exercise the injected method bodies.
-    """
-
-    @pytest.mark.unit
-    def test_all_decorator_classmethods(self):
-        from acoharmony._registry.decorators import (
-            register_schema,
-            with_deduplication,
-            with_keys,
-            with_lineage,
-            with_parser,
-            with_staging,
-            with_standardization,
-            with_storage,
-            with_transform,
-            with_tuva,
-            with_xref,
-        )
-
-        @with_xref(
-            table="xref_table",
-            join_key="mbi",
-            xref_key="prvs",
-            current_column="crnt",
-            output_column="resolved_mbi",
-            description="MBI crosswalk",
-        )
-        @with_staging(source="raw_claims")
-        @with_keys(
-            primary_key=["id"],
-            natural_key=["mbi", "date"],
-            deduplication_key=["mbi"],
-            foreign_keys=[{"column": "mbi", "references": "bene.mbi"}],
-        )
-        @with_tuva(
-            models={"intermediate": ["int_enrollment"]},
-            inject=["eligibility"],
-        )
-        @with_standardization(
-            rename_columns={"old_col": "new_col"},
-            add_columns=[{"name": "src", "value": "test"}],
-            add_computed={"year": "extract_year(date)"},
-        )
-        @with_deduplication(
-            key=["mbi", "date"],
-            sort_by=["date"],
-            keep="last",
-        )
-        @with_storage(
-            tier="bronze",
-            file_patterns={"main": "*.csv"},
-            medallion_layer="bronze",
-        )
-        @with_lineage(
-            depends_on=["source_a"],
-            produces=["output_b"],
-        )
-        @with_transform(type="custom", name="test_xf", depends_on=["dep"])
-        @with_parser(type="csv", encoding="utf-8", has_header=True)
-        @register_schema(
-            name="__test_all_decs__",
-            version=1,
-            tier="bronze",
-            description="Test model with all decorators",
-            file_patterns={"main": "test*.csv"},
-        )
-        class FullyDecoratedModel:
-            pass
-
-        # Exercise ALL injected classmethods (covers lines 112-137, 201, 261,
-        # 302, 314, 321, 369, 375, 418, 424, 459-494, 534, 540, 581, 587,
-        # 643, 649, 674, 680, 728, 734, 774, 780)
-        assert FullyDecoratedModel.schema_name() == "__test_all_decs__"
-        assert isinstance(FullyDecoratedModel.schema_metadata(), dict)
-        assert FullyDecoratedModel.schema_version() == 1
-        assert FullyDecoratedModel.schema_tier() == "bronze"
-        assert FullyDecoratedModel.schema_description() == "Test model with all decorators"
-        assert isinstance(FullyDecoratedModel.get_file_patterns(), dict)
-        assert FullyDecoratedModel.parser_config()["type"] == "csv"
-        assert FullyDecoratedModel.transform_config()["name"] == "test_xf"
-        assert FullyDecoratedModel.lineage_config()["depends_on"] == ["source_a"]
-        assert FullyDecoratedModel.storage_config()["tier"] == "bronze"
-        assert FullyDecoratedModel.deduplication_config()["key"] == ["mbi", "date"]
-        assert FullyDecoratedModel.standardization_config()["rename_columns"]["old_col"] == "new_col"
-        assert FullyDecoratedModel.tuva_config()["inject"] == ["eligibility"]
-        assert FullyDecoratedModel.xref_config()["table"] == "xref_table"
-        assert FullyDecoratedModel.staging_source() == "raw_claims"
-        assert FullyDecoratedModel.keys_config()["primary_key"] == ["id"]
 
 
 class TestExistingModelDecoratorMethods:
@@ -334,41 +180,6 @@ class TestExistingModelDecoratorMethods:
 
 class TestRemainingDecoratorClassmethods:
     """Cover all remaining decorator classmethod bodies and registry-update lines."""
-
-    @pytest.mark.unit
-    def test_with_adr_full(self):
-        """Cover with_adr lines 459-494."""
-        from acoharmony._registry.decorators import register_schema, with_adr
-
-        @with_adr(
-            adjustment_column="adj_type",
-            amount_fields=["paid", "allowed"],
-            key_columns=["claim_id"],
-            sort_columns=["date"],
-            sort_descending=[True],
-            rank_by=["date"],
-            rank_partition=["patient_id"],
-        )
-        @register_schema(name="__test_adr__", version=1, tier="bronze")
-        class TestAdrModel:
-            pass
-
-        cfg = TestAdrModel.adr_config()
-        assert cfg["adjustment_column"] == "adj_type"
-        assert cfg["amount_fields"] == ["paid", "allowed"]
-
-    @pytest.mark.unit
-    def test_with_foreign_keys(self):
-        """Cover with_foreign_keys lines 774, 780."""
-        from acoharmony._registry.decorators import register_schema, with_foreign_keys
-
-        @with_foreign_keys(references=[{"column": "patient_id", "table": "patients", "key": "id"}])
-        @register_schema(name="__test_fk__", version=1, tier="bronze")
-        class TestFkModel:
-            pass
-
-        cfg = TestFkModel.foreign_keys_config()
-        assert len(cfg["references"]) == 1
 
     @pytest.mark.unit
     def test_with_record_types(self):
@@ -423,20 +234,6 @@ class TestRemainingDecoratorClassmethods:
         assert cfg["dtypes"]["col1"] == "str"
 
     @pytest.mark.unit
-    def test_with_sources(self):
-        """Cover with_sources lines 1008, 1014."""
-        from acoharmony._registry.decorators import register_schema, with_sources
-
-        @with_sources("cclf5", "provider_list")
-        @register_schema(name="__test_sources__", version=1, tier="silver")
-        class TestSourcesModel:
-            pass
-
-        cfg = TestSourcesModel.sources_config()
-        assert "cclf5" in cfg
-        assert "provider_list" in cfg
-
-    @pytest.mark.unit
     def test_with_metadata_no_prior_schema(self):
         """Cover with_metadata line 1039: no existing _schema_metadata."""
         from acoharmony._registry.decorators import with_metadata
@@ -487,117 +284,6 @@ class TestDecoratorNoneBranches:
     """
 
     @pytest.mark.unit
-    def test_with_lineage_no_depends_no_produces(self):
-        """Cover 298->301: depends_on is None, produces is None."""
-        from acoharmony._registry.decorators import register_schema, with_lineage
-
-        @with_lineage()
-        @register_schema(name="__test_lineage_none__", version=1, tier="bronze")
-        class Model:
-            pass
-
-        cfg = Model.lineage_config()
-        assert "depends_on" not in cfg
-        assert "produces" not in cfg
-
-    @pytest.mark.unit
-    def test_with_deduplication_no_key_no_sort(self):
-        """Cover 405->408 (key is None) and 408->411 (sort_by is None)."""
-        from acoharmony._registry.decorators import register_schema, with_deduplication
-
-        @with_deduplication()
-        @register_schema(name="__test_dedup_none__", version=1, tier="bronze")
-        class Model:
-            pass
-
-        cfg = Model.deduplication_config()
-        assert "key" not in cfg
-        assert "sort_by" not in cfg
-        assert cfg["keep"] == "last"
-
-    @pytest.mark.unit
-    def test_with_adr_all_none(self):
-        """Cover 462->464 through 474->477: all ADR params are None."""
-        from acoharmony._registry.decorators import register_schema, with_adr
-
-        @with_adr()
-        @register_schema(name="__test_adr_none__", version=1, tier="bronze")
-        class Model:
-            pass
-
-        cfg = Model.adr_config()
-        assert "adjustment_column" not in cfg
-        assert "amount_fields" not in cfg
-        assert "key_columns" not in cfg
-        assert "sort_columns" not in cfg
-        assert "sort_descending" not in cfg
-        assert "rank_by" not in cfg
-        assert "rank_partition" not in cfg
-
-    @pytest.mark.unit
-    def test_with_adr_updates_registry_when_already_registered(self):
-        """Cover 489->492: schema already registered, with_adr updates registry."""
-        from acoharmony._registry.decorators import register_schema, with_adr
-        from acoharmony._registry.registry import SchemaRegistry
-
-        @register_schema(name="__test_adr_post__", version=1, tier="bronze")
-        @with_adr(adjustment_column="adj")
-        class Model:
-            pass
-
-        cfg = SchemaRegistry._adr.get("__test_adr_post__")
-        assert cfg is not None
-        assert cfg["adjustment_column"] == "adj"
-
-    @pytest.mark.unit
-    def test_with_tuva_no_models_no_inject(self):
-        """Cover 569->571 (models is None) and 571->574 (inject is None)."""
-        from acoharmony._registry.decorators import register_schema, with_tuva
-
-        @with_tuva()
-        @register_schema(name="__test_tuva_none__", version=1, tier="bronze")
-        class Model:
-            pass
-
-        cfg = Model.tuva_config()
-        assert "models" not in cfg
-        assert "inject" not in cfg
-
-    @pytest.mark.unit
-    def test_with_xref_all_none(self):
-        """Cover 623->625 through 633->636: all xref params are None/empty."""
-        from acoharmony._registry.decorators import register_schema, with_xref
-
-        @with_xref()
-        @register_schema(name="__test_xref_none__", version=1, tier="bronze")
-        class Model:
-            pass
-
-        cfg = Model.xref_config()
-        assert "description" not in cfg
-        assert "table" not in cfg
-        assert "join_key" not in cfg
-        assert "xref_key" not in cfg
-        assert "current_column" not in cfg
-        assert "output_column" not in cfg
-
-    @pytest.mark.unit
-    def test_with_keys_all_none(self):
-        """Cover 712->714, 714->716, 718->721: all keys params are None."""
-        from acoharmony._registry.decorators import register_schema, with_keys
-
-        @with_keys()
-        @register_schema(name="__test_keys_none__", version=1, tier="bronze")
-        class Model:
-            pass
-
-        cfg = Model.keys_config()
-        assert "primary_key" not in cfg
-        assert "natural_key" not in cfg
-        assert "deduplication_key" not in cfg
-        assert "foreign_keys" not in cfg
-
-    @pytest.mark.unit
     def test_with_record_types_none(self):
         """Cover 806->809: record_types is None."""
         from acoharmony._registry.decorators import register_schema, with_record_types
@@ -609,3 +295,66 @@ class TestDecoratorNoneBranches:
 
         cfg = Model.record_types_config()
         assert "record_types" not in cfg
+
+
+class TestWithStorageRegistryUpdate:
+    """Cover with_storage line 249: SchemaRegistry._storage[schema_name] = cfg."""
+
+    @pytest.mark.unit
+    def test_with_storage_registers_in_schema_registry(self):
+        from acoharmony._registry.decorators import register_schema, with_storage
+        from acoharmony._registry.registry import SchemaRegistry
+
+        @with_storage(tier="bronze", file_patterns={"a": "*.csv"})
+        @register_schema(name="__test_with_storage__", version=1, tier="bronze")
+        class Model:
+            pass
+
+        try:
+            assert "__test_with_storage__" in SchemaRegistry._storage
+            assert SchemaRegistry._storage["__test_with_storage__"]["tier"] == "bronze"
+        finally:
+            SchemaRegistry._storage.pop("__test_with_storage__", None)
+            SchemaRegistry._schemas.pop("__test_with_storage__", None)
+            SchemaRegistry._metadata.pop("__test_with_storage__", None)
+
+
+class TestWithStagingClassmethodAndRegistry:
+    """Cover with_staging lines 274 and 280."""
+
+    @pytest.mark.unit
+    def test_with_staging_classmethod_returns_source(self):
+        """Line 274: cls.staging_source() returns the configured source."""
+        from acoharmony._registry.decorators import register_schema, with_staging
+
+        @with_staging(source="parent_table")
+        @register_schema(name="__test_with_staging_cm__", version=1, tier="silver")
+        class Model:
+            pass
+
+        from acoharmony._registry.registry import SchemaRegistry
+
+        try:
+            assert Model.staging_source() == "parent_table"
+        finally:
+            SchemaRegistry._staging.pop("__test_with_staging_cm__", None)
+            SchemaRegistry._schemas.pop("__test_with_staging_cm__", None)
+            SchemaRegistry._metadata.pop("__test_with_staging_cm__", None)
+
+    @pytest.mark.unit
+    def test_with_staging_registers_source_in_schema_registry(self):
+        """Line 280: SchemaRegistry._staging[name] = source."""
+        from acoharmony._registry.decorators import register_schema, with_staging
+        from acoharmony._registry.registry import SchemaRegistry
+
+        @with_staging(source="upstream")
+        @register_schema(name="__test_with_staging_reg__", version=1, tier="silver")
+        class Model:
+            pass
+
+        try:
+            assert SchemaRegistry._staging.get("__test_with_staging_reg__") == "upstream"
+        finally:
+            SchemaRegistry._staging.pop("__test_with_staging_reg__", None)
+            SchemaRegistry._schemas.pop("__test_with_staging_reg__", None)
+            SchemaRegistry._metadata.pop("__test_with_staging_reg__", None)

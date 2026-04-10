@@ -4,8 +4,6 @@
 """
 Pydantic dataclass model for hdai_reach schema.
 
-Generated from: _schemas/hdai_reach.yml
-
  a type-safe Pydantic dataclass for the schema with:
 - Runtime type validation
 - Field-level validators for known patterns (MBI, NPI, ICD codes, etc.)
@@ -24,7 +22,6 @@ from acoharmony._registry import (
     register_schema,
     with_parser,
     with_storage,
-    with_transform,
 )
 from acoharmony._validators.field_validators import (
     MBI as MBI_Field,
@@ -58,8 +55,20 @@ from acoharmony._validators.field_validators import (
         ]
     },
 )
-@with_parser(type="excel", encoding="utf-8", has_header=False, embedded_transforms=False)
-@with_transform()
+@with_parser(
+    type="excel",
+    encoding="utf-8",
+    has_header=False,
+    embedded_transforms=False,
+    sheet_name=[
+        "Patient Level",
+        "HC Reach Report ????-??-??",
+        "HC Reach Report *",
+        "HC Reach Report",
+    ],
+    skip_rows=0,
+    header_row="auto",
+)
 @with_storage(
     tier="silver",
     file_patterns={
@@ -134,7 +143,7 @@ class HdaiReach:
     plurality_assigned_provider_npi: str | None = NPI_Field(
         alias="NPI", default=None, description="NPI of the plurality assigned provider"
     )
-    npi_name: str | None = NPI_Field(
+    plurality_assigned_provider_name: str | None = NPI_Field(
         alias="NPI_Name",
         default=None,
         description="Name of the plurality assigned provider",
@@ -175,7 +184,7 @@ class HdaiReach:
         default=None,
         description="Advanced Primary Care Management spending year-to-date",
     )
-    e_m_cost_ytd: Decimal | None = Field(
+    em_cost_ytd: Decimal | None = Field(
         alias="E_M_Cost_YTD",
         default=None,
         description="Evaluation and Management costs year-to-date",
@@ -198,12 +207,12 @@ class HdaiReach:
         default=None,
         description="Emergency Room admissions in prior 90 days",
     )
-    e_m_visits_ytd: int | None = Field(
+    em_visits_ytd: int | None = Field(
         alias="E_M_Visits_YTD",
         default=None,
         description="Evaluation and Management visits year-to-date",
     )
-    hospice_admission_t_f: bool | None = Field(
+    hospice_admission: bool | None = Field(
         alias="Hospice_Admission__T_F_",
         default=None,
         description="Hospice admission flag (True/False)",
@@ -225,25 +234,25 @@ class HdaiReach:
         default=None,
         description="Most recent Annual Wellness Visit date",
     )
-    claim_id_of_awv: str | None = Field(
+    awv_claim_id: str | None = Field(
         alias="Claim_ID_of_AWV",
         default=None,
         description="Unique claim id for the most recent AWV",
     )
-    last_date_of_e_m_visit: date | None = Field(
+    last_em_visit: date | None = Field(
         alias="Last_Date_of_E_M_Visit",
     )
-    a2671_em_provider_npi: str | None = NPI_Field(
+    aco_em_npi: str | None = NPI_Field(
         alias="A2671_EM_Provider_NPI",
         default=None,
         description="npi for most recent E+M",
     )
-    em_provider_name: str | None = NPI_Field(
+    aco_em_name: str | None = NPI_Field(
         alias="EM_Provider_Name",
         default=None,
         description="HDAI generated name of individual provider",
     )
-    e_m_flag_with_hc_provider: str | None = Field(
+    flag_em_hcmg: str | None = Field(
         alias="E_M_Flag_with_HC_Provider",
         default=None,
         description="boolean to tell whether the EMs come from an NPI/TIN combo associated with HCMG",
@@ -253,9 +262,9 @@ class HdaiReach:
     _validate_mbi = mbi_validator("mbi")
     _validate_patient_zip = zip5_validator("patient_zip")
     _validate_plurality_assigned_provider_npi = npi_validator("plurality_assigned_provider_npi")
-    _validate_plurality_assigned_provider_npi_Name = npi_validator("npi_name")
-    _validate_a2671_em_provider_npi = npi_validator("a2671_em_provider_npi")
-    _validate_em_provider_name = npi_validator("em_provider_name")
+    _validate_plurality_assigned_provider_name = npi_validator("plurality_assigned_provider_name")
+    _validate_aco_em_npi = npi_validator("aco_em_npi")
+    _validate_aco_em_name = npi_validator("aco_em_name")
 
     def to_dict(self) -> dict:
         """Convert to dictionary."""

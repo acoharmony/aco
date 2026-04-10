@@ -81,13 +81,6 @@ class NotebookConfig:
         else:
             data_path = f"{tier_path}/{schema.name}.parquet"
 
-        # Try to find primary key from schema
-        primary_key = None
-        if hasattr(schema, "keys") and isinstance(schema.keys, dict):
-            if "primary_key" in schema.keys:
-                pk = schema.keys["primary_key"]
-                primary_key = pk[0] if isinstance(pk, list) and pk else pk
-
         # Look for a good default sort column
         default_sort = None
         if hasattr(schema, "columns"):
@@ -110,6 +103,5 @@ class NotebookConfig:
             schema_description=schema.description,
             storage_tier=storage_tier,
             data_path=data_path,
-            primary_key=primary_key,
             default_sort_column=default_sort,
         )

@@ -4,8 +4,6 @@
 """
 Pydantic dataclass model for engagement schema.
 
-Generated from: _schemas/engagement.yml
-
  a type-safe Pydantic dataclass for the schema with:
 - Runtime type validation
 - Field-level validators for known patterns (MBI, NPI, ICD codes, etc.)
@@ -19,36 +17,19 @@ from pydantic.dataclasses import dataclass
 
 from acoharmony._registry import (
     register_schema,
-    with_keys,
     with_parser,
     with_polars,
-    with_standardization,
     with_storage,
-    with_transform,
 )
 
 
 @register_schema(name="engagement", version=2, tier="silver", description="""\2""")
 @with_parser(type="parquet", encoding="utf-8", has_header=False, embedded_transforms=False)
-@with_transform()
 @with_storage(
     tier="silver",
     medallion_layer="silver",
     silver={"output_name": "engagement.parquet", "refresh_frequency": "weekly"},
     gold={"output_name": None, "refresh_frequency": None, "last_updated_by": None},
-)
-@with_standardization(
-    add_columns=[
-        {"name": "source_file", "value": "engagement"},
-    ],
-)
-@with_keys(
-    primary_key=["mrn", "monthyear", "engagement_type", "engagement_channel"],
-    natural_key=["mrn", "monthyear"],
-    deduplication_key=["mrn", "monthyear", "engagement_type", "engagement_channel"],
-    foreign_keys=[
-        {"column": "mrn", "references": "hcmpi_master.identifier"},
-    ],
 )
 @with_polars(
     lazy_evaluation=True,

@@ -16,7 +16,6 @@ from acoharmony._registry import (
     with_parser,
     with_sheets,
     with_storage,
-    with_transform,
 )
 
 
@@ -42,7 +41,6 @@ from acoharmony._registry import (
         "end_marker_value": "",
     },
 )
-@with_transform()
 @with_storage(
     tier="bronze",
     file_patterns={"reach": ["*QTLQR*"]},

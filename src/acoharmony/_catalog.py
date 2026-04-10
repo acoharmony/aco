@@ -21,45 +21,13 @@ from .medallion import MedallionLayer, UnityCatalogNamespace
 
 
 @dataclass
-class TransformationStage:
-    """
-    Single transformation stage metadata.
-
-        Represents one stage in a multi-stage transformation pipeline.
-    """
-
-    name: str
-    transformer: str | None = None  # Class name or path
-    inputs: list[str] = field(default_factory=list)
-    output: str = ""
-    config: dict[str, Any] = field(default_factory=dict)
-
-
-@dataclass
-class TransformationPipeline:
-    """
-    Pipeline configuration for multi-stage transformations.
-
-        Orchestrates data transformations through multiple stages across
-        medallion layers (Bronze → Silver → Gold).
-    """
-
-    stages: list[TransformationStage] = field(default_factory=list)
-    tracking: bool = True
-    incremental: bool = True
-    temp_write: bool = False
-    chunk_size: int = 100000
-    max_retries: int = 3
-
-
-@dataclass
 class TableMetadata:
     """
     Metadata definition for a data table.
 
-        This represents the structure, transformations, and storage
-        configuration for a single table in the data pipeline, aligned
-        with Unity Catalog and medallion architecture standards.
+        This represents the structure and storage configuration for a
+        single table in the data pipeline, aligned with Unity Catalog
+        and medallion architecture standards.
 
         Attributes
 
@@ -79,8 +47,6 @@ class TableMetadata:
             Unity Catalog name (default: "main")
         staging_source : Optional[str]
             Source table for staged processing
-        transformation_pipeline : Optional[TransformationPipeline]
-            Transformation pipeline configuration
     """
 
     name: str
@@ -93,13 +59,9 @@ class TableMetadata:
     medallion_layer: MedallionLayer | None = None
     unity_catalog: str = "main"
 
-    # Optional transformation fields
+    # Optional staging inheritance
     staging_source: str | None = None
-    transformation_pipeline: TransformationPipeline | None = None
-    transformations: dict[str, Any] = field(default_factory=dict)
-    lineage: dict[str, Any] = field(default_factory=dict)
     polars: dict[str, Any] = field(default_factory=dict)
-    keys: dict[str, Any] = field(default_factory=dict)
 
     # Multi-record file support (TPARC, etc.)
     record_types: dict[str, Any] | None = None
@@ -185,7 +147,7 @@ class Catalog:
         Load all table metadata from the SchemaRegistry.
 
                 Reads schema definitions registered via _tables Pydantic models
-                and creates TableMetadata objects with pipeline configurations.
+                and creates TableMetadata objects.
         """
         # Ensure _tables models are imported so SchemaRegistry is populated
         from . import _tables as _  # noqa: F401
@@ -194,30 +156,6 @@ class Catalog:
             data = SchemaRegistry.get_full_table_config(schema_name)
             if not data:
                 continue
-
-            # Parse pipeline if present
-            pipeline = None
-            if "pipeline" in data:
-                p = data["pipeline"]
-                stages = []
-                for s in p.get("stages", []):
-                    stage = TransformationStage(
-                        name=s["name"],
-                        transformer=s.get("transformer"),
-                        inputs=s.get("inputs", []),
-                        output=s.get("output", ""),
-                        config=s.get("config", {}),
-                    )
-                    stages.append(stage)
-
-                pipeline = TransformationPipeline(
-                    stages=stages,
-                    tracking=p.get("tracking", True),
-                    incremental=p.get("incremental", True),
-                    temp_write=p.get("temp_write", False),
-                    chunk_size=p.get("chunk_size", 100000),
-                    max_retries=p.get("max_retries", 3),
-                )
 
             # Determine medallion layer
             storage = data.get("storage", {})
@@ -245,11 +183,7 @@ class Catalog:
                 medallion_layer=medallion_layer,
                 unity_catalog=storage.get("unity_catalog", data.get("unity_catalog", "main")),
                 staging_source=data.get("staging"),
-                transformation_pipeline=pipeline,
-                transformations=data.get("transformations", {}),
-                lineage=data.get("lineage", {}),
                 polars=data.get("polars", {}),
-                keys=data.get("keys", {}),
                 record_types=data.get("record_types"),
                 sheets=sheets_cfg.get("sheets"),
                 matrix_fields=sheets_cfg.get("matrix_fields"),
@@ -364,48 +298,6 @@ class Catalog:
 
         return lf
 
-    def _apply_column_renames(self, lf: pl.LazyFrame, schema: TableMetadata) -> pl.LazyFrame:
-        """Apply column renames from schema."""
-        if not schema.columns:
-            return lf
-
-        rename_map = {}
-        existing_cols = lf.collect_schema().names()
-
-        for col_def in schema.columns:
-            old_name = col_def.get("name")
-            new_name = col_def.get("output_name")
-            if old_name and new_name and old_name != new_name:
-                if old_name in existing_cols:
-                    rename_map[old_name] = new_name
-
-        if rename_map:
-            lf = lf.rename(rename_map)
-
-        return lf
-
-    def _apply_type_casting(self, lf: pl.LazyFrame, schema: TableMetadata) -> pl.LazyFrame:
-        """Apply type casting from polars configuration."""
-        cast_types = schema.polars.get("cast_types", {})
-        if not cast_types:
-            return lf
-
-        existing_cols = lf.collect_schema().names()
-
-        type_map = {
-            "int64": pl.Int64,
-            "float64": pl.Float64,
-            "string": pl.Utf8,
-            "date": pl.Date,
-            "datetime": pl.Datetime,
-        }
-
-        for col_name, dtype_str in cast_types.items():
-            if col_name in existing_cols and dtype_str in type_map:
-                lf = lf.with_columns(pl.col(col_name).cast(type_map[dtype_str], strict=False))
-
-        return lf
-
     def get_file_patterns(self, table_name: str) -> dict[str, str]:
         """
         Get file patterns from schema storage configuration.
@@ -490,60 +382,6 @@ class Catalog:
             output_name = f"{schema.name}.parquet"
 
         return str(self.storage_config.get_path(tier) / output_name)
-
-    def get_pipeline(self, table_name: str) -> TransformationPipeline | None:
-        """
-        Get pipeline configuration for a table.
-
-                Parameters
-
-                table_name : str
-                    Name of the table
-
-                Returns
-
-                TransformationPipeline or None
-                    Pipeline configuration if defined
-                Stages: 3
-                Tracking: True
-                Chunk size: 100000
-                True
-        """
-        schema = self.get_table_metadata(table_name)
-        return schema.transformation_pipeline if schema else None
-
-    def get_dependencies(self, table_name: str) -> list[str]:
-        """
-        Get all dependencies for a table from its pipeline.
-
-                Parameters
-
-                table_name : str
-                    Name of the table
-
-                Returns
-
-                List[str]
-                    List of dependency table names
-                ['institutional_claim', 'physician_claim', 'dme_claim']
-                ['alr', 'bar', 'eligibility', 'enrollment', 'medical_claim']
-                []
-                Eligibility depends on: ['enrollment']
-                  enrollment depends on: ['beneficiary_demographics']
-        """
-        schema = self.get_table_metadata(table_name)
-        if not schema or not schema.transformation_pipeline:
-            return []
-
-        deps = set()
-        for stage in schema.transformation_pipeline.stages:
-            deps.update(stage.inputs)
-
-        # Also check lineage
-        if schema.lineage:
-            deps.update(schema.lineage.get("depends", []))
-
-        return list(deps)
 
     def get_unity_schema(self, medallion_layer: MedallionLayer) -> str:
         """

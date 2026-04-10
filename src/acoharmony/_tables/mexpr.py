@@ -15,7 +15,6 @@ from acoharmony._registry import (
     with_parser,
     with_sheets,
     with_storage,
-    with_transform,
 )
 
 # Column definitions using header_text matching (column counts vary across PY files)
@@ -77,7 +76,6 @@ _ENROLL_COLS = _SHARED_DIMS + [
         "end_marker_value": "",
     },
 )
-@with_transform()
 @with_storage(
     tier="bronze",
     file_patterns={"reach": ["*MEXPR*"]},

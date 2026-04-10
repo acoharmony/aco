@@ -4,8 +4,6 @@
 """
 Pydantic dataclass model for consolidated_alignment schema.
 
-Generated from: _schemas/consolidated_alignment.yml
-
  a type-safe Pydantic dataclass for the schema with:
 - Runtime type validation
 - Field-level validators for known patterns (MBI, NPI, ICD codes, etc.)
@@ -23,8 +21,6 @@ from acoharmony._registry import (
     register_schema,
     with_parser,
     with_storage,
-    with_transform,
-    with_xref,
 )
 from acoharmony._validators.field_validators import (
     MBI,
@@ -40,7 +36,6 @@ from acoharmony._validators.field_validators import (
 
 @register_schema(name="consolidated_alignment", version=3, tier="silver", description="""\2""")
 @with_parser(type="parquet", encoding="utf-8", has_header=False, embedded_transforms=False)
-@with_transform()
 @with_storage(
     tier="gold",
     medallion_layer="silver",
@@ -50,14 +45,6 @@ from acoharmony._validators.field_validators import (
         "last_updated_by": "aco pipeline aco_alignment",
     },
     tracking={"enable_state": True, "track_processed_files": True},
-)
-@with_xref(
-    table="beneficiary_xref",
-    join_key="bene_mbi",
-    xref_key="prvs_num",
-    current_column="crnt_num",
-    output_column="current_bene_mbi_id",
-    description="Ensure current MBI is applied",
 )
 @dataclass
 class ConsolidatedAlignment:

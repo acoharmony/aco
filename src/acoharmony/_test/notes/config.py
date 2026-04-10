@@ -28,7 +28,6 @@ class TestConfig:
         schema.name = "test_schema"
         schema.description = "A test schema"
         schema.storage = {"tier": "silver"}
-        schema.keys = {"primary_key": ["id_col"]}
         schema.columns = [{"name": "total_spend"}, {"name": "date_col"}]
 
         storage_config = MagicMock()
@@ -38,7 +37,6 @@ class TestConfig:
         assert result.schema_name == "test_schema"
         assert result.schema_description == "A test schema"
         assert result.storage_tier == "silver"
-        assert result.primary_key == "id_col"
         assert "test_schema.parquet" in result.data_path
 
     @pytest.mark.unit
