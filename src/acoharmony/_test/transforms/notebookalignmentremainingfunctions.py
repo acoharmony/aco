@@ -30,8 +30,12 @@ import polars as pl
 import pytest
 import acoharmony
 
-# Add notebooks directory to path
-sys.path.insert(0, str(Path("/opt/s3/data/notebooks")))
+# Add bundled test-fixture notebooks directory to path so we can import
+# `consolidated_alignments` (a marimo notebook) for behavioral tests.
+sys.path.insert(
+    0,
+    str(Path(__file__).resolve().parent.parent / "_fixtures" / "notebooks"),
+)
 
 # Import the notebook module
 
