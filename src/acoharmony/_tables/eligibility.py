@@ -20,7 +20,6 @@ from pydantic.dataclasses import dataclass
 
 from acoharmony._registry import (
     register_schema,
-    with_staging,
     with_storage,
 )
 from acoharmony._validators.field_validators import (
@@ -31,7 +30,6 @@ from acoharmony._validators.field_validators import (
 
 @register_schema(name="eligibility", version=2, tier="gold", description="""\2""")
 @with_storage(tier="gold", medallion_layer="gold")
-@with_staging(source="enrollment")
 @dataclass
 class Eligibility:
     """

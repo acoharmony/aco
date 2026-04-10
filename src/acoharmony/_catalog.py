@@ -45,8 +45,6 @@ class TableMetadata:
             Which layer this table belongs to (Bronze/Silver/Gold)
         unity_catalog : str
             Unity Catalog name (default: "main")
-        staging_source : Optional[str]
-            Source table for staged processing
     """
 
     name: str
@@ -59,8 +57,6 @@ class TableMetadata:
     medallion_layer: MedallionLayer | None = None
     unity_catalog: str = "main"
 
-    # Optional staging inheritance
-    staging_source: str | None = None
     polars: dict[str, Any] = field(default_factory=dict)
 
     # Multi-record file support (TPARC, etc.)
@@ -182,7 +178,6 @@ class Catalog:
                 file_format=file_format,
                 medallion_layer=medallion_layer,
                 unity_catalog=storage.get("unity_catalog", data.get("unity_catalog", "main")),
-                staging_source=data.get("staging"),
                 polars=data.get("polars", {}),
                 record_types=data.get("record_types"),
                 sheets=sheets_cfg.get("sheets"),

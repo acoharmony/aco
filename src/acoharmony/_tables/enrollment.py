@@ -19,7 +19,6 @@ from pydantic.dataclasses import dataclass
 
 from acoharmony._registry import (
     register_schema,
-    with_staging,
     with_storage,
 )
 from acoharmony._validators.field_validators import (
@@ -30,7 +29,6 @@ from acoharmony._validators.field_validators import (
 
 @register_schema(name="enrollment", version=2, tier="silver", description="""\2""")
 @with_storage(tier="silver", medallion_layer="silver", gold={"output_name": "enrollment.parquet"})
-@with_staging(source="beneficiary_demographics")
 @dataclass
 class Enrollment:
     """

@@ -13,8 +13,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-import polars as pl
-
 from .._catalog import Catalog
 from .._decor8 import runner_method
 from .._log.writer import LogWriter
@@ -132,9 +130,6 @@ class TransformRunner:
         if self._has_raw_files(schema):
             # Process from raw files
             df = self.file_processor.process_raw_files(schema_name, schema, tracker, force)
-        elif self._has_staged_input(schema):
-            # Process from staged schema
-            df = self._load_staged_input(schema)
         else:
             return TransformResult.transform_error("No input source defined for schema")
 
@@ -340,31 +335,3 @@ class TransformRunner:
     def _has_raw_files(self, schema: Any) -> bool:
         """Check if schema has raw file patterns defined."""
         return hasattr(schema, "storage") and "file_patterns" in schema.storage
-
-    def _has_staged_input(self, schema: Any) -> bool:
-        """Check if schema has staged input defined."""
-        # Check new field (staging_source) or storage.staged_from
-        if hasattr(schema, "staging_source") and schema.staging_source:
-            return True
-        return hasattr(schema, "storage") and "staged_from" in schema.storage
-
-
-    def _load_staged_input(self, schema: Any) -> pl.LazyFrame | None:
-        """Load data from staged schema."""
-        # Check new field (staging_source) first, then fall back to storage.staged_from
-        staged_from = None
-        if hasattr(schema, "staging_source") and schema.staging_source:
-            staged_from = schema.staging_source
-        elif hasattr(schema, "storage") and "staged_from" in schema.storage:
-            staged_from = schema.storage.get("staged_from")
-
-        if not staged_from:
-            return None
-
-        input_path = self.storage_config.get_path("silver")
-        input_file = input_path / f"{staged_from}.parquet"
-
-        if input_file.exists():
-            return pl.scan_parquet(input_file)
-
-        return None

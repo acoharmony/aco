@@ -12,6 +12,7 @@ from unittest.mock import MagicMock, patch
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import polars as pl
 import pytest
 
 from acoharmony._runner import TransformRunner
@@ -145,16 +146,6 @@ class TestTransformRunnerHelpers:
 
         assert runner._has_raw_files(MockSchema()) is False
 
-    @pytest.mark.unit
-    def test_has_staged_input(self) -> None:
-        """_has_staged_input detects staged_from in schema."""
-        runner = TransformRunner()
-
-        class MockSchema:
-            storage = {"staged_from": "other_schema"}
-
-        assert runner._has_staged_input(MockSchema()) is True
-
 
 @pytest.mark.slow
 class TestTransformRunnerIntegration:
@@ -273,65 +264,6 @@ class TestTransformRunnerMethods:
         assert not test_file.exists()
 
     @pytest.mark.unit
-    def test_has_staged_input_with_staging_source(self) -> None:
-        """_has_staged_input detects staging_source field."""
-        runner = TransformRunner()
-
-        class MockSchema:
-            staging_source = "other_schema"
-            storage = {}
-
-        assert runner._has_staged_input(MockSchema()) is True
-
-    @pytest.mark.unit
-    def test_has_staged_input_returns_false(self) -> None:
-        """_has_staged_input returns False when no staged input defined."""
-        runner = TransformRunner()
-
-        class MockSchema:
-            staging_source = None
-            storage = {}
-
-        assert runner._has_staged_input(MockSchema()) is False
-
-    @pytest.mark.unit
-    def test_load_staged_input_returns_none_when_no_source(self) -> None:
-        """_load_staged_input returns None when no source defined."""
-        runner = TransformRunner()
-
-        class MockSchema:
-            staging_source = None
-            storage = {}
-
-        assert runner._load_staged_input(MockSchema()) is None
-
-    @pytest.mark.unit
-    def test_load_staged_input_returns_none_when_file_missing(self) -> None:
-        """_load_staged_input returns None when source file doesn't exist."""
-
-        runner = TransformRunner()
-
-        class MockSchema:
-            staging_source = "nonexistent_schema"
-            storage = {}
-
-        result = runner._load_staged_input(MockSchema())
-        assert result is None
-
-    @pytest.mark.unit
-    def test_load_staged_input_from_storage(self) -> None:
-        """_load_staged_input loads from storage.staged_from."""
-        runner = TransformRunner()
-
-        class MockSchema:
-            staging_source = None
-            storage = {"staged_from": "source_schema"}
-
-        result = runner._load_staged_input(MockSchema())
-        # Returns None because the file won't exist
-        assert result is None
-
-    @pytest.mark.unit
     def test_clean_temp_files_skips_non_directory(self) -> None:
         """Branch 328->327: when iterdir yields a non-directory, skip it."""
         import tempfile
@@ -441,42 +373,17 @@ class TestTransformRunnerTransformSchemaBranches:
         assert result.failed
 
     @pytest.mark.unit
-    def test_staged_input_branch(self):
-        """Tests staged input branch (lines 135-137)."""
-
-
-        runner = MagicMock(spec=TransformRunner)
-        runner.logger = MagicMock()
-        runner.catalog = MagicMock()
-        runner.catalog.get_table_metadata.return_value = {"name": "test"}
-        runner._has_raw_files.return_value = False
-        runner._has_staged_input.return_value = True
-        runner._load_staged_input.return_value = MagicMock()
-
-        # Simulate lines 131-137: staged input branch
-        schema = runner.catalog.get_table_metadata("test_schema")
-        if runner._has_raw_files(schema):
-            pass
-        elif runner._has_staged_input(schema):
-            runner._load_staged_input(schema)
-
-        runner._load_staged_input.assert_called_once()
-
-    @pytest.mark.unit
     def test_no_input_source_returns_error(self):
-        """Returns error when no input source (lines 138-139)."""
+        """Returns error when no raw files (line 138)."""
 
 
         runner = MagicMock()
         runner.catalog.get_table_metadata.return_value = {"name": "test"}
         runner._has_raw_files.return_value = False
-        runner._has_staged_input.return_value = False
 
-        # Simulate lines 131-139
+        # Simulate the else branch when no raw files
         schema = runner.catalog.get_table_metadata("test_schema")
         if runner._has_raw_files(schema):
-            pass
-        elif runner._has_staged_input(schema):
             pass
         else:
             result = TransformResult.transform_error("No input source defined for schema")
@@ -521,37 +428,9 @@ class TestTransformSchemaAllBranches:
             runner.catalog = MockCatalog()
             runner.catalog.get_table_metadata.return_value = MagicMock()
             runner._has_raw_files = MagicMock(return_value=False)
-            runner._has_staged_input = MagicMock(return_value=False)
 
             result = runner.transform_schema("cclf0")
             assert result.failed
-
-    @pytest.mark.unit
-    def test_staged_input_and_transform_lines135_149(self, tmp_path):
-        """Lines 135, 137, 145, 149: staged input loads and transforms."""
-
-
-
-        mock_storage = MagicMock()
-        mock_storage.get_path.return_value = str(tmp_path)
-        mock_storage.get_storage_type.return_value = "local"
-
-        mock_result = MagicMock()
-        mock_result.failed = False
-
-        with patch("acoharmony._runner._core.StorageBackend", return_value=mock_storage), \
-             patch("acoharmony._runner._core.Catalog") as MockCatalog:
-            runner = TransformRunner(mock_storage)
-            runner.catalog = MockCatalog()
-            runner.catalog.get_table_metadata.return_value = MagicMock()
-            runner._has_raw_files = MagicMock(return_value=False)
-            runner._has_staged_input = MagicMock(return_value=True)
-            runner._load_staged_input = MagicMock(return_value=pl.DataFrame({"a": [1]}).lazy())
-            runner.schema_transformer = MagicMock()
-            runner.schema_transformer.transform_schema.return_value = mock_result
-
-            result = runner.transform_schema("cclf0")
-            assert result is mock_result
 
     @pytest.mark.unit
     def test_raw_files_path_line134(self, tmp_path):

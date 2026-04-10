@@ -16,7 +16,6 @@ from pydantic.dataclasses import dataclass
 
 from acoharmony._registry import (
     register_schema,
-    with_staging,
     with_storage,
 )
 
@@ -27,7 +26,6 @@ from acoharmony._registry import (
     medallion_layer="silver",
     gold={"output_name": "beneficiary_xref.parquet"},
 )
-@with_staging(source="cclf9")
 @dataclass
 class BeneficiaryXref:
     """

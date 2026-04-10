@@ -84,7 +84,6 @@ from acoharmony._validators.field_validators import (
     medallion_layer="silver",
     bronze={"output_name": "hdai_reach.parquet"},
     silver={
-        "staged_from": "hdai_reach",
         "output_name": "hdai_reach.parquet",
         "refresh_frequency": "monthly",
     },
