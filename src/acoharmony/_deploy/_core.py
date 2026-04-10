@@ -9,7 +9,6 @@ Docker Compose operations, profile-aware service selection, and command executio
 """
 
 import os
-import tomllib
 from pathlib import Path
 from typing import Any
 
@@ -59,7 +58,7 @@ class DeploymentManager:
 
     def _get_profile(self) -> str:
         """
-        Get active profile from environment or use default from pyproject.toml.
+        Get the active profile from the environment or the packaged aco.toml.
 
                 Returns
 
@@ -71,40 +70,16 @@ class DeploymentManager:
         if env_profile:
             return env_profile
 
-        # Read default from pyproject.toml
+        # Read default from the packaged aco.toml
         try:
-            pyproject_path = self._find_pyproject()
-            if pyproject_path and pyproject_path.exists():
-                with open(pyproject_path, "rb") as f:
-                    pyproject_data = tomllib.load(f)
-                    default_profile = (
-                        pyproject_data.get("tool", {})
-                        .get("acoharmony", {})
-                        .get("default_profile", "dev")
-                    )
-                    return default_profile
+            from .._config_loader import load_aco_config
+
+            return load_aco_config().get("default_profile", "dev")
         except Exception:
             pass
 
         # Final fallback
         return "dev"
-
-    def _find_pyproject(self) -> Path | None:
-        """
-        Find pyproject.toml file.
-
-                Returns
-
-                Path | None
-                    Path to pyproject.toml or None if not found
-        """
-        current = Path(__file__).parent
-        while current != current.parent:
-            pyproject = current / "pyproject.toml"
-            if pyproject.exists():
-                return pyproject
-            current = current.parent
-        return None
 
     def _get_compose_path(self) -> Path:
         """

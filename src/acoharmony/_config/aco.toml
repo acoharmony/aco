@@ -1,0 +1,231 @@
+default_profile = "dev"
+project_name = "ACO Harmony"
+version = "2.0.0"
+
+[logging]
+level = "INFO"
+format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
+[fixtures]
+# Test fixtures configuration
+fixtures_dir = "/opt/s3/data/workspace/logs/dev/fixtures"
+duckdb_path = "/opt/s3/data/workspace/logs/dev/test.duckdb"
+default_n_rows = 1000
+schemas = ["fixtures", "bronze", "silver", "gold"]
+
+
+[profiles.dev]
+environment = "development"
+
+[profiles.dev.storage]
+backend = "local"
+data_path = "/opt/s3/data/workspace"
+
+[profiles.dev.storage.filesystem]
+type = "local"
+permissions = "755"
+
+[profiles.dev.processing]
+batch_size = 10000
+max_workers = 12  # All CPU cores
+memory_limit = "48GB"  # ~89% of total RAM
+
+[profiles.dev.polars]
+# Optimize Polars for STREAMING to prevent memory exhaustion
+max_threads = 12  # Match max_workers for consistency
+streaming_chunk_size = 10000  # VERY SMALL: Prevents wslhost.exe memory fragmentation
+string_cache = false  # Disabled to prevent memory accumulation across pipeline stages
+force_streaming = true  # CRITICAL: Force streaming engine for all operations
+# PyArrow optimizations
+use_pyarrow = true
+arrow_large_utf8 = true
+
+[profiles.dev.fouricli]
+default_apm_id = "D0259"
+default_year = 2026  # Note: Code dynamically uses current year if not set
+config_path = "/usr/local/bin/config.txt"
+binary_path = "/usr/local/bin/4icli"
+
+[profiles.dev.features]
+debug_mode = true
+verbose_logging = true
+data_validation = true
+performance_monitoring = false
+
+[profiles.dev.data_quality]
+enable_validation = true
+sample_rate = 0.1
+fail_on_error = false
+
+[profiles.local]
+environment = "local"
+
+[profiles.local.storage]
+backend = "local"
+data_path = "/opt/s3/data/workspace"
+
+[profiles.local.storage.filesystem]
+type = "local"
+auto_create_dirs = true
+
+[profiles.local.fouricli]
+default_apm_id = "D0259"
+default_year = 2026  # Note: Code dynamically uses current year if not set
+config_path = "/usr/local/bin/config.txt"
+binary_path = "/usr/local/bin/4icli"
+
+[profiles.local.processing]
+batch_size = 10000
+max_workers = 12  # All CPU cores
+memory_limit = "48GB"  # ~89% of total RAM
+
+[profiles.local.polars]
+# Optimized for local development
+max_threads = 12  # Match max_workers
+streaming_chunk_size = 100000
+string_cache = true
+use_pyarrow = true
+arrow_large_utf8 = true
+
+[profiles.local.features]
+debug_mode = true
+verbose_logging = true
+data_validation = false
+performance_monitoring = false
+use_sample_data = true
+
+[profiles.local.data_quality]
+enable_validation = false
+
+[profiles.local.development]
+hot_reload = true
+profiling = true
+test_mode = true
+
+[profiles.staging]
+environment = "staging"
+
+[profiles.staging.storage]
+backend = "s3api"
+endpoint = "http://s3api:10001"
+bucket = "aco"
+access_key = "${S3_ACCESS_KEY:-aco_user}"
+secret_key = "${S3_SECRET_KEY:-aco_password}"
+use_ssl = false
+verify_ssl = false
+region = "us-east-1"
+data_path = "s3://aco"
+
+[profiles.staging.storage.duckdb]
+enabled = true
+database = "/opt/s3/data/workspace/acoharmony.duckdb"
+
+[profiles.staging.fouricli]
+default_apm_id = "D0259"
+default_year = 2026  # Note: Code dynamically uses current year if not set
+config_path = "deploy/compose/conf/4icli/config.txt"
+binary_path = "/usr/local/bin/4icli"
+
+[profiles.staging.processing]
+batch_size = 50000
+max_workers = 12  # All CPU cores
+memory_limit = "48GB"  # ~89% of total RAM
+
+[profiles.staging.polars]
+# Optimized for staging environment
+max_threads = 12
+streaming_chunk_size = 150000
+string_cache = true
+use_pyarrow = true
+arrow_large_utf8 = true
+
+[profiles.staging.features]
+debug_mode = false
+verbose_logging = true
+data_validation = true
+performance_monitoring = true
+
+[profiles.staging.data_quality]
+enable_validation = true
+sample_rate = 0.05
+fail_on_error = true
+
+[profiles.staging.monitoring]
+metrics_enabled = false
+metrics_endpoint = "http://metrics:8080"
+alert_threshold = 0.95
+
+[profiles.prod]
+environment = "production"
+
+[profiles.prod.storage]
+backend = "databricks"
+databricks_host = "${DATABRICKS_HOST}"
+databricks_token = "${DATABRICKS_TOKEN}"
+catalog = "main"
+schema = "aco_harmony"
+data_path = "/Volumes/main/aco_harmony/data"
+
+[profiles.prod.storage.s3]
+bucket = "harmonycares-prod"
+region = "us-east-1"
+use_ssl = true
+verify_ssl = true
+
+[profiles.prod.database.edw]
+enabled = true
+host = "prod-db.harmonycares.internal"
+port = 5432
+database = "aco_prod"
+schema = "aco_harmony"
+ssl_mode = "require"
+
+[profiles.prod.database.edw.connection_pool]
+min_size = 5
+max_size = 20
+timeout = 30
+
+[profiles.prod.fouricli]
+default_apm_id = "D0259"
+default_year = 2026  # Note: Code dynamically uses current year if not set
+config_path = "deploy/compose/conf/4icli/config.txt"
+binary_path = "/usr/local/bin/4icli"
+
+[profiles.prod.processing]
+batch_size = 100000
+max_workers = 16
+memory_limit = "32GB"
+checkpoint_interval = 1000000
+
+[profiles.prod.polars]
+# Maximum performance for production
+max_threads = 16  # Match max_workers
+streaming_chunk_size = 250000
+string_cache = true
+use_pyarrow = true
+arrow_large_utf8 = true
+
+[profiles.prod.features]
+debug_mode = false
+verbose_logging = false
+data_validation = true
+performance_monitoring = true
+audit_logging = true
+
+[profiles.prod.data_quality]
+enable_validation = true
+sample_rate = 0.01
+fail_on_error = true
+quarantine_bad_records = true
+
+[profiles.prod.monitoring]
+metrics_enabled = true
+metrics_endpoint = "https://metrics.harmonycares.com"
+alert_threshold = 0.99
+pagerduty_enabled = true
+
+[profiles.prod.security]
+encrypt_at_rest = true
+encrypt_in_transit = true
+audit_all_access = true
+pii_masking = true

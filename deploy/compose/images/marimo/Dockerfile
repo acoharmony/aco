@@ -1,41 +1,72 @@
-# Use uv base image with Python 3.13
-FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim
+# syntax=docker/dockerfile:1.7
+# Multi-stage build for the Marimo notebook runtime.
+#
+# Stage 1 (builder) produces a platform-independent .venv from the wheel
+# via `uv sync --no-editable`. Stage 2 (runtime) copies only the venv and
+# the marimo config/entrypoint, so the final image contains no source tree,
+# no .git, and no editable egg-link — only the installed wheel.
 
-LABEL org.opencontainers.image.source=https://github.com/acoharmony/aco
+# -----------------------------------------------------------------------------
+# Stage 1: builder — produce /opt/venv from a non-editable install
+# -----------------------------------------------------------------------------
+FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim AS builder
 
-# Install git (required by hatch-vcs for dynamic versioning during uv run)
-RUN apt-get update && apt-get install -y --no-install-recommends git && \
-    rm -rf /var/lib/apt/lists/*
+# hatch-vcs normally reads the version from `.git/`, but .git is excluded
+# from the build context (performance + cleanliness). Instead, the caller
+# passes the version explicitly via --build-arg ACOHARMONY_VERSION=X.Y.Z,
+# which is forwarded to hatch-vcs through SETUPTOOLS_SCM_PRETEND_VERSION.
+ARG ACOHARMONY_VERSION=0.0.0+local
 
-# Create care group and user with matching IDs from host
-RUN groupadd -g 1002 care && \
-    groupadd -g 989 docker && \
-    useradd -m -u 1002 -g 1002 -G 989 -s /bin/bash care
+ENV UV_LINK_MODE=copy \
+    UV_COMPILE_BYTECODE=1 \
+    UV_PROJECT_ENVIRONMENT=/opt/venv \
+    SETUPTOOLS_SCM_PRETEND_VERSION=${ACOHARMONY_VERSION}
 
-# Create necessary directories with correct permissions
-RUN mkdir -p /home/care/.config/marimo /home/care/.cache/uv && \
-    chown -R 1002:1002 /home/care
+WORKDIR /src
 
-# Copy marimo config
-COPY conf/marimo/marimo.toml /home/care/.config/marimo/marimo.toml
-RUN chown 1002:1002 /home/care/.config/marimo/marimo.toml
+# Copy only the files `uv sync` needs to resolve & build the wheel.
+COPY pyproject.toml uv.lock README.md ./
+COPY src ./src
 
-# Set environment to use mounted venv from host
-ENV UV_PROJECT_ENVIRONMENT=/home/care/acoharmony/.venv
-# Ensure Python 3.13 from uv is first, then venv
-ENV PATH="/home/care/.local/share/uv/python/cpython-3.13.7-linux-x86_64-gnu/bin:/home/care/acoharmony/.venv/bin:$PATH"
-ENV HOME=/home/care
+# --no-editable ensures the venv contains a built copy of the wheel instead
+# of an egg-link pointing back at /src. --no-dev skips test/lint dependencies.
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-editable --no-dev
 
-# Copy entrypoint script (injects custom homepage into marimo's index.html at startup)
-COPY images/marimo/entrypoint.sh /usr/local/bin/entrypoint.sh
+# -----------------------------------------------------------------------------
+# Stage 2: runtime — minimal image with only the built venv
+# -----------------------------------------------------------------------------
+FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim AS runtime
 
-# Switch to care user
+LABEL org.opencontainers.image.source=https://github.com/acoharmony/aco \
+      aco.type="gui" \
+      aco.description="Marimo notebook server with acoharmony pre-installed"
+
+# Create care group + user with IDs matching the host.
+RUN groupadd -g 1002 care \
+    && groupadd -g 989 docker \
+    && useradd -m -u 1002 -g 1002 -G 989 -s /bin/bash care \
+    && mkdir -p /home/care/.config/marimo /home/care/.cache/uv \
+    && chown -R 1002:1002 /home/care
+
+# Marimo config (custom homepage + HarmonyCares theme).
+COPY --chown=1002:1002 deploy/compose/conf/marimo/marimo.toml \
+     /home/care/.config/marimo/marimo.toml
+
+# Entrypoint that injects the custom homepage into marimo's index.html.
+COPY --chown=1002:1002 deploy/compose/images/marimo/entrypoint.sh \
+     /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
+# Copy the prebuilt venv from the builder stage.
+COPY --from=builder --chown=1002:1002 /opt/venv /opt/venv
+
+ENV PATH="/opt/venv/bin:${PATH}" \
+    VIRTUAL_ENV=/opt/venv \
+    HOME=/home/care
+
 USER care
-
-# Set working directory to notebooks
 WORKDIR /opt/s3/data/notebooks
-
-# Expose marimo default port
 EXPOSE 10012
 
 ENTRYPOINT ["entrypoint.sh"]

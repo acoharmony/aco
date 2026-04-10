@@ -550,119 +550,123 @@ class TestGetConfigSingleton:
 
 
 class TestLoadProfileConfigAll:
-    """Tests for load_profile_config_all."""
+    """Tests for load_profile_config_all (reads packaged aco.toml)."""
 
     @pytest.mark.unit
-    def test_returns_empty_when_no_pyproject(self):
-
-        with patch("pathlib.Path.exists", return_value=False):
+    def test_returns_empty_when_aco_toml_missing(self):
+        """If load_aco_config raises FileNotFoundError, return {}."""
+        with patch(
+            "acoharmony._config_loader.load_aco_config",
+            side_effect=FileNotFoundError("aco.toml missing"),
+        ):
             result = load_profile_config_all()
         assert result == {}
 
     @pytest.mark.unit
     def test_returns_empty_on_exception(self):
-
-        with patch("pathlib.Path.exists", side_effect=Exception("boom")):
+        """Any exception from load_aco_config becomes an empty dict."""
+        with patch(
+            "acoharmony._config_loader.load_aco_config",
+            side_effect=RuntimeError("boom"),
+        ):
             result = load_profile_config_all()
         assert result == {}
 
     @pytest.mark.unit
     def test_returns_profile_data(self):
-
-        toml_data = {
-            "tool": {
-                "acoharmony": {
-                    "default_profile": "test",
-                    "profiles": {
-                        "test": {"processing": {"batch_size": 999}},
-                    },
-                }
-            }
+        """Returns the requested profile's config dict."""
+        fake_config = {
+            "default_profile": "test",
+            "profiles": {"test": {"processing": {"batch_size": 999}}},
         }
-        with patch("pathlib.Path.exists", return_value=True):
-            with patch("builtins.open", MagicMock()):
-                with patch("acoharmony.config.tomllib.load", return_value=toml_data):
-                    result = load_profile_config_all(profile="test")
+        with patch(
+            "acoharmony._config_loader.load_aco_config",
+            return_value=fake_config,
+        ):
+            result = load_profile_config_all(profile="test")
         assert result == {"processing": {"batch_size": 999}}
 
     @pytest.mark.unit
     def test_profile_not_found_returns_empty(self):
-
-        toml_data = {
-            "tool": {"acoharmony": {"profiles": {"dev": {"x": 1}}}}
-        }
-        with patch("pathlib.Path.exists", return_value=True):
-            with patch("builtins.open", MagicMock()):
-                with patch("acoharmony.config.tomllib.load", return_value=toml_data):
-                    result = load_profile_config_all(profile="prod")
+        """Unknown profile yields empty dict."""
+        fake_config = {"profiles": {"dev": {"x": 1}}}
+        with patch(
+            "acoharmony._config_loader.load_aco_config",
+            return_value=fake_config,
+        ):
+            result = load_profile_config_all(profile="prod")
         assert result == {}
 
     @pytest.mark.unit
     def test_load_profile_config_all_exception(self):
-
-        with patch("builtins.open", side_effect=Exception("boom")):
+        """Open-time exception in loader still produces empty dict."""
+        with patch(
+            "acoharmony._config_loader.load_aco_config",
+            side_effect=OSError("disk on fire"),
+        ):
             result = load_profile_config_all("dev")
-            assert result == {}
+        assert result == {}
 
 
 class TestLoadPolarsConfigFromProfile:
-    """Tests for load_polars_config_from_profile."""
+    """Tests for load_polars_config_from_profile (reads packaged aco.toml)."""
 
     @pytest.mark.unit
-    def test_returns_empty_when_no_pyproject(self):
-
-        with patch("pathlib.Path.exists", return_value=False):
+    def test_returns_empty_when_aco_toml_missing(self):
+        """If load_aco_config raises FileNotFoundError, return {}."""
+        with patch(
+            "acoharmony._config_loader.load_aco_config",
+            side_effect=FileNotFoundError("aco.toml missing"),
+        ):
             result = load_polars_config_from_profile()
         assert result == {}
 
     @pytest.mark.unit
     def test_returns_polars_config(self):
-
-        toml_data = {
-            "tool": {
-                "acoharmony": {
-                    "default_profile": "dev",
-                    "profiles": {
-                        "dev": {"polars": {"max_threads": 8}},
-                    },
-                }
-            }
+        """Returns only the polars sub-section of the requested profile."""
+        fake_config = {
+            "default_profile": "dev",
+            "profiles": {"dev": {"polars": {"max_threads": 8}}},
         }
-        with patch("pathlib.Path.exists", return_value=True):
-            with patch("builtins.open", MagicMock()):
-                with patch("acoharmony.config.tomllib.load", return_value=toml_data):
-                    result = load_polars_config_from_profile(profile="dev")
+        with patch(
+            "acoharmony._config_loader.load_aco_config",
+            return_value=fake_config,
+        ):
+            result = load_polars_config_from_profile(profile="dev")
         assert result == {"max_threads": 8}
 
     @pytest.mark.unit
     def test_returns_empty_on_exception(self):
-
-        with patch("pathlib.Path.exists", side_effect=RuntimeError("x")):
+        """Arbitrary exceptions degrade gracefully to empty dict."""
+        with patch(
+            "acoharmony._config_loader.load_aco_config",
+            side_effect=RuntimeError("x"),
+        ):
             result = load_polars_config_from_profile()
         assert result == {}
 
     @pytest.mark.unit
     def test_profile_not_in_profiles(self):
-
-        with patch("builtins.open", MagicMock()):
-            with patch("acoharmony.config.tomllib") as mock_tomllib:
-                mock_tomllib.load.return_value = {
-                    "tool": {"acoharmony": {"profiles": {"dev": {"polars": {"max_threads": 2}}}}}
-                }
-                with patch("acoharmony.config.Path") as MockPath:
-                    mock_path = MagicMock()
-                    mock_path.exists.return_value = True
-                    MockPath.__truediv__ = lambda self, other: mock_path
-                    MockPath.return_value = mock_path
-                    result = load_polars_config_from_profile("nonexistent")
-                    assert result == {}
+        """Unknown profile yields empty dict."""
+        fake_config = {
+            "profiles": {"dev": {"polars": {"max_threads": 2}}},
+        }
+        with patch(
+            "acoharmony._config_loader.load_aco_config",
+            return_value=fake_config,
+        ):
+            result = load_polars_config_from_profile("nonexistent")
+        assert result == {}
 
     @pytest.mark.unit
     def test_exception_returns_empty(self):
-
-        with patch("builtins.open", side_effect=Exception("boom")):
+        """Any exception from load_aco_config → empty dict."""
+        with patch(
+            "acoharmony._config_loader.load_aco_config",
+            side_effect=Exception("boom"),
+        ):
             result = load_polars_config_from_profile("dev")
-            assert result == {}
+        assert result == {}
 
 
 class TestApplyPolarsConfig:

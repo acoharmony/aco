@@ -16,42 +16,18 @@ except ImportError:
 
 # Initialize Polars environment variables BEFORE any imports
 # This ensures optimal thread pool size is set when Polars is first imported
-import os
-from pathlib import Path
+import os  # noqa: E402
 
 
 def _init_polars_env() -> None:
     """Set Polars environment variables from profile before import."""
     try:
-        import tomllib
-    except ImportError:
-        try:
-            import tomli as tomllib  # type: ignore
-        except ImportError:
-            return  # Skip if tomli not available
+        from ._config_loader import load_aco_config
 
-    try:
-        # Find pyproject.toml
-        package_root = Path(__file__).parent.parent.parent
-        pyproject_path = package_root / "pyproject.toml"
-
-        if not pyproject_path.exists():
-            return
-
-        with open(pyproject_path, "rb") as f:
-            pyproject_data = tomllib.load(f)
-
-        # Get active profile
-        acoharmony_config = pyproject_data.get("tool", {}).get("acoharmony", {})
-        active_profile = os.getenv("ACO_PROFILE") or acoharmony_config.get("default_profile", "dev")
-
-        # Get Polars config from profile
+        config = load_aco_config()
+        active_profile = os.getenv("ACO_PROFILE") or config.get("default_profile", "dev")
         polars_config = (
-            pyproject_data.get("tool", {})
-            .get("acoharmony", {})
-            .get("profiles", {})
-            .get(active_profile, {})
-            .get("polars", {})
+            config.get("profiles", {}).get(active_profile, {}).get("polars", {})
         )
 
         # Set environment variable for thread pool BEFORE polars import

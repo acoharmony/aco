@@ -562,24 +562,15 @@ class TestConfigFromProfile:
             assert cfg._profile_config_path is None
 
     @pytest.mark.unit
-    def test_pyproject_not_found(self):
-        """Cover line 35: FileNotFoundError when pyproject.toml missing."""
+    def test_aco_toml_not_found(self):
+        """load_profile_config bubbles FileNotFoundError when aco.toml is missing."""
         from acoharmony._4icli.config import load_profile_config
 
-        with patch("acoharmony._4icli.config.Path.exists", return_value=False):
-            # This patches Path.exists globally which is messy
-            # Instead mock the specific path
-            pass
-
-        # More targeted approach
-        original_exists = Path.exists
-        def fake_exists(self_path):
-            if "pyproject.toml" in str(self_path):
-                return False
-            return original_exists(self_path)
-
-        with patch.object(Path, "exists", fake_exists):
-            with pytest.raises(FileNotFoundError, match="pyproject.toml not found"):
+        with patch(
+            "acoharmony._config_loader.load_aco_config",
+            side_effect=FileNotFoundError("aco.toml not found"),
+        ):
+            with pytest.raises(FileNotFoundError, match="aco.toml not found"):
                 load_profile_config()
 
 

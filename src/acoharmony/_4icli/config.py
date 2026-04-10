@@ -21,29 +21,14 @@ def get_current_year() -> int:
 
 
 def load_profile_config(profile: str | None = None) -> dict[str, Any]:
-    """Load configuration from pyproject.toml."""
-    try:
-        import tomllib
-    except ImportError:
-        import tomli as tomllib  # Python < 3.11
+    """Load 4icli configuration from the packaged aco.toml."""
+    from .._config_loader import load_aco_config
 
-    # Find pyproject.toml in the package root
-    package_root = Path(__file__).parent.parent.parent.parent
-    pyproject_path = package_root / "pyproject.toml"
+    config = load_aco_config()
+    profiles = config.get("profiles", {})
 
-    if not pyproject_path.exists():
-        raise FileNotFoundError(f"pyproject.toml not found: {pyproject_path}")
-
-    with open(pyproject_path, "rb") as f:
-        pyproject_data = tomllib.load(f)
-
-    # Get ACO Harmony configuration
-    acoharmony_config = pyproject_data.get("tool", {}).get("acoharmony", {})
-    profiles = acoharmony_config.get("profiles", {})
-
-    # Get active profile
     active_profile = (
-        profile or os.getenv("ACO_PROFILE") or acoharmony_config.get("default_profile", "dev")
+        profile or os.getenv("ACO_PROFILE") or config.get("default_profile", "dev")
     )
 
     if active_profile not in profiles:
