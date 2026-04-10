@@ -41,15 +41,28 @@ jobs:
           else echo "color=red" >> "$GITHUB_OUTPUT"; fi
 
       - name: Upload coverage to Codecov
-        # Codecov disabled tokenless uploads in 2025; only run when a token is set.
+        # codecov/codecov-action@v6.0.0 has a bug where the `upload-coverage`
+        # subcommand receives a spurious `--repo` flag and dies with:
+        #   Error: No such option: --repo
+        # Invoking the CLI directly with `upload-process` (the canonical form
+        # per https://docs.codecov.com/docs/codecov-uploader) sidesteps it.
+        # The step is gated on the token secret and tolerant of upload
+        # failures — CI doesn't fail if Codecov is flaky.
         if: always() && env.CODECOV_TOKEN != ''
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-        uses: codecov/codecov-action@v6
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          files: .dev/coverage.xml
-          fail_ci_if_error: false
+        run: |
+          set +e
+          curl -fsSL https://cli.codecov.io/latest/linux/codecov -o codecov
+          chmod +x codecov
+          ./codecov --verbose upload-process \
+            --disable-search \
+            --token "${CODECOV_TOKEN}" \
+            --name "ci-${{ github.run_id }}" \
+            --file .dev/coverage.xml \
+            --git-service github
+          echo "Codecov upload exit code: $?"
+          exit 0
 
       - name: Coverage badge
         if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
