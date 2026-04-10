@@ -41,9 +41,13 @@ jobs:
           else echo "color=red" >> "$GITHUB_OUTPUT"; fi
 
       - name: Upload coverage to Codecov
-        if: always()
+        # Codecov disabled tokenless uploads in 2025; only run when a token is set.
+        if: always() && env.CODECOV_TOKEN != ''
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         uses: codecov/codecov-action@v6
         with:
+          token: ${{ secrets.CODECOV_TOKEN }}
           files: .dev/coverage.xml
           fail_ci_if_error: false
 

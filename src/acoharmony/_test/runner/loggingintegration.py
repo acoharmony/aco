@@ -6,6 +6,7 @@ Tests that logging works correctly across all components.
 
 import logging
 import threading
+import time
 
 # Magic auto-import: brings in ALL exports from module under test
 from acoharmony._test._import_magic import auto_import

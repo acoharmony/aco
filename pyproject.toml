@@ -390,7 +390,6 @@ norecursedirs = [
     "*.egg-info",
     "workspace",
     "_helpers",  # Test utilities, not tests
-    "tuva",  # Third-party vendored dbt tests
 ]
 addopts = [
     "--strict-markers",
@@ -402,6 +401,10 @@ addopts = [
     # This avoids the internal combine() race when parallel agents run.
     # See .claude/skills/ for the coverage workflow.
     "--no-cov",                  # Disable pytest-cov; coverage.py handles it
+    # Skip vendored third-party dbt test trees under _test/tuva/depends/repos/.
+    # We DO want to run our own _test/tuva/* tests (those cover _tuva/*),
+    # and our own _test/tuva/depends/setup.py.
+    "--ignore=src/acoharmony/_test/tuva/depends/repos",
 ]
 filterwarnings = [
     "ignore::DeprecationWarning",
