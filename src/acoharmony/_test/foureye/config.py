@@ -648,3 +648,70 @@ class TestFourICLIConfig:
         )
         assert config.default_apm_id == "D0259"
         assert config.default_year == 2025
+
+
+class TestFourICLIConfigCoverageGaps:
+    """Targeted tests for the last branch-coverage gaps in _4icli/config.py."""
+
+    @pytest.mark.unit
+    def test_sync_config_skips_copy_when_target_is_newer(self, tmp_path, monkeypatch) -> None:
+        """Branch 233->exit: target exists and source is not newer → skip copy."""
+        import os
+        import shutil
+
+        from acoharmony._4icli import config as config_module
+
+        cfg = _make_config(tmp_path)
+        source = tmp_path / "source_config.txt"
+        source.write_text("source-credentials")
+        cfg._profile_config_path = source
+
+        # Sync computes:
+        #   project_root = Path(__file__).parent.parent.parent.parent
+        # The real file is at src/acoharmony/_4icli/config.py (4 ancestors
+        # up == repo root). We place a fake __file__ 4 ancestors deep under
+        # tmp_path so the resolved project_root lands under our tmp dir.
+        fake_root = tmp_path / "fake_root"
+        fake_module_file = fake_root / "src" / "acoharmony" / "_4icli" / "config.py"
+        fake_module_file.parent.mkdir(parents=True)
+        fake_module_file.touch()
+        monkeypatch.setattr(config_module, "__file__", str(fake_module_file))
+
+        target = fake_root / "deploy" / "compose" / "conf" / "4icli" / "config.txt"
+        target.parent.mkdir(parents=True)
+        target.write_text("existing-target")
+        # Backdate the source so `source.st_mtime < target.st_mtime`.
+        old = target.stat().st_mtime - 10_000
+        os.utime(source, (old, old))
+
+        with patch.object(shutil, "copy2") as mock_copy:
+            cfg.sync_config_to_deployment()
+            mock_copy.assert_not_called()
+
+        assert target.read_text() == "existing-target"
+
+    @pytest.mark.unit
+    def test_ensure_config_file_returns_compose_fallback(self, tmp_path, monkeypatch) -> None:
+        """Line 275: fall through to deploy/compose/conf/4icli/config.txt and return it."""
+        from acoharmony._4icli import config as config_module
+
+        cfg = _make_config(tmp_path)
+        # No profile config path → step 1 skipped.
+        cfg._profile_config_path = None
+        # Working dir has no config.txt → step 2 skipped.
+        (cfg.working_dir / "config.txt").unlink(missing_ok=True)
+
+        # Point the module's __file__ 4 ancestors deep under tmp_path so
+        # `Path(__file__).parent.parent.parent.parent` lands on our fake root.
+        fake_root = tmp_path / "fake_root"
+        fake_module_file = fake_root / "src" / "acoharmony" / "_4icli" / "config.py"
+        fake_module_file.parent.mkdir(parents=True)
+        fake_module_file.touch()
+        monkeypatch.setattr(config_module, "__file__", str(fake_module_file))
+
+        compose_config = fake_root / "deploy" / "compose" / "conf" / "4icli" / "config.txt"
+        compose_config.parent.mkdir(parents=True)
+        compose_config.write_text("compose-creds")
+
+        result = cfg.ensure_config_file()
+        assert result == compose_config

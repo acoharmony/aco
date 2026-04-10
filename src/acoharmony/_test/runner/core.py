@@ -282,6 +282,54 @@ class TestTransformRunnerMethods:
         assert non_dir_file.exists()
         non_dir_file.unlink()
 
+    @pytest.mark.unit
+    def test_clean_temp_files_skips_young_file(self) -> None:
+        """Branch 326->324: all_files=False and file_age <= age_limit → skip unlink."""
+        import tempfile
+
+        runner = TransformRunner()
+        temp_dir = Path(tempfile.gettempdir()) / "acoharmony"
+        temp_dir.mkdir(parents=True, exist_ok=True)
+        schema_dir = temp_dir / "young_schema"
+        schema_dir.mkdir(exist_ok=True)
+        young_file = schema_dir / "fresh.parquet"
+        young_file.write_bytes(b"recent")
+
+        # Freshly created file is < 24h old → should NOT be unlinked
+        runner.clean_temp_files(all_files=False)
+
+        assert young_file.exists()
+        # Cleanup
+        young_file.unlink()
+        schema_dir.rmdir()
+
+    @pytest.mark.unit
+    def test_clean_temp_files_keeps_nonempty_schema_dir(self) -> None:
+        """Branch 331->322: list(schema_dir.iterdir()) non-empty → skip rmdir."""
+        import tempfile
+
+        runner = TransformRunner()
+        temp_dir = Path(tempfile.gettempdir()) / "acoharmony"
+        temp_dir.mkdir(parents=True, exist_ok=True)
+        schema_dir = temp_dir / "nonempty_schema"
+        schema_dir.mkdir(exist_ok=True)
+        # A non-parquet sibling that the loop won't touch → dir stays non-empty
+        leftover = schema_dir / "keepme.txt"
+        leftover.write_text("not a parquet")
+        # A parquet file that WILL be removed (all_files=True)
+        parquet = schema_dir / "remove.parquet"
+        parquet.write_bytes(b"bye")
+
+        runner.clean_temp_files(all_files=True)
+
+        # Parquet removed, but schema_dir kept because the .txt remained
+        assert not parquet.exists()
+        assert schema_dir.exists()
+        assert leftover.exists()
+        # Cleanup
+        leftover.unlink()
+        schema_dir.rmdir()
+
 
 
 # © 2025 HarmonyCares

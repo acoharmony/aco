@@ -1941,3 +1941,141 @@ class TestRenameDictOldNameNotInColumns:
         # The rename should succeed for the matching col, or skip gracefully
         # Key assertion: no crash; the column exists as either renamed or original
         assert "label" in df.columns or "settlement" in df["sheet_type"].to_list()
+
+
+class TestExtractDynamicYearsBranchCoverage:
+    """Targeted tests for branch gaps in ``extract_dynamic_years``."""
+
+    @pytest.mark.unit
+    def test_skips_out_of_bounds_column_index(self, tmp_path, monkeypatch):
+        """Line 181: col_idx >= len(year_row) triggers ``continue``."""
+        import polars as _pl  # local alias to avoid shadowing
+        from acoharmony._parsers import _reach_bnmr as mod
+
+        # A 2-column header row; asking for col_idx=5 is out of bounds.
+        fake_df = _pl.DataFrame(
+            {"a": ["2023", "ignored"], "b": ["2024", "ignored"]}, strict=False
+        )
+        monkeypatch.setattr(mod.pl, "read_excel", lambda *a, **k: fake_df)
+
+        result = mod.extract_dynamic_years(
+            tmp_path / "fake.xlsx",
+            sheet_index=0,
+            year_header_row=0,
+            year_columns=[0, 5],
+        )
+        # col 0 yields "2023"; col 5 is skipped.
+        assert result == {0: "2023"}
+
+    @pytest.mark.unit
+    def test_skips_none_cell_value(self, tmp_path, monkeypatch):
+        """Line 184: cell_value is falsy (None) triggers ``continue``."""
+        import polars as _pl
+        from acoharmony._parsers import _reach_bnmr as mod
+
+        fake_df = _pl.DataFrame(
+            {"a": ["2023"], "b": [None]},
+            schema={"a": _pl.Utf8, "b": _pl.Utf8},
+        )
+        monkeypatch.setattr(mod.pl, "read_excel", lambda *a, **k: fake_df)
+
+        result = mod.extract_dynamic_years(
+            tmp_path / "fake.xlsx",
+            sheet_index=0,
+            year_header_row=0,
+            year_columns=[0, 1],
+        )
+        # col 0 yields "2023"; col 1 is None → skipped.
+        assert result == {0: "2023"}
+
+
+class TestParseBnmrSheetBranchCoverage:
+    """Targeted tests for branches 590->594 and 609->642 in parse_reach_bnmr."""
+
+    @pytest.mark.skipif(not HAS_OPENPYXL, reason="openpyxl required")
+    @pytest.mark.unit
+    def test_sheet_with_no_matching_columns_skips_select(self, tmp_path):
+        """Branch 590->594: select_exprs is empty → skip .select(...), fall through."""
+        from openpyxl import Workbook
+
+        from acoharmony._parsers._reach_bnmr import parse_reach_bnmr
+
+        p = tmp_path / "empty_select.xlsx"
+        wb = Workbook()
+        ws = wb.active
+        ws.append(["col0", "col1"])
+        ws.append(["val0", "val1"])
+        wb.save(p)
+
+        # All columns use position=None → select_exprs stays empty → 590->594.
+        schema = {
+            "name": "reach_bnmr",
+            "file_format": {
+                "sheet_config": {
+                    "header_row": 0,
+                    "data_start_row": 1,
+                    "end_marker_column": 0,
+                    "end_marker_value": "TOTAL",
+                }
+            },
+            "sheets": [
+                {
+                    "sheet_type": "empty",
+                    "sheet_index": 0,
+                    "columns": [
+                        {"position": None, "name": "ignored", "data_type": "string"}
+                    ],
+                }
+            ],
+        }
+        lf = parse_reach_bnmr(p, schema)
+        df = lf.collect()
+        # No rename, no crash, sheet_type column is added.
+        assert "sheet_type" in df.columns
+        assert set(df["sheet_type"].to_list()) == {"empty"}
+
+    @pytest.mark.skipif(not HAS_OPENPYXL, reason="openpyxl required")
+    @pytest.mark.unit
+    def test_sheet_with_dynamic_columns_config_but_no_year_header(self, tmp_path):
+        """Branch 609->642: dynamic_columns present but year_header_row is None → skip rename."""
+        from openpyxl import Workbook
+
+        from acoharmony._parsers._reach_bnmr import parse_reach_bnmr
+
+        p = tmp_path / "no_year_header.xlsx"
+        wb = Workbook()
+        ws = wb.active
+        ws.append(["col0", "col1"])
+        ws.append(["val0", "val1"])
+        wb.save(p)
+
+        schema = {
+            "name": "reach_bnmr",
+            "file_format": {
+                "sheet_config": {
+                    "header_row": 0,
+                    "data_start_row": 1,
+                    "end_marker_column": 0,
+                    "end_marker_value": "TOTAL",
+                }
+            },
+            "sheets": [
+                {
+                    "sheet_type": "nohdr",
+                    "sheet_index": 0,
+                    "columns": [
+                        {"position": 0, "name": "label", "data_type": "string"},
+                    ],
+                    "dynamic_columns": {
+                        # year_header_row intentionally omitted → None → 609->642
+                        "year_columns": [],
+                        "year_column_prefix": "year_",
+                    },
+                }
+            ],
+        }
+        lf = parse_reach_bnmr(p, schema)
+        df = lf.collect()
+        # No crash; sheet_type was added after the dynamic-columns branch was skipped.
+        assert "sheet_type" in df.columns
+        assert set(df["sheet_type"].to_list()) == {"nohdr"}

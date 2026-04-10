@@ -317,6 +317,20 @@ class TestTemporalAlignmentTransform:
         # the key test is that it processes the file without crashing
         assert result is not None
 
+    @pytest.mark.unit
+    def test_apply_consolidated_temporal_logic_skips_already_processed(self):
+        """Line 348: when tracker.has_processed_file(f) is True, ``continue`` skips it."""
+        t = self._make_transform()
+        # Replace the real tracker with a mock that reports the file as processed.
+        t.tracker = MagicMock()
+        t.tracker.has_processed_file.return_value = True
+
+        result = t.apply_consolidated_temporal_logic({}, ["/any/file.parquet"])
+
+        # The file was skipped → no dataframes accumulated → failure result
+        assert result is not None
+        t.tracker.has_processed_file.assert_called_once_with("/any/file.parquet")
+
 
 class TestTemporalAlignmentTransformExtended:  # noqa: F811
     """Tests for TemporalAlignmentTransform."""
