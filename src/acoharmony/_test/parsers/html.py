@@ -156,6 +156,7 @@ class TestHtmlParser:
     @pytest.mark.unit
     def test_parse_html_links(self, sample_html: str) -> None:
         """Test link extraction."""
+        from urllib.parse import urlparse
 
         result = parse_html(sample_html)
         df = result.collect()
@@ -163,7 +164,7 @@ class TestHtmlParser:
         # Check links
         links = df["links"][0]
         assert len(links) > 0
-        assert any("example.com" in link["href"] for link in links)
+        assert any(urlparse(link["href"]).hostname == "example.com" for link in links)
 
     @pytest.mark.unit
     def test_parse_html_text_content(self, sample_html: str) -> None:

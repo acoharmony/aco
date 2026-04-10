@@ -10,6 +10,7 @@ Provides a unified logging interface that writes to a single log file.
 from __future__ import annotations
 
 import json
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -17,6 +18,41 @@ from typing import Any
 import polars as pl
 
 from .config import LogConfig, get_logger
+
+# Substring patterns matched (case-insensitive) against kwargs keys.
+# Any kwarg whose name contains one of these tokens is replaced with "<REDACTED>"
+# before being persisted to a log file. This prevents accidental cleartext
+# storage of PHI / PII through structured logging.
+_SENSITIVE_KEY_PATTERNS = re.compile(
+    r"(?i)(?:^|_)(?:"
+    r"mbi|hic|npi|tin|ssn|dob|birth|"
+    r"first[_-]?name|last[_-]?name|full[_-]?name|"
+    r"address|street|zip|"
+    r"phone|email|"
+    r"person|bene(?:ficiary)?[_-]?id|patient[_-]?id|member[_-]?id|"
+    r"password|secret|token|api[_-]?key|credential|auth"
+    r")(?:$|_)"
+)
+
+
+def _redact_sensitive(value: Any) -> Any:
+    """Recursively redact known-sensitive keys from a structured value.
+
+    Returns a value safe to serialize to a log file. Dicts are walked
+    key-by-key; lists/tuples/sets are walked element-by-element. Anything
+    else is returned unchanged.
+    """
+    if isinstance(value, dict):
+        return {
+            k: ("<REDACTED>" if isinstance(k, str) and _SENSITIVE_KEY_PATTERNS.search(k)
+                else _redact_sensitive(v))
+            for k, v in value.items()
+        }
+    if isinstance(value, (list, tuple)):
+        return type(value)(_redact_sensitive(v) for v in value)
+    if isinstance(value, set):
+        return {_redact_sensitive(v) for v in value}
+    return value
 
 
 class LogWriter:
@@ -72,14 +108,18 @@ class LogWriter:
                 message : str
                     Log message
                 **kwargs
-                    Additional structured data to include
+                    Additional structured data to include. Keys matching
+                    known PHI / PII patterns are redacted before persistence.
         """
+        # Redact PHI / PII from structured kwargs before any persistence.
+        safe_kwargs = _redact_sensitive(kwargs)
+
         entry = {
             "timestamp": datetime.now().isoformat(),
             "component": self.name,
             "level": level,
             "message": message,
-            **kwargs,
+            **safe_kwargs,
         }
 
         # Write to file immediately (append mode)
