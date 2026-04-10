@@ -18,7 +18,6 @@ from .decorators import (
     with_polars,
     with_record_types,
     with_sheets,
-    with_staging,
     with_storage,
 )
 from .registry import (
@@ -34,7 +33,6 @@ __all__ = [
     "with_parser",
     "with_metadata",
     "with_storage",
-    "with_staging",
     "with_record_types",
     "with_sheets",
     "with_four_icli",

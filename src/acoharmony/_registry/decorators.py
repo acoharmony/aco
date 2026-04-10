@@ -88,10 +88,6 @@ def register_schema(
             if val is not None:
                 getattr(SchemaRegistry, reg_attr)[name] = val
 
-        staging_val = getattr(cls, "_staging_source", None)
-        if staging_val is not None:
-            SchemaRegistry._staging[name] = staging_val
-
         # Add convenience class methods for metadata access
         @classmethod
         def schema_name(cls_inner) -> str:
@@ -247,37 +243,6 @@ def with_storage(
         schema_name = getattr(cls, "_schema_metadata", {}).get("name")
         if schema_name:
             SchemaRegistry._storage[schema_name] = _storage_cfg
-
-        return cls
-
-    return decorator
-
-
-def with_staging(source: str) -> Callable[[type[T]], type[T]]:
-    """
-    Declare that this schema inherits from a staging/parent table.
-
-        Args:
-            source: Name of the parent staging table
-
-        Returns:
-            Decorator function
-
-    """
-
-    def decorator(cls: type[T]) -> type[T]:
-        cls._staging_source = source  # type: ignore
-
-        @classmethod
-        def staging_source(cls_inner) -> str:
-            """Get staging source table name."""
-            return cls_inner._staging_source  # type: ignore
-
-        cls.staging_source = staging_source  # type: ignore
-
-        schema_name = getattr(cls, "_schema_metadata", {}).get("name")
-        if schema_name:
-            SchemaRegistry._staging[schema_name] = source
 
         return cls
 

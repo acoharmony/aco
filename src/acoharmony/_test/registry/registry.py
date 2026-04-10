@@ -81,7 +81,6 @@ class TestGetFullTableConfigBranches:
                 "_metadata",
                 "_parsers",
                 "_storage",
-                "_staging",
                 "_record_types",
                 "_sheets",
                 "_four_icli",
@@ -401,7 +400,6 @@ class TestSchemaRegistryClear:
                 "_metadata",
                 "_parsers",
                 "_storage",
-                "_staging",
                 "_record_types",
                 "_sheets",
                 "_four_icli",
@@ -422,7 +420,6 @@ class TestSchemaRegistryClear:
         SchemaRegistry._metadata["__t"] = {"name": "__t"}
         SchemaRegistry._parsers["__t"] = {"type": "csv"}
         SchemaRegistry._storage["__t"] = {"tier": "bronze"}
-        SchemaRegistry._staging["__t"] = "parent"
         SchemaRegistry._record_types["__t"] = {"a": "b"}
         SchemaRegistry._sheets["__t"] = {"sheets": []}
         SchemaRegistry._four_icli["__t"] = {"category": "Reports"}
@@ -434,7 +431,6 @@ class TestSchemaRegistryClear:
         assert SchemaRegistry._metadata == {}
         assert SchemaRegistry._parsers == {}
         assert SchemaRegistry._storage == {}
-        assert SchemaRegistry._staging == {}
         assert SchemaRegistry._record_types == {}
         assert SchemaRegistry._sheets == {}
         assert SchemaRegistry._four_icli == {}

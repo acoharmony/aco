@@ -35,9 +35,6 @@ class SchemaRegistry:
     # Schema name -> storage config
     _storage: dict[str, dict[str, Any]] = {}
 
-    # Schema name -> staging config
-    _staging: dict[str, str] = {}
-
     # Schema name -> sheets config
     _sheets: dict[str, dict[str, Any]] = {}
 
@@ -154,11 +151,6 @@ class SchemaRegistry:
         return cls._storage.get(schema_name, {})
 
     @classmethod
-    def get_staging_source(cls, schema_name: str) -> str | None:
-        """Get staging source table name for a schema."""
-        return cls._staging.get(schema_name)
-
-    @classmethod
     def get_record_types_config(cls, schema_name: str) -> dict[str, Any]:
         """Get record types configuration for a schema (TPARC multi-record)."""
         return cls._record_types.get(schema_name, {})
@@ -197,10 +189,6 @@ class SchemaRegistry:
         storage = cls.get_storage_config(schema_name)
         if storage:
             config["storage"] = storage
-
-        staging = cls.get_staging_source(schema_name)
-        if staging:
-            config["staging"] = staging
 
         record_types = cls.get_record_types_config(schema_name)
         if record_types:
@@ -301,7 +289,6 @@ class SchemaRegistry:
         cls._metadata.clear()
         cls._parsers.clear()
         cls._storage.clear()
-        cls._staging.clear()
         cls._record_types.clear()
         cls._sheets.clear()
         cls._four_icli.clear()
