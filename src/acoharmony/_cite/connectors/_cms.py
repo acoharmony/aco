@@ -22,6 +22,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 from urllib.parse import urljoin
 
+from ._url import host_matches
+
 import polars as pl
 from bs4 import BeautifulSoup
 
@@ -67,7 +69,7 @@ class IOMHandler(CMSHandler):
         Returns:
             True if URL is IOM manual page
         """
-        return "cms.gov" in url.lower() and any(
+        return host_matches(url, "cms.gov") and any(
             keyword in url.lower()
             for keyword in ["manual", "iom", "internet-only-manual", "cms018"]
         )
@@ -260,7 +262,7 @@ class PFSHandler(CMSHandler):
         Returns:
             True if URL is PFS notice page
         """
-        return "cms.gov" in url.lower() and any(
+        return host_matches(url, "cms.gov") and any(
             keyword in url.lower()
             for keyword in [
                 "physician/federal-regulation-notices",

@@ -23,6 +23,8 @@ from typing import TYPE_CHECKING
 
 import polars as pl
 import requests
+
+from ._url import host_matches
 from bs4 import BeautifulSoup
 
 from ..._log import LogWriter
@@ -56,7 +58,7 @@ class FederalRegisterConnector:
         Returns:
             True if URL is from federalregister.gov
         """
-        return "federalregister.gov" in url.lower() and "/d/" in url.lower()
+        return host_matches(url, "federalregister.gov") and "/d/" in url.lower()
 
     @staticmethod
     def parse_url(url: str) -> dict[str, str | None]:

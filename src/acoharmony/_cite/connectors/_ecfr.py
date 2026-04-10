@@ -18,6 +18,8 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
+
+from ._url import host_matches
 from typing import TYPE_CHECKING
 
 import polars as pl
@@ -54,7 +56,9 @@ class ECFRConnector:
         Returns:
             True if URL is from ecfr.gov
         """
-        return "ecfr.gov" in url.lower() and ("/title-" in url.lower() or "/part-" in url.lower())
+        return host_matches(url, "ecfr.gov") and (
+            "/title-" in url.lower() or "/part-" in url.lower()
+        )
 
     @staticmethod
     def parse_url(url: str) -> dict[str, str | None]:

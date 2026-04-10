@@ -258,3 +258,59 @@ class TestLogWriterBranches:
         writer = LogWriter("test", config=config)
         writer.log("INFO", "test")
         assert len(writer.entries) == 1  # No flush happened
+
+
+class TestRedactSensitive:
+    """Cover _redact_sensitive helper used to scrub PHI from log kwargs."""
+
+    @pytest.mark.unit
+    def test_redacts_sensitive_dict_keys(self):
+        from acoharmony._log.writer import _redact_sensitive
+
+        result = _redact_sensitive({"mbi": "1A2B3C", "count": 5})
+        assert result == {"mbi": "<REDACTED>", "count": 5}
+
+    @pytest.mark.unit
+    def test_redacts_nested_dict_keys(self):
+        from acoharmony._log.writer import _redact_sensitive
+
+        result = _redact_sensitive({"outer": {"npi": "123", "ok": "yes"}})
+        assert result == {"outer": {"npi": "<REDACTED>", "ok": "yes"}}
+
+    @pytest.mark.unit
+    def test_walks_into_lists_and_tuples(self):
+        from acoharmony._log.writer import _redact_sensitive
+
+        result = _redact_sensitive([{"mbi": "x"}, ({"npi": "y"},)])
+        assert result == [{"mbi": "<REDACTED>"}, ({"npi": "<REDACTED>"},)]
+        assert isinstance(result[1], tuple)
+
+    @pytest.mark.unit
+    def test_walks_into_sets(self):
+        from acoharmony._log.writer import _redact_sensitive
+
+        result = _redact_sensitive({"a", "b"})
+        assert result == {"a", "b"}
+        assert isinstance(result, set)
+
+    @pytest.mark.unit
+    def test_passthrough_for_scalars(self):
+        from acoharmony._log.writer import _redact_sensitive
+
+        assert _redact_sensitive(42) == 42
+        assert _redact_sensitive("plain string") == "plain string"
+        assert _redact_sensitive(None) is None
+
+    @pytest.mark.unit
+    def test_log_redacts_phi_kwargs_in_file_output(self, tmp_path):
+        """End-to-end: PHI keys in kwargs do NOT appear in the persisted log line."""
+        config = LogConfig(_base_path=tmp_path)
+        writer = LogWriter("test", config=config)
+        writer.log("INFO", "Processing claim", mbi="1A2B3C4D5E6", npi="1234567890", count=3)
+
+        log_file = writer._get_log_file()
+        content = log_file.read_text()
+        assert "1A2B3C4D5E6" not in content
+        assert "1234567890" not in content
+        assert "<REDACTED>" in content
+        assert '"count": 3' in content

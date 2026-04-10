@@ -173,6 +173,7 @@ class TestMarkdownParser:
     @pytest.mark.unit
     def test_parse_markdown_links(self, markdown_file: Path) -> None:
         """Test link extraction."""
+        from urllib.parse import urlparse
 
         result = parse_markdown(markdown_file)
         df = result.collect()
@@ -180,7 +181,7 @@ class TestMarkdownParser:
         # Check links
         links = df["links"][0]
         assert len(links) > 0
-        assert any("example.com" in link["url"] for link in links)
+        assert any(urlparse(link["url"]).hostname == "example.com" for link in links)
 
     @pytest.mark.unit
     def test_parse_markdown_footnotes(self, markdown_file: Path) -> None:
@@ -299,9 +300,8 @@ class TestParseMarkdown:
         assert row['date'] == '2024-06-01'
         assert row['tags'] == ['research', 'python']
         links = row['links']
-        urls = [link['url'] for link in links]
-        assert 'https://example.com' in urls
-        assert 'https://ref-link.com' in urls
+        urls = {link['url'] for link in links}
+        assert urls.issuperset({'https://example.com', 'https://ref-link.com'})
         assert 'Smith2020' in row['citations']
         assert 'Jones2021' in row['citations']
         assert 'Lee2022' in row['citations']
