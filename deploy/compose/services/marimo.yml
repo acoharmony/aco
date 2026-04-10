@@ -1,10 +1,10 @@
 services:
   marimo:
     build:
-      context: ../
-      dockerfile: images/marimo/Dockerfile
+      context: ../../..  # Repo root — required so multi-stage build can COPY src/
+      dockerfile: deploy/compose/images/marimo/Dockerfile
     image: ghcr.io/acoharmony/marimo:latest
-    pull_policy: build  # Always build locally
+    pull_policy: build  # Always build locally unless pulled from GHCR
     container_name: marimo
     user: "1002:1002"
     stdin_open: true
@@ -18,9 +18,10 @@ services:
       - acoharmony-external  # For host port exposure
     ports:
       - "0.0.0.0:10012:10012"  # Marimo UI
+    # The image is self-contained: it has /opt/venv baked in from the wheel via
+    # `uv sync --no-editable`, so host source and host .venv are NOT mounted.
+    # Only runtime data (notebooks, workspace) and user credentials are mounted.
     volumes:
-      - /home/care/acoharmony:/home/care/acoharmony:rw  # Project directory (includes .venv)
-      - /home/care/.local:/home/care/.local:rw  # Local data (includes uv Python)
       - /opt/s3/data/workspace:/opt/s3/data/workspace  # Data storage
       - /opt/s3/data/notebooks:/opt/s3/data/notebooks:rw  # Notebooks directory
       - /mnt/x:/mnt/x:ro  # X: drive (Fax2Mail/CDS_Folders) for SVA log symlinks

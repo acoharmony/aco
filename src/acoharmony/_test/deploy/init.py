@@ -378,18 +378,17 @@ class TestDeploymentManagerGetProfile:
             assert mgr.profile == "staging"
 
     @pytest.mark.unit
-    def test_pyproject_toml_default_profile(self, tmp_path: Path) -> None:
-        pyproject = tmp_path / "pyproject.toml"
-        pyproject.write_text(
-            '[tool.acoharmony]\ndefault_profile = "local"\n'
-        )
+    def test_aco_toml_default_profile(self) -> None:
+        """_get_profile reads default_profile from the packaged aco.toml."""
         with (
             patch.dict("os.environ", {}, clear=False),
-            patch.object(DeploymentManager, "_find_pyproject", return_value=pyproject),
+            patch(
+                "acoharmony._config_loader.load_aco_config",
+                return_value={"default_profile": "local"},
+            ),
             patch.object(DeploymentManager, "_get_compose_path", return_value=Path("/f")),
             patch("acoharmony._deploy._core.DockerComposeManager"),
         ):
-            # Remove ACO_PROFILE if set
             old = os.environ.pop("ACO_PROFILE", None)
             try:
                 mgr = DeploymentManager()
@@ -399,10 +398,14 @@ class TestDeploymentManagerGetProfile:
                     os.environ["ACO_PROFILE"] = old
 
     @pytest.mark.unit
-    def test_pyproject_missing_falls_back_to_dev(self) -> None:
+    def test_aco_toml_missing_falls_back_to_dev(self) -> None:
+        """When aco.toml cannot be loaded, _get_profile degrades to 'dev'."""
         with (
             patch.dict("os.environ", {}, clear=False),
-            patch.object(DeploymentManager, "_find_pyproject", return_value=None),
+            patch(
+                "acoharmony._config_loader.load_aco_config",
+                side_effect=FileNotFoundError("aco.toml missing"),
+            ),
             patch.object(DeploymentManager, "_get_compose_path", return_value=Path("/f")),
             patch("acoharmony._deploy._core.DockerComposeManager"),
         ):
@@ -415,10 +418,14 @@ class TestDeploymentManagerGetProfile:
                     os.environ["ACO_PROFILE"] = old
 
     @pytest.mark.unit
-    def test_pyproject_exception_falls_back_to_dev(self) -> None:
+    def test_aco_toml_exception_falls_back_to_dev(self) -> None:
+        """Any exception from load_aco_config falls through to 'dev'."""
         with (
             patch.dict("os.environ", {}, clear=False),
-            patch.object(DeploymentManager, "_find_pyproject", side_effect=OSError("fail")),
+            patch(
+                "acoharmony._config_loader.load_aco_config",
+                side_effect=OSError("disk on fire"),
+            ),
             patch.object(DeploymentManager, "_get_compose_path", return_value=Path("/f")),
             patch("acoharmony._deploy._core.DockerComposeManager"),
         ):
@@ -431,51 +438,24 @@ class TestDeploymentManagerGetProfile:
                     os.environ["ACO_PROFILE"] = old
 
     @pytest.mark.unit
-    def test_pyproject_without_acoharmony_section(self, tmp_path: Path) -> None:
-        pyproject = tmp_path / "pyproject.toml"
-        pyproject.write_text('[tool.other]\nkey = "value"\n')
+    def test_aco_toml_without_default_profile(self) -> None:
+        """When aco.toml lacks default_profile, _get_profile falls back to 'dev'."""
         with (
             patch.dict("os.environ", {}, clear=False),
-            patch.object(DeploymentManager, "_find_pyproject", return_value=pyproject),
+            patch(
+                "acoharmony._config_loader.load_aco_config",
+                return_value={"profiles": {}},
+            ),
             patch.object(DeploymentManager, "_get_compose_path", return_value=Path("/f")),
             patch("acoharmony._deploy._core.DockerComposeManager"),
         ):
             old = os.environ.pop("ACO_PROFILE", None)
             try:
                 mgr = DeploymentManager()
-                # defaults to "dev" since no acoharmony section
                 assert mgr.profile == "dev"
             finally:
                 if old is not None:
                     os.environ["ACO_PROFILE"] = old
-
-
-class TestDeploymentManagerFindPyproject:
-    """Tests for _find_pyproject()."""
-
-    @pytest.mark.unit
-    def test_finds_pyproject_in_ancestors(self, tmp_path: Path) -> None:
-        """_find_pyproject traverses up from __file__ location and finds pyproject.toml."""
-        mgr = _make_manager("dev")
-        # The real _find_pyproject starts from the source file; it will find
-        # the project's pyproject.toml since we're inside the project tree.
-        result = mgr._find_pyproject()
-        # Should find the project's pyproject.toml
-        assert result is not None
-        assert result.name == "pyproject.toml"
-        assert result.exists()
-
-    @pytest.mark.unit
-    def test_returns_none_when_not_found(self, tmp_path: Path) -> None:
-        """_find_pyproject returns None when traversing from an isolated directory."""
-        mgr = _make_manager("dev")
-        # Patch __file__ to point to an isolated tmp dir with no pyproject.toml
-        fake_file = tmp_path / "a" / "b" / "fake.py"
-        fake_file.parent.mkdir(parents=True, exist_ok=True)
-        fake_file.touch()
-        with patch("acoharmony._deploy._core.__file__", str(fake_file)):
-            result = mgr._find_pyproject()
-            assert result is None
 
 
 class TestDeploymentManagerGetComposePath:

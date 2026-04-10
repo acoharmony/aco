@@ -50,10 +50,13 @@ class TestStorageBackend:
             StorageBackend(profile='nonexistent_profile_xyz_99999')
 
     @pytest.mark.unit
-    def test_pyproject_not_found_raises(self) -> None:
-        """Branch 88->89: pyproject.toml does not exist, raises FileNotFoundError."""
-        from unittest.mock import patch, PropertyMock
+    def test_aco_toml_not_found_raises(self) -> None:
+        """StorageBackend bubbles FileNotFoundError when aco.toml is missing."""
+        from unittest.mock import patch
 
-        with patch("acoharmony._store.Path.exists", return_value=False):
-            with pytest.raises(FileNotFoundError, match="pyproject.toml not found"):
+        with patch(
+            "acoharmony._config_loader.load_aco_config",
+            side_effect=FileNotFoundError("aco.toml not found"),
+        ):
+            with pytest.raises(FileNotFoundError, match="aco.toml not found"):
                 StorageBackend(profile="local")

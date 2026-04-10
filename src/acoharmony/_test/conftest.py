@@ -18,19 +18,17 @@ from typing import TYPE_CHECKING
 import duckdb
 import polars as pl
 import pytest
-import tomli
 
 if TYPE_CHECKING:
     from polars import DataFrame
 
 
-# Load fixtures configuration from pyproject.toml
+# Load fixtures configuration from the packaged aco.toml
 def _get_fixtures_config() -> dict:
-    """Load fixtures configuration from pyproject.toml."""
-    pyproject_path = Path(__file__).parent.parent / "pyproject.toml"
-    with open(pyproject_path, "rb") as f:
-        pyproject = tomli.load(f)
-    return pyproject.get("tool", {}).get("acoharmony", {}).get("fixtures", {})
+    """Load fixtures configuration from the packaged aco.toml."""
+    from acoharmony._config_loader import load_aco_config
+
+    return load_aco_config().get("fixtures", {})
 
 
 # Test data paths

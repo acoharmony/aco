@@ -229,27 +229,19 @@ class TestStoreGaps:
 
 
 class TestStoreFileNotFound:
-    """Cover pyproject.toml not found exception."""
+    """Cover the aco.toml-not-found error path in StorageBackend."""
 
     @pytest.mark.unit
-    def test_pyproject_not_found_raises(self, tmp_path):
-        """Line 89: raises FileNotFoundError when pyproject.toml is missing."""
+    def test_aco_toml_not_found_raises(self):
+        """StorageBackend bubbles FileNotFoundError when the packaged aco.toml is missing."""
+        from acoharmony._store import StorageBackend
 
-        with patch("acoharmony._store.Path") as mock_path:
-            mock_pyproject = MagicMock()
-            mock_pyproject.exists.return_value = False
-            mock_pyproject.__str__ = lambda s: "/fake/pyproject.toml"
-
-            mock_parent = MagicMock()
-            mock_parent.parent.parent = MagicMock()
-            mock_parent.parent.parent.__truediv__ = lambda s, x: mock_pyproject
-
-            mock_path.return_value = mock_parent
-            mock_path.__truediv__ = lambda s, x: mock_pyproject
-
-            # The actual check happens during profile loading
-            from acoharmony import _store as store_mod
-            assert hasattr(store_mod, "StorageBackend")
+        with patch(
+            "acoharmony._config_loader.load_aco_config",
+            side_effect=FileNotFoundError("aco.toml not found"),
+        ):
+            with pytest.raises(FileNotFoundError, match="aco.toml not found"):
+                StorageBackend(profile="local")
 
 
 # ===== From test_reexport.py =====

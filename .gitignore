@@ -50,21 +50,13 @@ htmlcov/
 # External dependency repositories (cloned, not tracked)
 src/acoharmony/_tuva/_depends/repos/
 
-# Docker
-.dockerignore
+# (note: .dockerignore used to be ignored here; it is now tracked because
+#  the release image builds depend on it to keep the context platform-agnostic.)
 
-# Documentation build artifacts (Docusaurus)
-docs/.docusaurus/
-docs/node_modules/
-docs/src/
-docs/docs/modules
-docs/docs
-docs/babel.config.js
-docs/docusaurus.config.ts
-docs/package-lock.json
-docs/package.json
-docs/sidebars.ts
-docs/tsconfig.json
+# Documentation site (Docusaurus) — lives on disk for local dev and is
+# mounted into the docs-compose services, but is not shipped in the wheel
+# and not tracked in git.
+docs/
 
 
 .coverage_state/

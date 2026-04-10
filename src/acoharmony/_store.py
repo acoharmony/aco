@@ -75,37 +75,19 @@ class StorageBackend:
             return value
 
     def _load_config(self) -> dict[str, Any]:
-        """Load configuration from pyproject.toml."""
-        try:
-            import tomllib
-        except ImportError:
-            import tomli as tomllib  # Python < 3.11
+        """Load the active profile from the packaged aco.toml file."""
+        from ._config_loader import load_aco_config
 
-        # Find pyproject.toml in the package root
-        package_root = Path(__file__).parent.parent.parent
-        pyproject_path = package_root / "pyproject.toml"
-
-        if not pyproject_path.exists():
-            raise FileNotFoundError(f"pyproject.toml not found: {pyproject_path}")
-
-        with open(pyproject_path, "rb") as f:
-            pyproject_data = tomllib.load(f)
-
-        # Get profile configuration
-        acoharmony_config = pyproject_data.get("tool", {}).get("acoharmony", {})
-        profiles = acoharmony_config.get("profiles", {})
+        config = load_aco_config()
+        profiles = config.get("profiles", {})
 
         if self.profile not in profiles:
             raise ValueError(
                 f"Profile '{self.profile}' not found. Available profiles: {list(profiles.keys())}"
             )
 
-        profile_config = profiles[self.profile]
-
-        # Expand environment variables in the config
-        profile_config = self._expand_env_vars(profile_config)
-
-        return profile_config
+        # Expand environment variables in the profile block
+        return self._expand_env_vars(profiles[self.profile])
 
     def get_data_path(self, subpath: str = "") -> Path | str:
         """

@@ -1,0 +1,29 @@
+# Exclude workspace data (20GB - will be bind-mounted)
+workspace/
+
+# Exclude existing venv (587MB - will create new one in container).
+# CRITICAL: the host .venv is platform-dependent and must never leak into
+# the build context — the builder stage creates a fresh venv via
+# `uv sync --no-editable` so the runtime image stays platform-agnostic.
+.venv/
+
+# Exclude git (58MB)
+.git/
+
+# Exclude the host-installed Docusaurus node_modules (~400MB). The docs
+# image's builder stage runs `npm ci` to produce clean node_modules inside
+# the container — so the host copy is dead weight in the build context.
+docs/node_modules/
+docs/.docusaurus/
+docs/build/
+
+# Exclude Python cache
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.hypothesis/
+.ruff_cache/
+
+# Exclude examples library contents (local development only)
+examples/*
+!examples/.gitkeep

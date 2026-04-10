@@ -48,65 +48,30 @@ class TestLoadConfigBranches:
     """Cover _load_config error branches (88->89, 98->99)."""
 
     @pytest.mark.unit
-    def test_pyproject_not_found_raises(self, tmp_path):
-        """Branch 88->89: FileNotFoundError when pyproject.toml missing."""
-        import acoharmony._store as store_module
-
-        # Point Path(__file__) resolution to a dir without pyproject.toml
-        fake_file = tmp_path / "a" / "b" / "c" / "fake.py"
-        fake_file.parent.mkdir(parents=True, exist_ok=True)
-        fake_file.touch()
-
+    def test_aco_toml_not_found_raises(self):
+        """_load_config bubbles FileNotFoundError when aco.toml is missing."""
         sb = StorageBackend.__new__(StorageBackend)
         sb.profile = "local"
 
-        # Patch Path(__file__) inside _load_config so package_root -> tmp_path
-        # The method does: Path(__file__).parent.parent.parent
-        # We patch the module-level Path so that Path(anything) returns
-        # a path whose .parent.parent.parent is tmp_path (no pyproject.toml).
-        original_path = Path
-
-        class FakePath(type(Path())):
-            pass
-
-        # Simpler: patch __file__ in the module
-        old_file = store_module.__file__
-        store_module.__file__ = str(fake_file)
-        try:
-            with pytest.raises(FileNotFoundError, match="pyproject.toml not found"):
+        with patch(
+            "acoharmony._config_loader.load_aco_config",
+            side_effect=FileNotFoundError("aco.toml not found"),
+        ):
+            with pytest.raises(FileNotFoundError, match="aco.toml not found"):
                 sb._load_config()
-        finally:
-            store_module.__file__ = old_file
 
     @pytest.mark.unit
-    def test_invalid_profile_raises(self, tmp_path):
-        """Branch 98->99: ValueError when profile not in config."""
-        import acoharmony._store as store_module
-
-        # _load_config does: Path(__file__).parent.parent.parent / "pyproject.toml"
-        # So if __file__ = tmp_path/x/y/z/fake.py, package_root = tmp_path/x
-        # We need pyproject.toml at tmp_path/x/pyproject.toml
-        pkg_dir = tmp_path / "x" / "y" / "z"
-        pkg_dir.mkdir(parents=True, exist_ok=True)
-        fake_file = pkg_dir / "fake.py"
-        fake_file.touch()
-
-        package_root = tmp_path / "x"
-        pyproject = package_root / "pyproject.toml"
-        pyproject.write_text(
-            '[tool.acoharmony.profiles.local]\nenvironment = "local"\n'
-        )
-
+    def test_invalid_profile_raises(self):
+        """_load_config raises ValueError when the requested profile is not defined."""
         sb = StorageBackend.__new__(StorageBackend)
         sb.profile = "nonexistent_profile"
 
-        old_file = store_module.__file__
-        store_module.__file__ = str(fake_file)
-        try:
+        with patch(
+            "acoharmony._config_loader.load_aco_config",
+            return_value={"profiles": {"local": {"environment": "local"}}},
+        ):
             with pytest.raises(ValueError, match="nonexistent_profile"):
                 sb._load_config()
-        finally:
-            store_module.__file__ = old_file
 
 
 # ---------------------------------------------------------------------------

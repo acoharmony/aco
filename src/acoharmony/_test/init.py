@@ -27,50 +27,75 @@ class TestInitModule:
         assert hasattr(acoharmony, "__version__")
 
     @pytest.mark.unit
-    def test_init_polars_env_no_pyproject(self):
-
-
-        with patch("acoharmony.Path") as mock_path:
-            mock_path.return_value.parent.parent.parent.__truediv__ = (
-                lambda s, x: mock_path
-            )
-            mock_path.exists.return_value = False
-            _init_polars_env()
+    def test_init_polars_env_no_aco_toml(self, monkeypatch):
+        """When load_aco_config raises, _init_polars_env degrades silently."""
+        monkeypatch.delenv("POLARS_MAX_THREADS", raising=False)
+        with patch(
+            "acoharmony._config_loader.load_aco_config",
+            side_effect=FileNotFoundError("aco.toml missing"),
+        ):
+            _init_polars_env()  # must not raise
+        assert "POLARS_MAX_THREADS" not in __import__("os").environ
 
     @pytest.mark.unit
-    def test_init_polars_env_exception(self):
-
-
-        with patch("acoharmony.Path", side_effect=RuntimeError("boom")):
-            _init_polars_env()
+    def test_init_polars_env_exception(self, monkeypatch):
+        """Any exception from load_aco_config is swallowed."""
+        monkeypatch.delenv("POLARS_MAX_THREADS", raising=False)
+        with patch(
+            "acoharmony._config_loader.load_aco_config",
+            side_effect=RuntimeError("boom"),
+        ):
+            _init_polars_env()  # must not raise
 
 
 class TestInitPolarsEnvBranches:
-    """Cover branches 35->36 (pyproject exists) and 55->56 (max_threads set)."""
+    """Cover the real aco.toml path + the max_threads setter."""
 
     @pytest.mark.unit
-    def test_pyproject_exists_sets_max_threads(self, tmp_path, monkeypatch):
-        """Branch 35->36 (exists) and 55->56 (max_threads in config)."""
-        # The real _init_polars_env reads the real pyproject.toml.
-        # The real pyproject.toml exists, so branch 35->36 is exercised.
-        # To exercise 55->56, we need max_threads in the config.
-        # Simply calling the function exercises the "exists" branch.
+    def test_aco_toml_sets_max_threads(self, monkeypatch):
+        """When the profile has max_threads, POLARS_MAX_THREADS is set."""
+        import os
         monkeypatch.delenv("POLARS_MAX_THREADS", raising=False)
-        _init_polars_env()
+        fake_config = {
+            "default_profile": "dev",
+            "profiles": {"dev": {"polars": {"max_threads": 7}}},
+        }
+        with patch(
+            "acoharmony._config_loader.load_aco_config",
+            return_value=fake_config,
+        ):
+            _init_polars_env()
+        assert os.environ.get("POLARS_MAX_THREADS") == "7"
+        monkeypatch.delenv("POLARS_MAX_THREADS", raising=False)
 
     @pytest.mark.unit
-    def test_pyproject_missing_returns_early(self):
-        """Branch 35->36: pyproject does NOT exist, returns early."""
-        with patch("acoharmony.Path") as mock_path_cls:
-            mock_path_instance = mock_path_cls.return_value
-            mock_path_instance.parent.parent.parent.__truediv__ = lambda s, x: mock_path_instance
-            mock_path_instance.exists.return_value = False
+    def test_max_threads_already_set_is_preserved(self, monkeypatch):
+        """If POLARS_MAX_THREADS is already in env, the loader does not clobber it."""
+        import os
+        monkeypatch.setenv("POLARS_MAX_THREADS", "42")
+        fake_config = {
+            "default_profile": "dev",
+            "profiles": {"dev": {"polars": {"max_threads": 7}}},
+        }
+        with patch(
+            "acoharmony._config_loader.load_aco_config",
+            return_value=fake_config,
+        ):
             _init_polars_env()
+        assert os.environ["POLARS_MAX_THREADS"] == "42"
 
     @pytest.mark.unit
     def test_max_threads_not_in_config(self, monkeypatch):
-        """Branch 55->56 NOT taken: polars config has no max_threads."""
+        """When polars config has no max_threads, nothing is set."""
+        import os
         monkeypatch.delenv("POLARS_MAX_THREADS", raising=False)
-        # If the function runs against the real pyproject.toml with no max_threads
-        # in the active profile, branch 55 goes to the else side (no-op)
-        _init_polars_env()
+        fake_config = {
+            "default_profile": "dev",
+            "profiles": {"dev": {"polars": {}}},
+        }
+        with patch(
+            "acoharmony._config_loader.load_aco_config",
+            return_value=fake_config,
+        ):
+            _init_polars_env()
+        assert "POLARS_MAX_THREADS" not in os.environ

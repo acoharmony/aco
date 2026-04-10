@@ -63,11 +63,6 @@ from typing import Any
 import polars as pl
 import yaml
 
-try:
-    import tomllib
-except ImportError:
-    import tomli as tomllib  # Python < 3.11
-
 
 @dataclass
 class ProcessingConfig:
@@ -587,7 +582,7 @@ def get_config() -> AppConfig:
 
 def load_profile_config_all(profile: str | None = None) -> dict[str, Any]:
     """
-    Load complete profile configuration from pyproject.toml.
+    Load complete profile configuration from the packaged aco.toml.
 
         This is similar to load_polars_config_from_profile but returns
         the entire profile configuration, not just Polars settings.
@@ -601,29 +596,17 @@ def load_profile_config_all(profile: str | None = None) -> dict[str, Any]:
             Returns empty dict if no profile config found.
     """
     try:
-        # Find pyproject.toml in the package root
-        package_root = Path(__file__).parent.parent.parent
-        pyproject_path = package_root / "pyproject.toml"
+        from ._config_loader import load_aco_config
 
-        if not pyproject_path.exists():
-            return {}
-
-        with open(pyproject_path, "rb") as f:
-            pyproject_data = tomllib.load(f)
-
-        # Get ACO Harmony configuration
-        acoharmony_config = pyproject_data.get("tool", {}).get("acoharmony", {})
-        profiles = acoharmony_config.get("profiles", {})
-
-        # Get active profile
+        config = load_aco_config()
+        profiles = config.get("profiles", {})
         active_profile = (
-            profile or os.getenv("ACO_PROFILE") or acoharmony_config.get("default_profile", "dev")
+            profile or os.getenv("ACO_PROFILE") or config.get("default_profile", "dev")
         )
 
         if active_profile not in profiles:
             return {}
 
-        # Return entire profile config
         return profiles[active_profile]
 
     except Exception:
@@ -659,7 +642,7 @@ def reset_config():
 
 def load_polars_config_from_profile(profile: str | None = None) -> dict[str, Any]:
     """
-    Load Polars configuration from pyproject.toml profile.
+    Load Polars configuration from the packaged aco.toml profile.
 
         Args:
             profile: Profile name (dev, local, staging, prod).
@@ -670,29 +653,17 @@ def load_polars_config_from_profile(profile: str | None = None) -> dict[str, Any
             Returns empty dict if no Polars config found.
     """
     try:
-        # Find pyproject.toml in the package root
-        package_root = Path(__file__).parent.parent.parent
-        pyproject_path = package_root / "pyproject.toml"
+        from ._config_loader import load_aco_config
 
-        if not pyproject_path.exists():
-            return {}
-
-        with open(pyproject_path, "rb") as f:
-            pyproject_data = tomllib.load(f)
-
-        # Get ACO Harmony configuration
-        acoharmony_config = pyproject_data.get("tool", {}).get("acoharmony", {})
-        profiles = acoharmony_config.get("profiles", {})
-
-        # Get active profile
+        config = load_aco_config()
+        profiles = config.get("profiles", {})
         active_profile = (
-            profile or os.getenv("ACO_PROFILE") or acoharmony_config.get("default_profile", "dev")
+            profile or os.getenv("ACO_PROFILE") or config.get("default_profile", "dev")
         )
 
         if active_profile not in profiles:
             return {}
 
-        # Get Polars config from profile
         return profiles[active_profile].get("polars", {})
 
     except Exception:
