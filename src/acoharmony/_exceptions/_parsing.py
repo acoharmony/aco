@@ -19,7 +19,7 @@ from ._registry import register_exception
     error_code="PARSE_001",
     category="parsing",
     why_template="File format does not match expected schema",
-    how_template="Verify file format matches schema definition in _schemas/*.yml",
+    how_template="Verify file format matches the Pydantic dataclass in src/acoharmony/_tables/",
 )
 class ParseError(ACOHarmonyException):
     """Base class for parsing errors."""
@@ -30,8 +30,8 @@ class ParseError(ACOHarmonyException):
 @register_exception(
     error_code="PARSE_002",
     category="parsing",
-    why_template="Schema definition file is missing or invalid",
-    how_template="Check that schema YAML exists in src/acoharmony/_schemas/",
+    why_template="Schema definition is missing or invalid",
+    how_template="Check that the table dataclass exists in src/acoharmony/_tables/",
 )
 class SchemaNotFoundError(ACOHarmonyException):
     """Raised when schema definition cannot be found."""
@@ -41,17 +41,17 @@ class SchemaNotFoundError(ACOHarmonyException):
         """Create error for missing schema."""
         return cls(
             f"Schema '{schema_name}' not found",
-            why=f"No schema definition file exists for '{schema_name}'",
-            how=f"Create schema YAML at: src/acoharmony/_schemas/{schema_name}.yml",
+            why=f"No schema definition exists for '{schema_name}'",
+            how=f"Create the table dataclass at: src/acoharmony/_tables/{schema_name}.py",
             causes=[
-                "Schema file was deleted or moved",
+                "Table file was deleted or moved",
                 "Typo in schema name",
                 "Schema not yet implemented",
             ],
             remediation_steps=[
-                f"Check if file exists: ls src/acoharmony/_schemas/{schema_name}.yml",
+                f"Check if file exists: ls src/acoharmony/_tables/{schema_name}.py",
                 "Verify schema name spelling",
-                "Copy from template if creating new schema",
+                "Register the dataclass with @register_schema",
             ],
             metadata={"schema_name": schema_name},
         )

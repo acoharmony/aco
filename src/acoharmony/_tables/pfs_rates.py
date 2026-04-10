@@ -16,7 +16,6 @@ from acoharmony._registry import (
     register_schema,
     with_parser,
     with_storage,
-    with_transform,
 )
 
 
@@ -28,7 +27,6 @@ from acoharmony._registry import (
     file_patterns={"default": "pfs_rates_*.parquet"},
 )
 @with_parser(type="parquet", encoding="utf-8", has_header=False, embedded_transforms=False)
-@with_transform()
 @with_storage(
     tier="gold",
     file_patterns={"default": "pfs_rates_*.parquet"},

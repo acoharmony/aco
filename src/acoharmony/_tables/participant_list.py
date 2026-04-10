@@ -17,7 +17,6 @@ from acoharmony._registry import (
     register_schema,
     with_parser,
     with_storage,
-    with_transform,
 )
 from acoharmony._validators.field_validators import npi_validator, tin_validator
 
@@ -30,7 +29,6 @@ from acoharmony._validators.field_validators import npi_validator, tin_validator
     file_patterns={"reach": ["ACO REACH Participant List PY[0-9][0-9][0-9][0-9]*.xlsx"]},
 )
 @with_parser(type="excel", encoding="utf-8", has_header=True, embedded_transforms=False)
-@with_transform()
 @with_storage(
     tier="bronze",
     file_patterns={

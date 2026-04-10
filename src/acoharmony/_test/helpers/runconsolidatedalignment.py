@@ -21,16 +21,6 @@ class TestConsolidatedAlignmentPipelineRegistration:
         pipelines = PipelineRegistry.list_pipelines()
         assert "alignment" in pipelines
 
-    @pytest.mark.unit
-    def test_alignment_pipeline_callable(self):
-        """The registered alignment pipeline should be a callable."""
-        import acoharmony._pipes._alignment  # noqa: F401
-
-        pipeline_fn = PipelineRegistry.get_pipeline("alignment")
-        assert pipeline_fn is not None
-        assert callable(pipeline_fn)
-
-
 class TestConsolidatedAlignmentSchema:
     """Test that the ConsolidatedAlignment dataclass has correct structure."""
 

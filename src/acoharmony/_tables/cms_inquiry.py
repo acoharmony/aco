@@ -14,7 +14,6 @@ from acoharmony._registry import (
     register_schema,
     with_parser,
     with_storage,
-    with_transform,
 )
 
 
@@ -25,7 +24,6 @@ from acoharmony._registry import (
     description="CMS template for submissions to help desk that require claims data",
 )
 @with_parser(type="excel", encoding="utf-8", has_header=False, embedded_transforms=False)
-@with_transform()
 @with_storage(tier="bronze", medallion_layer="bronze")
 @dataclass
 class CmsInquiry:

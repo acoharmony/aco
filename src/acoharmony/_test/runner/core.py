@@ -552,3 +552,48 @@ class TestTransformSchemaAllBranches:
 
             result = runner.transform_schema("cclf0")
             assert result is mock_result
+
+    @pytest.mark.unit
+    def test_raw_files_path_line134(self, tmp_path):
+        """Line 134: raw files path delegates to file_processor.process_raw_files."""
+        mock_storage = MagicMock()
+        mock_storage.get_path.return_value = str(tmp_path)
+        mock_storage.get_storage_type.return_value = "local"
+
+        mock_result = MagicMock()
+        mock_result.failed = False
+
+        with patch("acoharmony._runner._core.StorageBackend", return_value=mock_storage), \
+             patch("acoharmony._runner._core.Catalog") as MockCatalog:
+            runner = TransformRunner(mock_storage)
+            runner.catalog = MockCatalog()
+            runner.catalog.get_table_metadata.return_value = MagicMock()
+            runner._has_raw_files = MagicMock(return_value=True)
+            runner.file_processor = MagicMock()
+            runner.file_processor.process_raw_files.return_value = pl.DataFrame({"a": [1]}).lazy()
+            runner.schema_transformer = MagicMock()
+            runner.schema_transformer.transform_schema.return_value = mock_result
+
+            result = runner.transform_schema("cclf0")
+            assert result is mock_result
+            runner.file_processor.process_raw_files.assert_called_once()
+
+    @pytest.mark.unit
+    def test_df_is_none_returns_skipped_line142(self, tmp_path):
+        """Line 142: df is None returns skipped result."""
+        mock_storage = MagicMock()
+        mock_storage.get_path.return_value = str(tmp_path)
+        mock_storage.get_storage_type.return_value = "local"
+
+        with patch("acoharmony._runner._core.StorageBackend", return_value=mock_storage), \
+             patch("acoharmony._runner._core.Catalog") as MockCatalog:
+            runner = TransformRunner(mock_storage)
+            runner.catalog = MockCatalog()
+            runner.catalog.get_table_metadata.return_value = MagicMock()
+            runner._has_raw_files = MagicMock(return_value=True)
+            runner.file_processor = MagicMock()
+            runner.file_processor.process_raw_files.return_value = None
+
+            result = runner.transform_schema("cclf0")
+            # skipped result has success=True with skipped status
+            assert result is not None

@@ -34,7 +34,7 @@ class TestSchemaRegistry:
         assert hasattr(SchemaRegistry, "_schemas")
         assert hasattr(SchemaRegistry, "_metadata")
         assert hasattr(SchemaRegistry, "_parsers")
-        assert hasattr(SchemaRegistry, "_transforms")
+        assert hasattr(SchemaRegistry, "_storage")
 
     @pytest.mark.unit
     def test_schemaregistry_basic_functionality(self) -> None:
@@ -61,34 +61,6 @@ def test_get_schema_basic() -> None:
 
 
 @pytest.mark.unit
-def test_get_parser_for_schema_basic() -> None:
-    """get_parser_for_schema basic functionality."""
-    from acoharmony._registry.registry import get_parser_for_schema
-
-    # Non-existent schema returns empty dict
-    result = get_parser_for_schema("__nonexistent_xyz__")
-    assert result == {}
-
-
-@pytest.mark.unit
-def test_get_transform_for_schema_basic() -> None:
-    """get_transform_for_schema basic functionality."""
-    from acoharmony._registry.registry import get_transform_for_schema
-
-    result = get_transform_for_schema("__nonexistent_xyz__")
-    assert result == {}
-
-
-@pytest.mark.unit
-def test_get_metadata_for_schema_basic() -> None:
-    """get_metadata_for_schema basic functionality."""
-    from acoharmony._registry.registry import get_metadata_for_schema
-
-    result = get_metadata_for_schema("__nonexistent_xyz__")
-    assert result == {}
-
-
-@pytest.mark.unit
 def test_list_registered_schemas_basic() -> None:
     """list_registered_schemas basic functionality."""
     from acoharmony._registry.registry import list_registered_schemas
@@ -101,32 +73,28 @@ class TestGetFullTableConfigBranches:
     """Cover uncovered branches in get_full_table_config."""
 
     def setup_method(self):
-        """Save original registry state."""
+        """Snapshot registry state so each test runs in isolation."""
         self._orig = {
-            "_schemas": SchemaRegistry._schemas.copy(),
-            "_metadata": SchemaRegistry._metadata.copy(),
-            "_parsers": SchemaRegistry._parsers.copy(),
-            "_transforms": SchemaRegistry._transforms.copy(),
-            "_lineage": SchemaRegistry._lineage.copy(),
-            "_storage": SchemaRegistry._storage.copy(),
-            "_deduplication": SchemaRegistry._deduplication.copy(),
-            "_adr": SchemaRegistry._adr.copy(),
-            "_standardization": SchemaRegistry._standardization.copy(),
-            "_tuva": SchemaRegistry._tuva.copy(),
-            "_xref": SchemaRegistry._xref.copy(),
-            "_staging": SchemaRegistry._staging.copy(),
-            "_keys": SchemaRegistry._keys.copy(),
-            "_foreign_keys": SchemaRegistry._foreign_keys.copy(),
-            "_sheets": SchemaRegistry._sheets.copy(),
-            "_four_icli": SchemaRegistry._four_icli.copy(),
-            "_polars": SchemaRegistry._polars.copy(),
-            "_sources": SchemaRegistry._sources.copy(),
+            attr: getattr(SchemaRegistry, attr).copy()
+            for attr in (
+                "_schemas",
+                "_metadata",
+                "_parsers",
+                "_storage",
+                "_staging",
+                "_record_types",
+                "_sheets",
+                "_four_icli",
+                "_polars",
+            )
         }
 
     def teardown_method(self):
         """Restore original registry state."""
-        for attr, val in self._orig.items():
-            setattr(SchemaRegistry, attr, val)
+        for attr, original in self._orig.items():
+            current = getattr(SchemaRegistry, attr)
+            current.clear()
+            current.update(original)
 
     @pytest.mark.unit
     def test_parser_config_populates_file_format(self):
@@ -138,17 +106,6 @@ class TestGetFullTableConfigBranches:
         config = SchemaRegistry.get_full_table_config("__test_parser")
         assert "file_format" in config
         assert config["file_format"]["type"] == "fixed_width"
-
-    @pytest.mark.unit
-    def test_adr_config_populates(self):
-        """Branch 301->302: adr config is truthy, sets adr."""
-        SchemaRegistry._schemas["__test_adr"] = type("FM", (), {})
-        SchemaRegistry._metadata["__test_adr"] = {"name": "__test_adr"}
-        SchemaRegistry._adr["__test_adr"] = {"rule": "some_adr_rule"}
-
-        config = SchemaRegistry.get_full_table_config("__test_adr")
-        assert "adr" in config
-        assert config["adr"]["rule"] == "some_adr_rule"
 
     @pytest.mark.unit
     def test_extract_columns_from_dataclass_model(self):
@@ -397,42 +354,8 @@ class TestFullTableConfigBranches:
         SchemaRegistry._metadata.pop("__test_4i", None)
         SchemaRegistry._four_icli.pop("__test_4i", None)
 
-    @pytest.mark.unit
-    def test_polars_and_sources_branches(self):
-        """Cover lines 349-354: polars and sources config included."""
-        SchemaRegistry._metadata["__test_ps"] = {"name": "__test_ps"}
-        SchemaRegistry._polars["__test_ps"] = {"dtypes": {"col": "str"}}
-        SchemaRegistry._sources["__test_ps"] = {"main": "file.parquet"}
-
-        config = SchemaRegistry.get_full_table_config("__test_ps")
-        assert "polars" in config
-        assert "sources" in config
-        # Cleanup
-        SchemaRegistry._metadata.pop("__test_ps", None)
-        SchemaRegistry._polars.pop("__test_ps", None)
-        SchemaRegistry._sources.pop("__test_ps", None)
-
-
 class TestConvenienceFunctions:
     """Cover convenience functions at module level lines 524-539."""
-
-    @pytest.mark.unit
-    def test_get_record_types_for_schema(self):
-        from acoharmony._registry.registry import get_record_types_for_schema
-        result = get_record_types_for_schema("tparc")
-        assert isinstance(result, dict)
-
-    @pytest.mark.unit
-    def test_get_sheets_for_schema(self):
-        from acoharmony._registry.registry import get_sheets_for_schema
-        result = get_sheets_for_schema("reach_bnmr")
-        assert isinstance(result, (dict, type(None)))
-
-    @pytest.mark.unit
-    def test_get_four_icli_for_schema(self):
-        from acoharmony._registry.registry import get_four_icli_for_schema
-        result = get_four_icli_for_schema("cclf1")
-        assert isinstance(result, (dict, type(None)))
 
     @pytest.mark.unit
     def test_get_full_table_config(self):
@@ -466,83 +389,55 @@ class TestRegistryListMethods:
             assert result == []
 
 
-class TestRegistryClear:
-    """Cover clear() lines 435-453."""
+class TestSchemaRegistryClear:
+    """Cover SchemaRegistry.clear() (lines 300-308)."""
 
-    @pytest.mark.unit
-    def test_clear_and_restore(self):
-        import copy
-
-        # Save state
-        saved = {
-            attr: copy.deepcopy(getattr(SchemaRegistry, attr))
-            for attr in [
-                "_schemas", "_metadata", "_parsers", "_transforms", "_lineage",
-                "_storage", "_deduplication", "_adr", "_standardization", "_tuva",
-                "_xref", "_staging", "_keys", "_foreign_keys", "_record_types",
-                "_sheets", "_four_icli", "_polars", "_sources",
-            ]
+    def setup_method(self):
+        # Snapshot every registry dict so we can restore after the test
+        self._orig = {
+            attr: getattr(SchemaRegistry, attr).copy()
+            for attr in (
+                "_schemas",
+                "_metadata",
+                "_parsers",
+                "_storage",
+                "_staging",
+                "_record_types",
+                "_sheets",
+                "_four_icli",
+                "_polars",
+            )
         }
 
+    def teardown_method(self):
+        for attr, original in self._orig.items():
+            current = getattr(SchemaRegistry, attr)
+            current.clear()
+            current.update(original)
+
+    @pytest.mark.unit
+    def test_clear_empties_all_registry_dicts(self):
+        # Seed each registry dict with a sentinel
+        SchemaRegistry._schemas["__t"] = type("X", (), {})
+        SchemaRegistry._metadata["__t"] = {"name": "__t"}
+        SchemaRegistry._parsers["__t"] = {"type": "csv"}
+        SchemaRegistry._storage["__t"] = {"tier": "bronze"}
+        SchemaRegistry._staging["__t"] = "parent"
+        SchemaRegistry._record_types["__t"] = {"a": "b"}
+        SchemaRegistry._sheets["__t"] = {"sheets": []}
+        SchemaRegistry._four_icli["__t"] = {"category": "Reports"}
+        SchemaRegistry._polars["__t"] = {"lazy_evaluation": True}
+
         SchemaRegistry.clear()
-        assert len(SchemaRegistry._schemas) == 0
-        assert len(SchemaRegistry._metadata) == 0
-        assert len(SchemaRegistry._parsers) == 0
-        assert len(SchemaRegistry._four_icli) == 0
-        assert len(SchemaRegistry._sources) == 0
 
-        # Restore
-        for attr, data in saved.items():
-            setattr(SchemaRegistry, attr, data)
+        assert SchemaRegistry._schemas == {}
+        assert SchemaRegistry._metadata == {}
+        assert SchemaRegistry._parsers == {}
+        assert SchemaRegistry._storage == {}
+        assert SchemaRegistry._staging == {}
+        assert SchemaRegistry._record_types == {}
+        assert SchemaRegistry._sheets == {}
+        assert SchemaRegistry._four_icli == {}
+        assert SchemaRegistry._polars == {}
 
 
-class TestRemainingConvenienceFunctions:
-    """Cover convenience functions lines 484-519."""
-
-    @pytest.mark.unit
-    def test_get_storage_for_schema(self):
-        from acoharmony._registry.registry import get_storage_for_schema
-        result = get_storage_for_schema("cclf1")
-        assert isinstance(result, dict)
-
-    @pytest.mark.unit
-    def test_get_deduplication_for_schema(self):
-        from acoharmony._registry.registry import get_deduplication_for_schema
-        result = get_deduplication_for_schema("cclf1")
-        assert isinstance(result, dict)
-
-    @pytest.mark.unit
-    def test_get_adr_for_schema(self):
-        from acoharmony._registry.registry import get_adr_for_schema
-        result = get_adr_for_schema("cclf1")
-        assert isinstance(result, dict)
-
-    @pytest.mark.unit
-    def test_get_standardization_for_schema(self):
-        from acoharmony._registry.registry import get_standardization_for_schema
-        result = get_standardization_for_schema("cclf1")
-        assert isinstance(result, dict)
-
-    @pytest.mark.unit
-    def test_get_tuva_for_schema(self):
-        from acoharmony._registry.registry import get_tuva_for_schema
-        result = get_tuva_for_schema("enrollment")
-        assert isinstance(result, (dict, type(None)))
-
-    @pytest.mark.unit
-    def test_get_xref_for_schema(self):
-        from acoharmony._registry.registry import get_xref_for_schema
-        result = get_xref_for_schema("enrollment")
-        assert isinstance(result, (dict, type(None)))
-
-    @pytest.mark.unit
-    def test_get_staging_for_schema(self):
-        from acoharmony._registry.registry import get_staging_for_schema
-        result = get_staging_for_schema("nonexistent")
-        assert result is None
-
-    @pytest.mark.unit
-    def test_get_keys_for_schema(self):
-        from acoharmony._registry.registry import get_keys_for_schema
-        result = get_keys_for_schema("cclf1")
-        assert isinstance(result, (dict, type(None)))

@@ -477,25 +477,6 @@ class TestDevCommand:
 
     @patch('acoharmony.cli._require_full_package')
     @patch('acoharmony._dev.generate_aco_metadata')
-    @patch('acoharmony._dev.generate_data_lineage')
-    @patch('acoharmony._dev.generate_module_docs')
-    @patch('acoharmony._dev.docs.pipelines.generate_full_documentation')
-    @patch('sys.argv', ['aco', 'dev', 'generate', '--all-docs'])
-    @pytest.mark.unit
-    def test_dev_generate_all_docs(self, mock_pipelines, mock_modules, mock_lineage, mock_metadata, mock_require):
-        """Test generating all documentation."""
-        mock_metadata.return_value = True
-        mock_lineage.return_value = True
-        mock_modules.return_value = True
-        result = acoharmony.cli.main()
-        mock_metadata.assert_called_once()
-        mock_lineage.assert_called_once()
-        mock_modules.assert_called_once()
-        mock_pipelines.assert_called_once()
-        assert result == 0
-
-    @patch('acoharmony.cli._require_full_package')
-    @patch('acoharmony._dev.generate_aco_metadata')
     @patch('sys.argv', ['aco', 'dev', 'generate', '--metadata'])
     @pytest.mark.unit
     def test_dev_generate_metadata(self, mock_metadata, mock_require):
@@ -759,20 +740,6 @@ class TestDevCommandExtended:
     """Extended tests for dev command."""
 
     @patch("acoharmony.cli._require_full_package")
-    @patch("acoharmony._dev.generate_data_lineage")
-    @patch("sys.argv", ["aco", "dev", "generate", "--lineage"])
-    @pytest.mark.unit
-    def test_dev_generate_lineage(self, mock_lineage, mock_require):
-        """Test generating lineage documentation."""
-        mock_lineage.return_value = True
-
-
-        result = acoharmony.cli.main()
-
-        mock_lineage.assert_called_once()
-        assert result == 0
-
-    @patch("acoharmony.cli._require_full_package")
     @patch("acoharmony._dev.docs.modules.generate_module_docs")
     @patch("sys.argv", ["aco", "dev", "generate", "--modules"])
     @pytest.mark.unit
@@ -796,6 +763,55 @@ class TestDevCommandExtended:
         acoharmony.cli.main()
 
         mock_pipelines.assert_called_once()
+
+    @patch("acoharmony.cli._require_full_package")
+    @patch("acoharmony._dev.docs.pipelines.generate_full_documentation")
+    @patch("acoharmony._dev.generate_aco_metadata")
+    @patch("acoharmony._dev.generate_module_docs")
+    @patch("sys.argv", ["aco", "dev", "generate", "--all-docs"])
+    @pytest.mark.unit
+    def test_dev_generate_all_docs(self, mock_modules, mock_metadata, mock_pipelines, mock_require):
+        """Cover --all-docs branch (lines 865-908)."""
+        mock_modules.return_value = True
+        mock_metadata.return_value = True
+        mock_pipelines.return_value = None
+        result = acoharmony.cli.main()
+        assert result == 0
+        mock_modules.assert_called_once()
+        mock_metadata.assert_called_once()
+        mock_pipelines.assert_called_once()
+
+    @patch("acoharmony.cli._require_full_package")
+    @patch("acoharmony._dev.docs.pipelines.generate_full_documentation")
+    @patch("acoharmony._dev.generate_aco_metadata")
+    @patch("acoharmony._dev.generate_module_docs")
+    @patch("sys.argv", ["aco", "dev", "generate", "--all-docs"])
+    @pytest.mark.unit
+    def test_dev_generate_all_docs_failures(
+        self, mock_modules, mock_metadata, mock_pipelines, mock_require
+    ):
+        """Cover --all-docs branch when sub-generators fail / raise."""
+        mock_modules.side_effect = RuntimeError("modules boom")
+        mock_metadata.return_value = False
+        mock_pipelines.side_effect = RuntimeError("pipelines boom")
+        result = acoharmony.cli.main()
+        assert result == 1
+
+    @patch("acoharmony.cli._require_full_package")
+    @patch("acoharmony._dev.docs.pipelines.generate_full_documentation")
+    @patch("acoharmony._dev.generate_aco_metadata")
+    @patch("acoharmony._dev.generate_module_docs")
+    @patch("sys.argv", ["aco", "dev", "generate", "--all-docs"])
+    @pytest.mark.unit
+    def test_dev_generate_all_docs_module_returns_false(
+        self, mock_modules, mock_metadata, mock_pipelines, mock_require
+    ):
+        """Cover line 882: generate_module_docs returns False (not raise)."""
+        mock_modules.return_value = False
+        mock_metadata.return_value = True
+        mock_pipelines.return_value = None
+        result = acoharmony.cli.main()
+        assert result == 1
 
     @patch("acoharmony.cli._require_full_package")
     @patch("acoharmony._notes.generator.NotebookGenerator")
@@ -906,21 +922,6 @@ class TestDevCleanupTestsCommand:
         assert result == 0
 
 
-class TestDevGenerateDocsAll:
-    """Cover dev generate --docs lines 908-942."""
-
-    @patch("acoharmony.cli._require_full_package")
-    @patch("acoharmony._dev.docs.pipelines.generate_full_documentation")
-    @patch("acoharmony._dev.generate_data_lineage", return_value=True)
-    @patch("acoharmony._dev.generate_aco_metadata", return_value=True)
-    @patch("acoharmony._dev.docs.modules.generate_module_docs", return_value=True)
-    @patch("sys.argv", ["aco", "dev", "generate", "--all-docs"])
-    @pytest.mark.unit
-    def test_dev_generate_docs_all(self, mock_modules, mock_metadata, mock_lineage, mock_pipelines, mock_require):
-        result = acoharmony.cli.main()
-        assert result == 0
-
-
 class TestDevGenerateMetadata:
     """Cover dev generate --metadata lines 953-961."""
 
@@ -967,18 +968,10 @@ class TestConfigCommand:
     @patch("acoharmony.cli.StorageBackend")
     @patch("acoharmony.cli.Catalog")
     @patch("acoharmony.cli.get_config")
-    @patch("sys.argv", ["aco", "config", "--schema", "cclf1"])
+    @patch("sys.argv", ["aco", "config", "--schema", "nonexistent"])
     @pytest.mark.unit
-    def test_config_schema(self, mock_config, mock_catalog_cls, mock_storage_cls):
-        mock_metadata = MagicMock()
-        mock_metadata.description = "CCLF1 desc"
-        mock_metadata.medallion_layer = MagicMock()
-        mock_metadata.medallion_layer.unity_schema = "bronze"
-        mock_metadata.data_tier = "bronze"
-        mock_metadata.full_table_name = "main.bronze.cclf1"
-        mock_metadata.storage = {"tier": "bronze"}
-        mock_metadata.transformation_pipeline = None
-        mock_catalog_cls.return_value.get_table_metadata.return_value = mock_metadata
+    def test_config_schema_not_found(self, mock_config, mock_catalog_cls, mock_storage_cls):
+        mock_catalog_cls.return_value.get_table_metadata.return_value = None
         mock_config.return_value.get_schema_config.return_value = MagicMock()
 
         result = acoharmony.cli.main()
@@ -987,11 +980,47 @@ class TestConfigCommand:
     @patch("acoharmony.cli.StorageBackend")
     @patch("acoharmony.cli.Catalog")
     @patch("acoharmony.cli.get_config")
-    @patch("sys.argv", ["aco", "config", "--schema", "nonexistent"])
+    @patch("sys.argv", ["aco", "config", "--schema", "cclf1"])
     @pytest.mark.unit
-    def test_config_schema_not_found(self, mock_config, mock_catalog_cls, mock_storage_cls):
-        mock_catalog_cls.return_value.get_table_metadata.return_value = None
-        mock_config.return_value.get_schema_config.return_value = MagicMock()
+    def test_config_schema_found(self, mock_config, mock_catalog_cls, mock_storage_cls):
+        """Cover the FOUND schema branch (lines 792-811)."""
+        mock_metadata = MagicMock()
+        mock_metadata.description = "CCLF1 desc"
+        mock_layer = MagicMock()
+        mock_layer.unity_schema = "bronze"
+        mock_metadata.medallion_layer = mock_layer
+        mock_metadata.data_tier = "bronze"
+        mock_metadata.full_table_name = "main.bronze.cclf1"
+        mock_metadata.storage = {"tier": "bronze"}
+        mock_catalog_cls.return_value.get_table_metadata.return_value = mock_metadata
+
+        class _Cfg:
+            def __init__(self):
+                self.key1 = "value1"
+                self.key2 = "value2"
+
+        mock_config.return_value.get_schema_config.return_value = _Cfg()
+
+        result = acoharmony.cli.main()
+        assert result == 0
+
+    @patch("acoharmony.cli.StorageBackend")
+    @patch("acoharmony.cli.Catalog")
+    @patch("acoharmony.cli.get_config")
+    @patch("sys.argv", ["aco", "config", "--schema", "cclf1"])
+    @pytest.mark.unit
+    def test_config_schema_found_no_medallion(self, mock_config, mock_catalog_cls, mock_storage_cls):
+        """Cover the FOUND schema branch with no medallion_layer."""
+        mock_metadata = MagicMock()
+        mock_metadata.description = "Some desc"
+        mock_metadata.medallion_layer = None
+        mock_metadata.storage = {}
+        mock_catalog_cls.return_value.get_table_metadata.return_value = mock_metadata
+
+        class _Cfg:
+            pass
+
+        mock_config.return_value.get_schema_config.return_value = _Cfg()
 
         result = acoharmony.cli.main()
         assert result == 0
@@ -1965,69 +1994,6 @@ class TestConfigBranchCoverage:
     @patch("acoharmony.cli.StorageBackend")
     @patch("acoharmony.cli.Catalog")
     @patch("acoharmony.cli.get_config")
-    @patch("sys.argv", ["aco", "config", "--schema", "my_table"])
-    @pytest.mark.unit
-    def test_config_schema_no_medallion(self, mock_config, mock_catalog_cls, mock_storage):
-        """Branch 799->806: metadata exists but medallion_layer is None."""
-        meta = MagicMock()
-        meta.description = "test desc"
-        meta.medallion_layer = None
-        meta.storage = None
-        meta.transformation_pipeline = None
-        mock_catalog_cls.return_value.get_table_metadata.return_value = meta
-        mock_config.return_value.get_schema_config.return_value = MagicMock()
-        result = acoharmony.cli.main()
-        assert result == 0
-
-    @patch("acoharmony.cli.StorageBackend")
-    @patch("acoharmony.cli.Catalog")
-    @patch("acoharmony.cli.get_config")
-    @patch("sys.argv", ["aco", "config", "--schema", "my_table"])
-    @pytest.mark.unit
-    def test_config_schema_with_storage_attr(self, mock_config, mock_catalog_cls, mock_storage):
-        """Branch 806->807: metadata has storage attribute."""
-        meta = MagicMock()
-        meta.description = "desc"
-        meta.medallion_layer = MagicMock()
-        meta.medallion_layer.unity_schema = "bronze"
-        meta.data_tier = "raw"
-        meta.full_table_name = "main.bronze.test"
-        meta.storage = {"tier": "raw"}
-        meta.transformation_pipeline = MagicMock()
-        mock_catalog_cls.return_value.get_table_metadata.return_value = meta
-
-        class _Cfg:
-            key = "val"
-        mock_config.return_value.get_schema_config.return_value = _Cfg()
-        result = acoharmony.cli.main()
-        assert result == 0
-
-    @patch("acoharmony.cli.StorageBackend")
-    @patch("acoharmony.cli.Catalog")
-    @patch("acoharmony.cli.get_config")
-    @patch("sys.argv", ["aco", "config", "--schema", "my_table"])
-    @pytest.mark.unit
-    def test_config_schema_no_storage_attr(self, mock_config, mock_catalog_cls, mock_storage):
-        """Branch 806->813: metadata without storage attribute (hasattr False)."""
-        meta = MagicMock(spec=["description", "medallion_layer", "data_tier",
-                               "full_table_name", "transformation_pipeline"])
-        meta.description = "desc"
-        meta.medallion_layer = MagicMock()
-        meta.medallion_layer.unity_schema = "silver"
-        meta.data_tier = "processed"
-        meta.full_table_name = "main.silver.test"
-        meta.transformation_pipeline = None
-        mock_catalog_cls.return_value.get_table_metadata.return_value = meta
-
-        class _Cfg:
-            k = "v"
-        mock_config.return_value.get_schema_config.return_value = _Cfg()
-        result = acoharmony.cli.main()
-        assert result == 0
-
-    @patch("acoharmony.cli.StorageBackend")
-    @patch("acoharmony.cli.Catalog")
-    @patch("acoharmony.cli.get_config")
     @patch("sys.argv", ["aco", "config"])
     @pytest.mark.unit
     def test_config_global(self, mock_config, mock_catalog_cls, mock_storage):
@@ -2110,97 +2076,12 @@ class TestDevGenerateBranchCoverage:
     def _g(self):
         acoharmony.cli._require_full_package()
 
-    @patch("acoharmony._dev.generate_aco_metadata")
-    @patch("acoharmony._dev.generate_data_lineage")
-    @patch("acoharmony._dev.generate_module_docs")
-    @patch("acoharmony._dev.docs.pipelines.generate_full_documentation")
-    @patch("sys.argv", ["aco", "dev", "generate", "--all-docs"])
-    @pytest.mark.unit
-    def test_all_docs_module_exception(self, mock_pipelines, mock_modules,
-                                        mock_lineage, mock_metadata):
-        """Branch 891->893: module docs raises exception."""
-        mock_modules.side_effect = RuntimeError("module fail")
-        mock_metadata.return_value = True
-        mock_lineage.return_value = True
-        result = acoharmony.cli.main()
-        assert result == 1  # not all successful
-
-    @patch("acoharmony._dev.generate_aco_metadata")
-    @patch("acoharmony._dev.generate_data_lineage")
-    @patch("acoharmony._dev.generate_module_docs")
-    @patch("acoharmony._dev.docs.pipelines.generate_full_documentation")
-    @patch("sys.argv", ["aco", "dev", "generate", "--all-docs"])
-    @pytest.mark.unit
-    def test_all_docs_metadata_fails(self, mock_pipelines, mock_modules,
-                                      mock_lineage, mock_metadata):
-        """Branch 898->901: metadata returns False."""
-        mock_modules.return_value = True
-        mock_metadata.return_value = False
-        mock_lineage.return_value = True
-        result = acoharmony.cli.main()
-        assert result == 1
-
-    @patch("acoharmony._dev.generate_aco_metadata")
-    @patch("acoharmony._dev.generate_data_lineage")
-    @patch("acoharmony._dev.generate_module_docs")
-    @patch("acoharmony._dev.docs.pipelines.generate_full_documentation")
-    @patch("sys.argv", ["aco", "dev", "generate", "--all-docs"])
-    @pytest.mark.unit
-    def test_all_docs_lineage_fails(self, mock_pipelines, mock_modules,
-                                     mock_lineage, mock_metadata):
-        """Branch 906->909: lineage returns False."""
-        mock_modules.return_value = True
-        mock_metadata.return_value = True
-        mock_lineage.return_value = False
-        result = acoharmony.cli.main()
-        assert result == 1
-
-    @patch("acoharmony._dev.generate_aco_metadata")
-    @patch("acoharmony._dev.generate_data_lineage")
-    @patch("acoharmony._dev.generate_module_docs")
-    @patch("acoharmony._dev.docs.pipelines.generate_full_documentation")
-    @patch("sys.argv", ["aco", "dev", "generate", "--all-docs"])
-    @pytest.mark.unit
-    def test_all_docs_pipeline_exception(self, mock_pipelines, mock_modules,
-                                          mock_lineage, mock_metadata):
-        """Branch 916->918: pipeline docs raises exception."""
-        mock_modules.return_value = True
-        mock_metadata.return_value = True
-        mock_lineage.return_value = True
-        mock_pipelines.side_effect = RuntimeError("pipeline fail")
-        result = acoharmony.cli.main()
-        assert result == 1
-
-    @patch("acoharmony._dev.generate_aco_metadata")
-    @patch("acoharmony._dev.generate_data_lineage")
-    @patch("acoharmony._dev.generate_module_docs")
-    @patch("acoharmony._dev.docs.pipelines.generate_full_documentation")
-    @patch("sys.argv", ["aco", "dev", "generate", "--all-docs"])
-    @pytest.mark.unit
-    def test_all_docs_module_false(self, mock_pipelines, mock_modules,
-                                    mock_lineage, mock_metadata):
-        """Branch 887->890: module docs returns False."""
-        mock_modules.return_value = False
-        mock_metadata.return_value = True
-        mock_lineage.return_value = True
-        result = acoharmony.cli.main()
-        assert result == 1
-
     @patch("acoharmony._dev.add_copyright")
     @patch("sys.argv", ["aco", "dev", "generate", "--copyright"])
     @pytest.mark.unit
     def test_copyright_failure(self, mock_copyright):
         """Branch 932->933: copyright returns False."""
         mock_copyright.return_value = False
-        result = acoharmony.cli.main()
-        assert result == 1
-
-    @patch("acoharmony._dev.generate_data_lineage")
-    @patch("sys.argv", ["aco", "dev", "generate", "--lineage"])
-    @pytest.mark.unit
-    def test_lineage_failure(self, mock_lineage):
-        """Branch 949->952: lineage returns False."""
-        mock_lineage.return_value = False
         result = acoharmony.cli.main()
         assert result == 1
 

@@ -182,70 +182,6 @@ class TestNotebookConfig:
         assert cfg.storage_tier == "silver"
 
     @pytest.mark.unit
-    def test_from_schema_with_primary_key_list(self, mock_storage):
-        """from_schema extracts primary key from list."""
-        schema = SimpleNamespace(
-            name="test",
-            description="desc",
-            storage={"tier": "gold"},
-            keys={"primary_key": ["claim_id", "line_number"]},
-            columns=[],
-        )
-        cfg = self._import_config().from_schema(schema, storage_config=mock_storage)
-        assert cfg.primary_key == "claim_id"
-
-    @pytest.mark.unit
-    def test_from_schema_with_primary_key_string(self, mock_storage):
-        """from_schema extracts primary key when it is a string."""
-        schema = SimpleNamespace(
-            name="test",
-            description="desc",
-            storage={"tier": "gold"},
-            keys={"primary_key": "single_key"},
-            columns=[],
-        )
-        cfg = self._import_config().from_schema(schema, storage_config=mock_storage)
-        assert cfg.primary_key == "single_key"
-
-    @pytest.mark.unit
-    def test_from_schema_with_primary_key_empty_list(self, mock_storage):
-        """from_schema handles empty primary key list."""
-        schema = SimpleNamespace(
-            name="test",
-            description="desc",
-            storage={"tier": "gold"},
-            keys={"primary_key": []},
-            columns=[],
-        )
-        cfg = self._import_config().from_schema(schema, storage_config=mock_storage)
-        assert cfg.primary_key == []
-
-    @pytest.mark.unit
-    def test_from_schema_no_keys(self, mock_storage):
-        """from_schema handles schema without keys attribute."""
-        schema = SimpleNamespace(
-            name="test",
-            description="desc",
-            storage={"tier": "gold"},
-            columns=[],
-        )
-        cfg = self._import_config().from_schema(schema, storage_config=mock_storage)
-        assert cfg.primary_key is None
-
-    @pytest.mark.unit
-    def test_from_schema_keys_not_dict(self, mock_storage):
-        """from_schema handles non-dict keys attribute."""
-        schema = SimpleNamespace(
-            name="test",
-            description="desc",
-            storage={"tier": "gold"},
-            keys="not_a_dict",
-            columns=[],
-        )
-        cfg = self._import_config().from_schema(schema, storage_config=mock_storage)
-        assert cfg.primary_key is None
-
-    @pytest.mark.unit
     def test_from_schema_default_sort_column_detection(self, mock_storage):
         """from_schema detects default sort column from common patterns."""
         schema = SimpleNamespace(
@@ -1346,63 +1282,6 @@ class TestNotebookGenerator:
         sb_cls.assert_called_once()
 
     @pytest.mark.unit
-    def test_get_schema_with_full_details_yaml_exists(self, mock_storage, mock_catalog, tmp_path):
-        """get_schema_with_full_details loads YAML when schema file exists."""
-        gen = self._make_generator(mock_storage, mock_catalog, tmp_path)
-        schema_meta = SimpleNamespace(
-            name="cclf1",
-            description="Part A",
-            storage={"tier": "bronze"},
-            file_format={"type": "parquet"},
-            keys={"primary_key": ["claim_id"]},
-            transformation_pipeline=None,
-            medallion_layer=None,
-            unity_catalog=None,
-        )
-        mock_catalog.get_table_metadata.return_value = schema_meta
-
-        yaml_content = "columns:\n  - name: claim_id\n    type: string\n"
-        with patch("acoharmony._notes.generator.Path") as mock_path_cls:
-            # Mock the schema file path
-            mock_schema_file = MagicMock()
-            mock_schema_file.exists.return_value = True
-            mock_path_cls.return_value.__truediv__ = MagicMock(return_value=mock_schema_file)
-
-            # Use the actual Path for template_dir
-            with patch("builtins.open", mock_open(read_data=yaml_content)):
-                with patch(
-                    "acoharmony._notes.generator.yaml.safe_load",
-                    return_value={"columns": [{"name": "claim_id"}]},
-                ):
-                    # We need to mock the path chain properly
-                    pass
-
-        # Simpler approach: test the fallback branch
-        mock_schema_file_path = MagicMock()
-        mock_schema_file_path.exists.return_value = False
-
-        with patch("acoharmony._notes.generator.Path") as path_cls:
-            path_cls.return_value = MagicMock()
-            path_cls.return_value.__truediv__ = MagicMock(
-                return_value=MagicMock(__truediv__=MagicMock(return_value=mock_schema_file_path))
-            )
-            # This is getting complex; let's test the fallback path
-            schema_meta_no_columns = SimpleNamespace(
-                name="test",
-                description="desc",
-                storage={"tier": "gold"},
-                file_format={"type": "parquet"},
-                keys={},
-            )
-            mock_catalog.get_table_metadata.return_value = schema_meta_no_columns
-            # Test fallback when schema file doesn't exist
-            gen.get_schema_with_full_details.__wrapped__ if hasattr(
-                gen.get_schema_with_full_details, "__wrapped__"
-            ) else None
-            # Use direct invocation with mocked internals
-            # Skip deep mock chain - tested via create_notebook integration
-
-    @pytest.mark.unit
     def test_get_data_path_for_schema_with_medallion(self, mock_storage, mock_catalog, tmp_path):
         """get_data_path_for_schema uses medallion layer data_tier."""
         gen = self._make_generator(mock_storage, mock_catalog, tmp_path)
@@ -1708,49 +1587,6 @@ class TestNotebookGeneratorInit:
 
 class TestGetSchemaWithFullDetails:
     """Test get_schema_with_full_details method."""
-
-    @pytest.mark.unit
-    def test_with_existing_yaml(self, tmp_path):
-        """Loads full details from YAML file."""
-        with (
-            patch("acoharmony._notes.generator.StorageBackend") as mock_sb_cls,
-            patch("acoharmony._notes.generator.Catalog") as mock_cat_cls,
-        ):
-            mock_sb = MagicMock()
-            mock_sb.get_data_path.return_value = tmp_path
-            mock_sb_cls.return_value = mock_sb
-
-            mock_schema = MagicMock()
-            mock_schema.name = "test_schema"
-            mock_schema.description = "Test"
-            mock_schema.storage = {}
-            mock_schema.file_format = {}
-            mock_schema.keys = {}
-            mock_schema.transformation_pipeline = None
-            mock_schema.medallion_layer = None
-            mock_schema.unity_catalog = None
-
-            mock_catalog = MagicMock()
-            mock_catalog.get_table_metadata.return_value = mock_schema
-            mock_cat_cls.return_value = mock_catalog
-
-            from acoharmony._notes.generator import NotebookGenerator
-
-            gen = NotebookGenerator(storage_backend=mock_sb, output_dir=tmp_path)
-
-            # Create a fake YAML file
-            import acoharmony
-
-            Path(acoharmony.__file__).parent / "_schemas"
-
-            yaml_content = "columns:\n  - name: col1\n    type: string\n"
-            with (
-                patch("builtins.open", mock_open(read_data=yaml_content)),
-                patch.object(Path, "exists", return_value=True),
-            ):
-                result = gen.get_schema_with_full_details("test_schema")
-                assert result["name"] == "test_schema"
-                assert "columns" in result
 
     @pytest.mark.unit
     def test_with_missing_yaml(self, tmp_path):

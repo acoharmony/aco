@@ -4,8 +4,6 @@
 """
 Pydantic dataclass model for enrollment schema.
 
-Generated from: _schemas/enrollment.yml
-
  a type-safe Pydantic dataclass for the schema with:
 - Runtime type validation
 - Field-level validators for known patterns (MBI, NPI, ICD codes, etc.)
@@ -21,13 +19,8 @@ from pydantic.dataclasses import dataclass
 
 from acoharmony._registry import (
     register_schema,
-    with_deduplication,
     with_staging,
-    with_standardization,
     with_storage,
-    with_transform,
-    with_tuva,
-    with_xref,
 )
 from acoharmony._validators.field_validators import (
     ZIP5,
@@ -36,42 +29,8 @@ from acoharmony._validators.field_validators import (
 
 
 @register_schema(name="enrollment", version=2, tier="silver", description="""\2""")
-@with_transform()
 @with_storage(tier="silver", medallion_layer="silver", gold={"output_name": "enrollment.parquet"})
 @with_staging(source="beneficiary_demographics")
-@with_deduplication(
-    key=["bene_mbi_id"],
-    sort_by=["bene_part_a_enrlmt_bgn_dt", "bene_part_b_enrlmt_bgn_dt"],
-    keep="last",
-)
-@with_standardization(
-    rename_columns={
-        "bene_part_b_enrlmt_bgn_dt": "enrollment_start_date",
-        "source_file": "file_name",
-    },
-    add_columns=[
-        {"name": "person_id", "value": "current_bene_mbi_id"},
-        {"name": "payer", "value": "Medicare"},
-        {"name": "payer_type", "value": "Medicare"},
-        {"name": "plan", "value": "ACO"},
-    ],
-    add_computed={
-        "bene_member_month": "format_year_month_from_enrollment_start",
-        "enrollment_end_date": "enrollment_end_date_with_death_truncation",
-    },
-)
-@with_tuva(
-    models={"intermediate": ["int_enrollment"], "final": ["eligibility"]},
-    inject=["int_enrollment"],
-)
-@with_xref(
-    table="beneficiary_xref",
-    join_key="bene_mbi_id",
-    xref_key="prvs_num",
-    current_column="crnt_num",
-    output_column="current_bene_mbi_id",
-    description="Apply MBI crosswalk to get current MBI",
-)
 @dataclass
 class Enrollment:
     """

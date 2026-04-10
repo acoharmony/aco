@@ -584,6 +584,29 @@ class TestApplyConsolidatedTemporalLogicBranches:
         call_kwargs = self.transform.tracker.complete_transform.call_args
         assert call_kwargs[1]["success"] is False
 
+    @pytest.mark.unit
+    def test_reach_path_calls_signature_validity(self, tmp_path):
+        """Line 365: REACH program triggers calculate_signature_validity."""
+        self.transform.tracker.has_processed_file.return_value = False
+
+        # Mock _load_source_file to return a real LazyFrame so we reach line 365
+        df = pl.DataFrame({"bene_mbi": ["1"], "enrollment_start": [None]}).lazy()
+        self.transform._load_source_file = MagicMock(return_value=df)
+        # Stub downstream methods so we don't depend on their full behavior
+        self.transform.apply_temporal_windowing = MagicMock(return_value=df)
+        self.transform.calculate_signature_validity = MagicMock(return_value=df)
+        self.transform.add_lineage_tracking = MagicMock(return_value=df)
+        self.transform.merge_temporal_alignments = MagicMock(return_value=df)
+
+        # Filename with ALG → REACH program detection
+        result = self.transform.apply_consolidated_temporal_logic(
+            {}, ["/path/to/ALGC_2025M06_DATA.csv"]
+        )
+        # The REACH branch was hit
+        self.transform.calculate_signature_validity.assert_called_once()
+        # And we returned a successful result
+        assert result.success
+
 
 class TestLoadSourceFileException:
     """Test _load_source_file exception branch (lines 409-411)."""

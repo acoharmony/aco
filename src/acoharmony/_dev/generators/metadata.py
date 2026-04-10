@@ -10,9 +10,8 @@ from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 
-import yaml
-
 from acoharmony._log import get_logger
+from acoharmony._registry import SchemaRegistry
 from acoharmony._store import StorageBackend
 
 logger = get_logger("dev.aco_metadata")
@@ -43,32 +42,17 @@ def extract_aco_metadata(filename):
 
 
 def load_schema_file_patterns():
-    """Load file patterns from all schema YAML files."""
-    # Use the _schemas directory within the package
-    import acoharmony
-    schemas_dir = Path(acoharmony.__file__).parent / "_schemas"
+    """Load file patterns from all registered schemas via SchemaRegistry."""
+    # Ensure _tables models are imported so SchemaRegistry is populated
+    from acoharmony import _tables as _  # noqa: F401
+
     all_patterns = {}
-
-    if not schemas_dir.exists():
-        logger.warning(f"Schemas directory not found at {schemas_dir}")
-        return all_patterns
-
-    for schema_file in schemas_dir.glob("*.yml"):
-        if schema_file.name.startswith("_"):
-            continue
-
-        try:
-            with open(schema_file) as f:
-                schema = yaml.safe_load(f)
-
-            if "storage" in schema and "file_patterns" in schema.get("storage", {}):
-                name = schema.get("name", schema_file.stem)
-                patterns = schema["storage"]["file_patterns"]
-                all_patterns[name] = patterns
-                logger.debug(f"Loaded patterns for {name}: {patterns}")
-        except Exception as e:  # ALLOWED: Logs error and returns, caller handles the error condition
-            logger.warning(f"Failed to load schema {schema_file}: {e}")
-
+    for schema_name in SchemaRegistry.list_schemas():
+        storage_cfg = SchemaRegistry.get_storage_config(schema_name)
+        patterns = storage_cfg.get("file_patterns")
+        if patterns:
+            all_patterns[schema_name] = patterns
+            logger.debug(f"Loaded patterns for {schema_name}: {patterns}")
     return all_patterns
 
 

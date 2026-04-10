@@ -4,8 +4,6 @@
 """
 Pydantic dataclass model for plaru schema.
 
-Generated from: _schemas/plaru.yml
-
  a type-safe Pydantic dataclass for the schema with:
 - Runtime type validation
 - Field-level validators for known patterns (MBI, NPI, ICD codes, etc.)
@@ -23,7 +21,6 @@ from acoharmony._registry import (
     with_parser,
     with_sheets,
     with_storage,
-    with_transform,
 )
 
 
@@ -35,7 +32,6 @@ from acoharmony._registry import (
     file_patterns={"reach": ["REACH.D????.PLARU.PY????.D??????.T*.xlsx"]},
 )
 @with_parser(type="excel_multi_sheet", encoding="utf-8", has_header=False, embedded_transforms=True)
-@with_transform()
 @with_storage(
     tier="bronze",
     file_patterns={"reach": ["REACH.D????.PLARU.PY????.D??????.T*.xlsx"]},

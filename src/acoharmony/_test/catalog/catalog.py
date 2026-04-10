@@ -21,13 +21,7 @@ import pytest
 from acoharmony._catalog import (
     Catalog,
     TableMetadata,
-    TransformationPipeline,
-    TransformationStage,
 )
-
-# Aliases for backwards compatibility in tests
-Pipeline = TransformationPipeline
-TransformStage = TransformationStage
 from acoharmony._store import StorageBackend  # noqa: E402
 from acoharmony.medallion import MedallionLayer  # noqa: E402
 
@@ -108,26 +102,6 @@ class TestCatalogStubs:
             assert schema is not None
             assert schema.name == tables[0]
         assert catalog.get_schema('__nonexistent__') is None
-
-    @pytest.mark.unit
-    def test_transformationstage_init(self) -> None:
-        """Test TransformationStage initialization."""
-        stage = TransformationStage(name='stage1', transformer='MyTransformer')
-        assert stage.name == 'stage1'
-        assert stage.transformer == 'MyTransformer'
-        assert stage.inputs == []
-        assert stage.output == ''
-        assert stage.config == {}
-
-    @pytest.mark.unit
-    def test_transformationpipeline_init(self) -> None:
-        """Test TransformationPipeline initialization."""
-        stage = TransformationStage(name='s1')
-        pipeline = TransformationPipeline(stages=[stage])
-        assert len(pipeline.stages) == 1
-        assert pipeline.tracking is True
-        assert pipeline.incremental is True
-        assert pipeline.max_retries == 3
 
     @pytest.mark.unit
     def test_tablemetadata_init(self) -> None:
@@ -235,28 +209,6 @@ class TestCatalogDeeper:
         assert tm.data_tier is None
 
     @pytest.mark.unit
-    def test_transformation_stage_defaults(self):
-        from acoharmony._catalog import TransformationStage
-
-        ts = TransformationStage(name="test")
-        assert ts.transformer is None
-        assert ts.inputs == []
-        assert ts.output == ""
-        assert ts.config == {}
-
-    @pytest.mark.unit
-    def test_transformation_pipeline_defaults(self):
-        from acoharmony._catalog import TransformationPipeline
-
-        tp = TransformationPipeline()
-        assert tp.stages == []
-        assert tp.tracking is True
-        assert tp.incremental is True
-        assert tp.temp_write is False
-        assert tp.chunk_size == 100000
-        assert tp.max_retries == 3
-
-    @pytest.mark.unit
     def test_catalog_get_file_patterns_str(self):
         from acoharmony._catalog import Catalog
 
@@ -302,51 +254,6 @@ class TestCatalogDeeper:
         cat.get_file_patterns = Catalog.get_file_patterns.__get__(cat, Catalog)
         result = cat.get_file_patterns("missing")
         assert result == {}
-
-    @pytest.mark.unit
-    def test_catalog_get_pipeline(self):
-        from acoharmony._catalog import Catalog, TransformationPipeline
-
-        cat = MagicMock(spec=Catalog)
-        pipeline = TransformationPipeline()
-        meta = MagicMock()
-        meta.transformation_pipeline = pipeline
-        cat.get_table_metadata = MagicMock(return_value=meta)
-        cat.get_pipeline = Catalog.get_pipeline.__get__(cat, Catalog)
-        assert cat.get_pipeline("test") is pipeline
-
-    @pytest.mark.unit
-    def test_catalog_get_pipeline_none(self):
-        from acoharmony._catalog import Catalog
-
-        cat = MagicMock(spec=Catalog)
-        cat.get_table_metadata = MagicMock(return_value=None)
-        cat.get_pipeline = Catalog.get_pipeline.__get__(cat, Catalog)
-        assert cat.get_pipeline("missing") is None
-
-    @pytest.mark.unit
-    def test_catalog_get_dependencies_with_lineage(self):
-        from acoharmony._catalog import Catalog, TransformationPipeline, TransformationStage
-
-        cat = MagicMock(spec=Catalog)
-        stage = TransformationStage(name="s1", inputs=["table_a", "table_b"])
-        pipeline = TransformationPipeline(stages=[stage])
-        meta = MagicMock()
-        meta.transformation_pipeline = pipeline
-        meta.lineage = {"depends": ["table_c"]}
-        cat.get_table_metadata = MagicMock(return_value=meta)
-        cat.get_dependencies = Catalog.get_dependencies.__get__(cat, Catalog)
-        deps = cat.get_dependencies("test")
-        assert set(deps) == {"table_a", "table_b", "table_c"}
-
-    @pytest.mark.unit
-    def test_catalog_get_dependencies_none(self):
-        from acoharmony._catalog import Catalog
-
-        cat = MagicMock(spec=Catalog)
-        cat.get_table_metadata = MagicMock(return_value=None)
-        cat.get_dependencies = Catalog.get_dependencies.__get__(cat, Catalog)
-        assert cat.get_dependencies("missing") == []
 
     @pytest.mark.unit
     def test_catalog_get_unity_schema(self):
@@ -514,52 +421,6 @@ class TestGetFilePatterns:
         assert isinstance(patterns, dict)
 
 
-class TestGetPipeline:
-    """Tests for pipeline retrieval."""
-
-    @pytest.mark.unit
-    def test_get_pipeline_returns_optional(self, catalog: Catalog) -> None:
-        """get_pipeline returns TransformationPipeline or None."""
-        tables = catalog.list_tables()
-        if not tables:
-            pytest.skip("No tables available")
-
-        pipeline = catalog.get_pipeline(tables[0])
-
-        # May be None if table has no pipeline
-        assert pipeline is None or isinstance(pipeline, TransformationPipeline | Pipeline)
-
-    @pytest.mark.unit
-    def test_get_pipeline_nonexistent(self, catalog: Catalog) -> None:
-        """get_pipeline returns None for nonexistent table."""
-        pipeline = catalog.get_pipeline("nonexistent_table_xyz")
-
-        assert pipeline is None
-
-
-class TestGetDependencies:
-    """Tests for dependency retrieval."""
-
-    @pytest.mark.unit
-    def test_get_dependencies(self, catalog: Catalog) -> None:
-        """get_dependencies returns list of dependencies."""
-        tables = catalog.list_tables()
-        if not tables:
-            pytest.skip("No tables available")
-
-        deps = catalog.get_dependencies(tables[0])
-
-        assert isinstance(deps, list)
-
-    @pytest.mark.unit
-    def test_get_dependencies_nonexistent(self, catalog: Catalog) -> None:
-        """get_dependencies returns empty list for nonexistent table."""
-        deps = catalog.get_dependencies("nonexistent_table_xyz")
-
-        assert isinstance(deps, list)
-        assert len(deps) == 0
-
-
 @pytest.mark.slow
 @pytest.mark.requires_data
 class TestScanTable:
@@ -611,57 +472,6 @@ class TestDiscoverFiles:
 
 class TestDataclasses:
     """Tests for dataclass definitions."""
-
-    @pytest.mark.unit
-    def test_transformation_stage_creation(self) -> None:
-        """TransformationStage can be created."""
-        stage = TransformationStage(name="test_stage", transformer="deduplication")
-
-        assert stage.name == "test_stage"
-        assert stage.transformer == "deduplication"
-        assert stage.inputs == []
-        assert stage.output == ""
-
-    @pytest.mark.unit
-    def test_transform_stage_alias(self) -> None:
-        """TransformStage alias still works."""
-        stage = TransformStage(name="stage1", transformer="raw_to_parquet")
-        assert isinstance(stage, TransformationStage)
-
-    @pytest.mark.unit
-    def test_transformation_pipeline_creation(self) -> None:
-        """TransformationPipeline can be created."""
-        stage = TransformationStage(name="stage1", transformer="raw_to_parquet")
-        pipeline = TransformationPipeline(stages=[stage])
-
-        assert len(pipeline.stages) == 1
-        assert pipeline.tracking is True
-        assert pipeline.incremental is True
-
-    @pytest.mark.unit
-    def test_pipeline_alias(self) -> None:
-        """Pipeline alias still works."""
-        stage = TransformStage(name="stage1", transformer="raw_to_parquet")
-        pipeline = Pipeline(stages=[stage])
-        assert isinstance(pipeline, TransformationPipeline)
-
-    @pytest.mark.unit
-    def test_table_metadata_creation(self) -> None:
-        """TableMetadata can be created."""
-        metadata = TableMetadata(
-            name="test_table",
-            description="Test table",
-            columns=[{"name": "col1", "type": "String"}],
-            storage={"path": "/data"},
-            file_format={"type": "parquet"},
-            medallion_layer=MedallionLayer.BRONZE,
-        )
-
-        assert metadata.name == "test_table"
-        assert len(metadata.columns) == 1
-        assert metadata.staging_source is None
-        assert metadata.transformation_pipeline is None
-        assert metadata.medallion_layer == MedallionLayer.BRONZE
 
     @pytest.mark.unit
     def test_table_schema_alias(self) -> None:
@@ -739,57 +549,6 @@ class TestCatalogLoadTableMetadata:
         # Every entry should have a name matching its key
         for name, meta in cat._table_metadata.items():
             assert meta.name == name
-
-    @pytest.mark.unit
-    def test_pipeline_parsing(self):
-        """Test that pipeline data is parsed into TransformationPipeline."""
-        from acoharmony._catalog import Catalog, TableMetadata, TransformationPipeline, TransformationStage
-
-        # Build a catalog and manually inject a table with pipeline data
-        with patch.object(Catalog, "_load_table_metadata"):
-            cat = Catalog.__new__(Catalog)
-            cat.storage_config = MagicMock()
-            cat._table_metadata = {}
-
-        pipeline = TransformationPipeline(
-            stages=[
-                TransformationStage(
-                    name="stage1",
-                    transformer="MyTransformer",
-                    inputs=["input_a"],
-                    output="out_a",
-                    config={"k": "v"},
-                )
-            ],
-            tracking=False,
-            incremental=False,
-            temp_write=True,
-            chunk_size=50000,
-            max_retries=5,
-        )
-        cat._table_metadata["test_pipe"] = TableMetadata(
-            name="test_pipe",
-            description="",
-            columns=[],
-            storage={},
-            file_format={},
-            transformation_pipeline=pipeline,
-        )
-
-        meta = cat._table_metadata["test_pipe"]
-        assert meta.transformation_pipeline is not None
-        pipeline = meta.transformation_pipeline
-        assert len(pipeline.stages) == 1
-        assert pipeline.stages[0].name == "stage1"
-        assert pipeline.stages[0].transformer == "MyTransformer"
-        assert pipeline.stages[0].inputs == ["input_a"]
-        assert pipeline.stages[0].output == "out_a"
-        assert pipeline.stages[0].config == {"k": "v"}
-        assert pipeline.tracking is False
-        assert pipeline.incremental is False
-        assert pipeline.temp_write is True
-        assert pipeline.chunk_size == 50000
-        assert pipeline.max_retries == 5
 
     @pytest.mark.unit
     def test_tier_in_top_level(self):
@@ -967,42 +726,6 @@ class TestCatalogApplyColumnRenames:
             cat._table_metadata = {}
         return cat
 
-    @pytest.mark.unit
-    def test_no_columns(self):
-        """Line 376: returns lf unchanged if no columns."""
-        from acoharmony._catalog import TableMetadata
-
-        cat = self._make_catalog()
-        schema = TableMetadata(name="t", description="", columns=[], storage={}, file_format={})
-        lf = pl.DataFrame({"x": [1]}).lazy()
-        result = cat._apply_column_renames(lf, schema)
-        assert result.collect_schema().names() == ["x"]
-
-    @pytest.mark.unit
-    def test_rename_columns(self):
-        """Lines 378-391: rename columns when output_name differs."""
-        from acoharmony._catalog import TableMetadata
-
-        cat = self._make_catalog()
-        schema = TableMetadata(
-            name="t",
-            description="",
-            columns=[
-                {"name": "old_col", "output_name": "new_col"},
-                {"name": "keep_col", "output_name": "keep_col"},  # same name
-                {"name": "missing_col", "output_name": "renamed"},  # not in df
-            ],
-            storage={},
-            file_format={},
-        )
-        lf = pl.DataFrame({"old_col": [1], "keep_col": [2]}).lazy()
-        result = cat._apply_column_renames(lf, schema)
-        cols = result.collect_schema().names()
-        assert "new_col" in cols
-        assert "keep_col" in cols
-        assert "old_col" not in cols
-
-
 class TestCatalogApplyTypeCasting:
     """Cover lines 395-413."""
 
@@ -1014,45 +737,6 @@ class TestCatalogApplyTypeCasting:
             cat.storage_config = MagicMock()
             cat._table_metadata = {}
         return cat
-
-    @pytest.mark.unit
-    def test_no_cast_types(self):
-        """Line 396-397: returns lf unchanged if no cast_types."""
-        from acoharmony._catalog import TableMetadata
-
-        cat = self._make_catalog()
-        schema = TableMetadata(
-            name="t",
-            description="",
-            columns=[],
-            storage={},
-            file_format={},
-            polars={},
-        )
-        lf = pl.DataFrame({"a": [1]}).lazy()
-        result = cat._apply_type_casting(lf, schema)
-        assert result.collect().dtypes[0] == pl.Int64
-
-    @pytest.mark.unit
-    def test_cast_types_applied(self):
-        """Lines 399-413: type casting applied correctly."""
-        from acoharmony._catalog import TableMetadata
-
-        cat = self._make_catalog()
-        schema = TableMetadata(
-            name="t",
-            description="",
-            columns=[],
-            storage={},
-            file_format={},
-            polars={"cast_types": {"val": "float64", "name": "string", "missing": "int64"}},
-        )
-        lf = pl.DataFrame({"val": [1, 2, 3], "name": [10, 20, 30]}).lazy()
-        result = cat._apply_type_casting(lf, schema)
-        collected = result.collect()
-        assert collected["val"].dtype == pl.Float64
-        assert collected["name"].dtype == pl.Utf8
-
 
 class TestCatalogGetFilePatterns:
     """Cover line 451 (empty return for unexpected type)."""
@@ -1236,47 +920,6 @@ class TestCatalogGetDependencies:
             cat._table_metadata = {}
         return cat
 
-    @pytest.mark.unit
-    def test_deps_from_lineage(self):
-        """Lines 549-552: lineage.depends adds to deps."""
-        from acoharmony._catalog import TableMetadata, TransformationPipeline, TransformationStage
-
-        cat = self._make_catalog()
-        cat._table_metadata["t"] = TableMetadata(
-            name="t",
-            description="",
-            columns=[],
-            storage={},
-            file_format={},
-            transformation_pipeline=TransformationPipeline(
-                stages=[TransformationStage(name="s1", inputs=["dep_a"])]
-            ),
-            lineage={"depends": ["dep_b", "dep_c"]},
-        )
-        deps = cat.get_dependencies("t")
-        assert set(deps) == {"dep_a", "dep_b", "dep_c"}
-
-    @pytest.mark.unit
-    def test_deps_no_pipeline(self):
-        """Returns empty list when no pipeline."""
-        cat = self._make_catalog()
-        from acoharmony._catalog import TableMetadata
-
-        cat._table_metadata["t"] = TableMetadata(
-            name="t",
-            description="",
-            columns=[],
-            storage={},
-            file_format={},
-        )
-        assert cat.get_dependencies("t") == []
-
-    @pytest.mark.unit
-    def test_deps_nonexistent_table(self):
-        cat = self._make_catalog()
-        assert cat.get_dependencies("nope") == []
-
-
 def _make_catalog_with_yaml(tmp_path, schema_dicts):
     """Create a Catalog whose _schemas/ dir contains the given YAML dicts."""
     schemas_dir = tmp_path / "_schemas"
@@ -1299,69 +942,6 @@ class TestCatalogCompleteCoverage:
             cat.storage_config = MagicMock()
             cat._table_metadata = {}
         return cat
-
-    @pytest.mark.unit
-    def test_apply_column_renames_empty_rename_map(self):
-        """Test line 388->391: when rename_map is empty, lf is returned unchanged."""
-        from acoharmony._catalog import TableMetadata
-
-        cat = self._make_catalog()
-        # Schema with columns that don't need renaming (same name and output_name)
-        schema = TableMetadata(
-            name="t",
-            description="",
-            columns=[
-                {"name": "col1", "output_name": "col1"},  # Same name, no rename
-                {"name": "col2"},  # No output_name specified
-            ],
-            storage={},
-            file_format={},
-        )
-        lf = pl.DataFrame({"col1": [1], "col2": [2]}).lazy()
-        result = cat._apply_column_renames(lf, schema)
-        # Should return unchanged
-        assert result.collect_schema().names() == ["col1", "col2"]
-
-    @pytest.mark.unit
-    def test_get_dependencies_empty_lineage(self):
-        """Test line 549->552: when lineage is empty dict, only pipeline deps returned."""
-        from acoharmony._catalog import TableMetadata, TransformationPipeline, TransformationStage
-
-        cat = self._make_catalog()
-        cat._table_metadata["t"] = TableMetadata(
-            name="t",
-            description="",
-            columns=[],
-            storage={},
-            file_format={},
-            transformation_pipeline=TransformationPipeline(
-                stages=[TransformationStage(name="s1", inputs=["dep_a"])]
-            ),
-            lineage={},  # Empty dict - falsy in Python
-        )
-        deps = cat.get_dependencies("t")
-        # Should only have pipeline deps, not lineage deps
-        assert deps == ["dep_a"]
-
-    @pytest.mark.unit
-    def test_get_dependencies_no_depends_key_in_lineage(self):
-        """Test lineage dict without 'depends' key."""
-        from acoharmony._catalog import TableMetadata, TransformationPipeline, TransformationStage
-
-        cat = self._make_catalog()
-        cat._table_metadata["t"] = TableMetadata(
-            name="t",
-            description="",
-            columns=[],
-            storage={},
-            file_format={},
-            transformation_pipeline=TransformationPipeline(
-                stages=[TransformationStage(name="s1", inputs=["dep_a"])]
-            ),
-            lineage={"other_key": "value"},  # Has lineage but no 'depends'
-        )
-        deps = cat.get_dependencies("t")
-        assert deps == ["dep_a"]
 
     @pytest.mark.unit
     def test_table_metadata_with_record_types(self):
@@ -1410,48 +990,6 @@ class TestCatalogCompleteCoverage:
             matrix_fields=matrix_fields,
         )
         assert meta.matrix_fields == matrix_fields
-
-    @pytest.mark.unit
-    def test_transformation_stage_all_fields(self):
-        """Test TransformationStage with all fields populated."""
-        from acoharmony._catalog import TransformationStage
-
-        stage = TransformationStage(
-            name="dedup_stage",
-            transformer="DeduplicationTransformer",
-            inputs=["raw_table_a", "raw_table_b"],
-            output="deduplicated_table",
-            config={"method": "hash", "threshold": 0.95},
-        )
-        assert stage.name == "dedup_stage"
-        assert stage.transformer == "DeduplicationTransformer"
-        assert stage.inputs == ["raw_table_a", "raw_table_b"]
-        assert stage.output == "deduplicated_table"
-        assert stage.config["method"] == "hash"
-
-    @pytest.mark.unit
-    def test_transformation_pipeline_all_fields(self):
-        """Test TransformationPipeline with all fields customized."""
-        from acoharmony._catalog import TransformationPipeline, TransformationStage
-
-        stages = [
-            TransformationStage(name="stage1", inputs=["a"]),
-            TransformationStage(name="stage2", inputs=["b"]),
-        ]
-        pipeline = TransformationPipeline(
-            stages=stages,
-            tracking=False,
-            incremental=False,
-            temp_write=True,
-            chunk_size=50000,
-            max_retries=5,
-        )
-        assert len(pipeline.stages) == 2
-        assert pipeline.tracking is False
-        assert pipeline.incremental is False
-        assert pipeline.temp_write is True
-        assert pipeline.chunk_size == 50000
-        assert pipeline.max_retries == 5
 
     @pytest.mark.unit
     def test_get_file_patterns_with_metadata_extraction(self):
@@ -1567,47 +1105,6 @@ class TestCatalogCompleteCoverage:
         result = cat._get_table_file_path(schema, tier="bronze")
         assert result.endswith("bronze_custom.parquet")
 
-    @pytest.mark.unit
-    def test_table_metadata_all_optional_fields(self):
-        """Test TableMetadata with all optional fields populated."""
-        from acoharmony._catalog import (
-            TableMetadata,
-            TransformationPipeline,
-            TransformationStage,
-        )
-        from acoharmony.medallion import MedallionLayer
-
-        pipeline = TransformationPipeline(
-            stages=[TransformationStage(name="s1", inputs=["input1"])]
-        )
-        meta = TableMetadata(
-            name="complete_table",
-            description="Complete metadata",
-            columns=[{"name": "col1"}],
-            storage={"path": "/data"},
-            file_format={"type": "parquet"},
-            medallion_layer=MedallionLayer.SILVER,
-            unity_catalog="prod",
-            staging_source="staging_table",
-            transformation_pipeline=pipeline,
-            transformations={"dedupe": True},
-            lineage={"depends": ["table_a", "table_b"]},
-            polars={"cast_types": {"col1": "int64"}},
-            keys={"primary": ["id"], "partition": ["date"]},
-            record_types={"header": {}, "detail": {}},
-            sheets=[{"name": "Sheet1"}],
-            matrix_fields=[{"row": 1}],
-        )
-        assert meta.name == "complete_table"
-        assert meta.unity_catalog == "prod"
-        assert meta.staging_source == "staging_table"
-        assert meta.transformation_pipeline == pipeline
-        assert meta.transformations == {"dedupe": True}
-        assert meta.lineage == {"depends": ["table_a", "table_b"]}
-        assert meta.polars == {"cast_types": {"col1": "int64"}}
-        assert meta.keys == {"primary": ["id"], "partition": ["date"]}
-
-
 class TestCatalogLoadTableMetadataBranches:
     """Cover uncovered branches in _catalog._load_table_metadata."""
 
@@ -1632,56 +1129,6 @@ class TestCatalogLoadTableMetadataBranches:
         finally:
             SchemaRegistry._schemas = orig_schemas
             SchemaRegistry._metadata = orig_metadata
-
-    @pytest.mark.unit
-    def test_load_with_pipeline(self):
-        """Branches 201->202, 204->205, 204->214: pipeline in data triggers stage parsing."""
-        from acoharmony._catalog import Catalog
-        from acoharmony._registry import SchemaRegistry
-
-        orig_schemas = SchemaRegistry._schemas.copy()
-        orig_metadata = SchemaRegistry._metadata.copy()
-        orig_parsers = SchemaRegistry._parsers.copy()
-        orig_storage = SchemaRegistry._storage.copy()
-        try:
-            SchemaRegistry._schemas["__test_pipe"] = type("FakeModel", (), {})
-            SchemaRegistry._metadata["__test_pipe"] = {
-                "name": "__test_pipe",
-                "pipeline": {
-                    "stages": [
-                        {
-                            "name": "stage1",
-                            "transformer": "raw_to_parquet",
-                            "inputs": ["src_table"],
-                            "output": "dest_table",
-                            "config": {"key": "val"},
-                        }
-                    ],
-                    "tracking": False,
-                    "incremental": False,
-                    "temp_write": True,
-                    "chunk_size": 50000,
-                    "max_retries": 5,
-                },
-            }
-
-            cat = Catalog.__new__(Catalog)
-            cat.storage_config = StorageBackend()
-            cat._table_metadata = {}
-            cat._load_table_metadata()
-
-            meta = cat._table_metadata.get("__test_pipe")
-            assert meta is not None
-            assert meta.transformation_pipeline is not None
-            assert len(meta.transformation_pipeline.stages) == 1
-            assert meta.transformation_pipeline.stages[0].name == "stage1"
-            assert meta.transformation_pipeline.tracking is False
-            assert meta.transformation_pipeline.chunk_size == 50000
-        finally:
-            SchemaRegistry._schemas = orig_schemas
-            SchemaRegistry._metadata = orig_metadata
-            SchemaRegistry._parsers = orig_parsers
-            SchemaRegistry._storage = orig_storage
 
     @pytest.mark.unit
     def test_load_with_tier_in_data(self):

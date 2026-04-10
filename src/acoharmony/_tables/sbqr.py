@@ -4,8 +4,6 @@
 """
 Pydantic dataclass model for sbqr schema.
 
-Generated from: _schemas/sbqr.yml
-
  a type-safe Pydantic dataclass for the schema with:
 - Runtime type validation
 - Field-level validators for known patterns (MBI, NPI, ICD codes, etc.)
@@ -23,7 +21,6 @@ from acoharmony._registry import (
     with_parser,
     with_sheets,
     with_storage,
-    with_transform,
 )
 
 
@@ -37,7 +34,6 @@ from acoharmony._registry import (
 @with_parser(
     type="excel_multi_sheet", encoding="utf-8", has_header=False, embedded_transforms=False
 )
-@with_transform()
 @with_storage(
     tier="bronze",
     file_patterns={"reach": ["D????.PY????.Q?.SBQR.D??????.T*.xlsx"]},

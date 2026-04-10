@@ -4,8 +4,6 @@
 """
 Pydantic dataclass model for sva_submissions schema.
 
-Generated from: _schemas/sva_submissions.yml
-
  a type-safe Pydantic dataclass for the schema with:
 - Runtime type validation
 - Field-level validators for known patterns (MBI, NPI, ICD codes, etc.)
@@ -23,7 +21,6 @@ from acoharmony._registry import (
     register_schema,
     with_parser,
     with_storage,
-    with_transform,
 )
 from acoharmony._validators.field_validators import (
     MBI,
@@ -45,7 +42,6 @@ from acoharmony._validators.field_validators import (
     file_patterns={"main": "all_svas*.json"},
 )
 @with_parser(type="json", encoding="utf-8", has_header=False, embedded_transforms=False)
-@with_transform()
 @with_storage(
     tier="bronze",
     file_patterns={"main": "all_svas*.json"},
@@ -78,54 +74,127 @@ class SvaSubmissions:
         - SvaSubmissions.lineage_config() -> dict
     """
 
-    sva_id: str = MBI(description="Unique SVA submission identifier (UUID)")
-    submission_id: str = NPI(description="Submission identifier from source system")
-    submission_source: str = TIN(
-        description="Source of submission (EarthClassMail, DropboxUpload, Jotform)"
+    sva_id: str = MBI(
+        description="Unique SVA submission identifier (UUID)",
+        json_schema_extra={"source_name": "SVA ID"},
     )
-    beneficiary_first_name: str = Field(description="Beneficiary first name")
-    beneficiary_last_name: str = Field(description="Beneficiary last name")
-    provider_name_or_med_group: str = Field(description="Provider name or medical group")
+    submission_id: str = NPI(
+        description="Submission identifier from source system",
+        json_schema_extra={"source_name": "Submission ID"},
+    )
+    submission_source: str = TIN(
+        description="Source of submission (EarthClassMail, DropboxUpload, Jotform)",
+        json_schema_extra={"source_name": "Submission Source"},
+    )
+    beneficiary_first_name: str = Field(
+        description="Beneficiary first name",
+        json_schema_extra={"source_name": "Beneficiary First Name"},
+    )
+    beneficiary_last_name: str = Field(
+        description="Beneficiary last name",
+        json_schema_extra={"source_name": "Beneficiary Last Name"},
+    )
+    provider_name_or_med_group: str = Field(
+        description="Provider name or medical group",
+        json_schema_extra={"source_name": "Provider Name Or Med Group"},
+    )
     mbi: str | None = NPI(
         default=None,
         description="Medicare Beneficiary Identifier",
+        json_schema_extra={"source_name": "MBI"},
     )
     updated_mbi: str | None = MBI(
         default=None,
         description="Updated MBI if corrected",
+        json_schema_extra={"source_name": "Updated MBI"},
     )
     birth_date: date | None = Field(
         default=None,
         description="Beneficiary birth date (raw string)",
-        json_schema_extra={"date_format": ["%B %d, %Y", "%m/%d/%Y", "%Y-%m-%d"]},
+        json_schema_extra={"source_name": "Birth Date", "date_format": ["%B %d, %Y", "%m/%d/%Y", "%Y-%m-%d"]},
     )
-    transcriber_notes: str | None = Field(default=None, description="Notes from transcriber")
+    transcriber_notes: str | None = Field(
+        default=None,
+        description="Notes from transcriber",
+        json_schema_extra={"source_name": "Transcriber Notes"},
+    )
     signature_date: date | None = Field(
         default=None,
         description="Date of signature on SVA form (raw string)",
-        json_schema_extra={"date_format": ["%B %d, %Y", "%m/%d/%Y", "%Y-%m-%d"]},
+        json_schema_extra={"source_name": "Signature Date", "date_format": ["%B %d, %Y", "%m/%d/%Y", "%Y-%m-%d"]},
     )
-    address_primary_line: str | None = Field(default=None, description="Primary address line")
-    city: str | None = Field(default=None, description="City")
-    state: str | None = Field(default=None, description="State code")
-    zip: str | None = ZIP5(default=None, description="ZIP code")
+    address_primary_line: str | None = Field(
+        default=None,
+        description="Primary address line",
+        json_schema_extra={"source_name": "Address Primary Line"},
+    )
+    city: str | None = Field(
+        default=None,
+        description="City",
+        json_schema_extra={"source_name": "City"},
+    )
+    state: str | None = Field(
+        default=None,
+        description="State code",
+        json_schema_extra={"source_name": "State"},
+    )
+    zip: str | None = ZIP5(
+        default=None,
+        description="ZIP code",
+        json_schema_extra={"source_name": "Zip"},
+    )
     provider_npi: str | None = Field(
-        default=None, description="Provider National Provider Identifier"
+        default=None,
+        description="Provider National Provider Identifier",
+        json_schema_extra={"source_name": "Provider NPI"},
     )
-    updated_npi: str | None = NPI(default=None, description="Updated NPI if corrected")
-    provider_name: str | None = NPI(default=None, description="Individual provider name")
-    tin: str | None = Field(default=None, description="Tax Identification Number")
-    dc_id: str | None = Field(default=None, description="DC (Direct Contracting) identifier")
-    network_number: str | None = Field(default=None, description="Network number")
+    updated_npi: str | None = NPI(
+        default=None,
+        description="Updated NPI if corrected",
+        json_schema_extra={"source_name": "Updated NPI"},
+    )
+    provider_name: str | None = NPI(
+        default=None,
+        description="Individual provider name",
+        json_schema_extra={"source_name": "Provider Name"},
+    )
+    tin: str | None = Field(
+        default=None,
+        description="Tax Identification Number",
+        json_schema_extra={"source_name": "TIN"},
+    )
+    dc_id: str | None = Field(
+        default=None,
+        description="DC (Direct Contracting) identifier",
+        json_schema_extra={"source_name": "DC ID"},
+    )
+    network_number: str | None = Field(
+        default=None,
+        description="Network number",
+        json_schema_extra={"source_name": "Network Number"},
+    )
     created_at: str = Field(
-        description='Timestamp when record was created (formatted as "Month DD, YYYY, H:MM AM/PM")'
+        description='Timestamp when record was created (formatted as "Month DD, YYYY, H:MM AM/PM")',
+        json_schema_extra={"source_name": "Created At"},
     )
     letter_email_id: str | None = Field(
-        default=None, description="Associated letter or email identifier"
+        default=None,
+        description="Associated letter or email identifier",
+        json_schema_extra={"source_name": "Letter/Email ID"},
     )
-    network_id: str = Field(description="Network identifier")
-    practice_name: str | None = Field(default=None, description="Practice name")
-    status: str = Field(description="Submission status")
+    network_id: str = Field(
+        description="Network identifier",
+        json_schema_extra={"source_name": "Network ID"},
+    )
+    practice_name: str | None = Field(
+        default=None,
+        description="Practice name",
+        json_schema_extra={"source_name": "Practice Name"},
+    )
+    status: str = Field(
+        description="Submission status",
+        json_schema_extra={"source_name": "Status"},
+    )
     signature_date_parsed: date | None = Field(default=None, description="Parsed signature date")
     created_date: date = Field(description="Parsed creation date")
     created_timestamp: datetime = Field(description="Parsed creation timestamp")

@@ -4,8 +4,6 @@
 """
 Pydantic dataclass model for cclfb schema.
 
-Generated from: _schemas/cclfb.yml
-
  a type-safe Pydantic dataclass for the schema with:
 - Runtime type validation
 - Field-level validators for known patterns (MBI, NPI, ICD codes, etc.)
@@ -22,10 +20,8 @@ from pydantic.dataclasses import dataclass
 from acoharmony._registry import (
     register_schema,
     with_four_icli,
-    with_keys,
     with_parser,
     with_storage,
-    with_transform,
 )
 from acoharmony._validators.field_validators import (
     MBI,
@@ -49,7 +45,6 @@ from acoharmony._validators.field_validators import (
     },
 )
 @with_parser(type="fixed_width", encoding="utf-8", has_header=False, embedded_transforms=False)
-@with_transform()
 @with_storage(
     tier="bronze",
     file_patterns={
@@ -68,15 +63,6 @@ from acoharmony._validators.field_validators import (
         "last_updated_by": "scripts/process_raw_to_parquet.py",
     },
     gold={"output_name": None, "refresh_frequency": None, "last_updated_by": None},
-)
-@with_keys(
-    primary_key=["cur_clm_uniq_id", "clm_line_num"],
-    natural_key=["cur_clm_uniq_id", "clm_line_num", "bene_mbi_id"],
-    foreign_keys=[
-        {"column": "cur_clm_uniq_id", "references": "cclf5.cur_clm_uniq_id"},
-        {"column": "clm_line_num", "references": "cclf5.clm_line_num"},
-        {"column": "bene_mbi_id", "references": "beneficiary_demographics.bene_mbi_id"},
-    ],
 )
 @with_four_icli(
     category="Claim and Claim Line Feed (CCLF) Files",

@@ -4,8 +4,6 @@
 """
 Pydantic dataclass model for vwyearmo_engagement schema.
 
-Generated from: _schemas/vwyearmo_engagement.yml
-
  a type-safe Pydantic dataclass for the schema with:
 - Runtime type validation
 - Field-level validators for known patterns (MBI, NPI, ICD codes, etc.)
@@ -19,12 +17,14 @@ from datetime import date
 from pydantic import Field
 from pydantic.dataclasses import dataclass
 
-from acoharmony._registry import register_schema, with_parser, with_transform
+from acoharmony._registry import (
+    register_schema,
+    with_parser,
+)
 
 
 @register_schema(name="vwyearmo_engagement", version=2, tier="bronze", description="""\2""")
 @with_parser(type="parquet", encoding="utf-8", has_header=False, embedded_transforms=False)
-@with_transform()
 @dataclass
 class VwyearmoEngagement:
     """

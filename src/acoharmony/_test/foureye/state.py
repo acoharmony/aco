@@ -453,6 +453,69 @@ class TestFourICLIStateTrackerRemoteInventory:
 
         assert last_sync is None
 
+    @pytest.mark.unit
+    def test_get_last_sync_time_skips_states_without_remote(
+        self, mock_log_writer, tmp_path: Path
+    ) -> None:
+        """Cover branch 552->548: state.last_seen_remote falsy continues the loop."""
+        from datetime import datetime
+
+        from acoharmony._4icli.state import FileDownloadState
+
+        state_file = tmp_path / "tracking" / "test_skip.json"
+        tracker = FourICLIStateTracker(log_writer=mock_log_writer, state_file=state_file)
+
+        def _state(name: str, remote: datetime | None) -> FileDownloadState:
+            return FileDownloadState(
+                filename=name,
+                file_hash="x" * 64,
+                download_timestamp=datetime(2025, 1, 1),
+                category="CCLF",
+                file_type_code=113,
+                file_size=0,
+                source_path=str(tmp_path / name),
+                last_seen_remote=remote,
+            )
+
+        # Seed cache with a state that has no last_seen_remote
+        tracker._file_cache["empty.zip"] = _state("empty.zip", None)
+        # And one with a real timestamp
+        tracker._file_cache["real.zip"] = _state("real.zip", datetime(2025, 6, 1, 12, 0, 0))
+
+        last_sync = tracker.get_last_sync_time(category="CCLF")
+        assert last_sync == datetime(2025, 6, 1, 12, 0, 0)
+
+    @pytest.mark.unit
+    def test_get_last_sync_time_keeps_most_recent(
+        self, mock_log_writer, tmp_path: Path
+    ) -> None:
+        """Cover branch 553->548: when current state's remote <= last_sync, stay with last_sync."""
+        from datetime import datetime
+
+        from acoharmony._4icli.state import FileDownloadState
+
+        state_file = tmp_path / "tracking" / "test_keep.json"
+        tracker = FourICLIStateTracker(log_writer=mock_log_writer, state_file=state_file)
+
+        def _state(name: str, remote: datetime) -> FileDownloadState:
+            return FileDownloadState(
+                filename=name,
+                file_hash="y" * 64,
+                download_timestamp=datetime(2025, 1, 1),
+                category="CCLF",
+                file_type_code=113,
+                file_size=0,
+                source_path=str(tmp_path / name),
+                last_seen_remote=remote,
+            )
+
+        # Newer first, then older — older state should be ignored
+        tracker._file_cache["newer.zip"] = _state("newer.zip", datetime(2025, 12, 1))
+        tracker._file_cache["older.zip"] = _state("older.zip", datetime(2025, 1, 1))
+
+        last_sync = tracker.get_last_sync_time(category="CCLF")
+        assert last_sync == datetime(2025, 12, 1)
+
 
 @pytest.mark.unit
 class TestFourICLIStateTrackerEdgeCases:

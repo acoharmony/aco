@@ -101,8 +101,6 @@ try:
     from ._catalog import (  # noqa: E402
         Catalog,
         TableMetadata,
-        TransformationPipeline,
-        TransformationStage,
     )
     from ._runner import TransformRunner  # noqa: E402
     from ._store import StorageBackend  # noqa: E402
@@ -121,7 +119,6 @@ try:
         ResultStatus,
         TransformResult,
     )
-    from .tables import TableManager  # noqa: E402
     from .tracking import TransformTracker  # noqa: E402
     from .transforms import TransformRegistry  # noqa: E402
 
@@ -148,9 +145,6 @@ try:
         # Catalog
         "Catalog",
         "TableMetadata",
-        "TransformationPipeline",
-        "TransformationStage",
-        "TableManager",
         # Runner
         "TransformRunner",
         # Transforms

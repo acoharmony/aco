@@ -4,7 +4,6 @@
 """Development utilities for ACO Harmony."""
 
 # Documentation generators (core functionality, imports must work)
-from .docs.lineage import generate_data_lineage
 from .docs.modules import generate_module_docs
 from .docs.orchestrator import generate_all_documentation
 from .docs.pipelines import generate_full_documentation as generate_pipeline_docs
@@ -22,7 +21,6 @@ def __getattr__(name):
         "add_copyright": (".setup.copyright", "add_copyright"),
         # Generators
         "generate_aco_metadata": (".generators.metadata", "generate_aco_metadata"),
-        "generate_cclf_guide": (".generators.cclf_guide", "generate_cclf_guide"),
         # Test
         "MockDataGenerator": (".test.mocks", "MockDataGenerator"),
         "generate_test_mocks": (".test.mocks", "generate_test_mocks"),
@@ -51,7 +49,6 @@ __all__ = [
     "generate_all_documentation",
     "generate_module_docs",
     "generate_pipeline_docs",
-    "generate_data_lineage",
     # Test
     "generate_test_mocks",
     "MockDataGenerator",
@@ -74,5 +71,4 @@ __all__ = [
     "add_copyright",
     # Generators
     "generate_aco_metadata",
-    "generate_cclf_guide",
 ]

@@ -4,8 +4,6 @@
 """
 Pydantic dataclass model for beneficiary_demographics schema.
 
-Generated from: _schemas/beneficiary_demographics.yml
-
  a type-safe Pydantic dataclass for the schema with:
 - Runtime type validation
 - Field-level validators for known patterns (MBI, NPI, ICD codes, etc.)
@@ -21,11 +19,7 @@ from pydantic.dataclasses import dataclass
 
 from acoharmony._registry import (
     register_schema,
-    with_deduplication,
-    with_standardization,
     with_storage,
-    with_transform,
-    with_xref,
 )
 from acoharmony._validators.field_validators import (
     MBI,
@@ -36,37 +30,10 @@ from acoharmony._validators.field_validators import (
 
 
 @register_schema(name="beneficiary_demographics", version=2, tier="silver", description="""\2""")
-@with_transform()
 @with_storage(
     tier="silver",
     medallion_layer="silver",
     gold={"output_name": "beneficiary_demographics.parquet"},
-)
-@with_deduplication(key=["current_bene_mbi_id"], sort_by=["file_date"], keep="last")
-@with_standardization(
-    rename_columns={
-        "bene_mbi_id": "member_id",
-        "bene_fst_name": "first_name",
-        "bene_lst_name": "last_name",
-        "bene_mdl_name": "middle_name",
-        "bene_dob": "date_of_birth",
-        "bene_death_dt": "date_of_death",
-        "bene_sex_cd": "gender_code",
-        "bene_race_cd": "race_code",
-        "bene_mdcr_status_cd": "medicare_status_code",
-        "bene_dual_status_cd": "dual_status_code",
-        "bene_fips_state_cd": "state_code",
-        "bene_fips_cnty_cd": "county_code",
-        "bene_zip_cd": "zip_code",
-    },
-)
-@with_xref(
-    table="enterprise_crosswalk",
-    join_key="bene_mbi_id",
-    xref_key="prvs_num",
-    current_column="crnt_num",
-    output_column="current_bene_mbi_id",
-    description="Apply MBI crosswalk to get current MBI",
 )
 @dataclass
 class BeneficiaryDemographics:

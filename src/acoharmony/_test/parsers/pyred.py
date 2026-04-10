@@ -18,7 +18,6 @@ import pytest
 import acoharmony
 
 from acoharmony._parsers._pyred import parse_pyred
-from acoharmony.tables import TableManager
 
 from .conftest import HAS_OPENPYXL
 

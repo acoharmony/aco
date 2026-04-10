@@ -4,8 +4,6 @@
 """
 Pydantic dataclass model for eligibility schema.
 
-Generated from: _schemas/eligibility.yml
-
  a type-safe Pydantic dataclass for the schema with:
 - Runtime type validation
 - Field-level validators for known patterns (MBI, NPI, ICD codes, etc.)
@@ -22,11 +20,8 @@ from pydantic.dataclasses import dataclass
 
 from acoharmony._registry import (
     register_schema,
-    with_lineage,
     with_staging,
-    with_standardization,
     with_storage,
-    with_transform,
 )
 from acoharmony._validators.field_validators import (
     ZIP5,
@@ -35,21 +30,8 @@ from acoharmony._validators.field_validators import (
 
 
 @register_schema(name="eligibility", version=2, tier="gold", description="""\2""")
-@with_transform(name="eligibility")
-@with_lineage(depends_on=["int_enrollment", "medical_claim"])
 @with_storage(tier="gold", medallion_layer="gold")
 @with_staging(source="enrollment")
-@with_standardization(
-    rename_columns={
-        "member_id": "member_id",
-        "person_id": "person_id",
-        "enrollment_start_date": "enrollment_start_date",
-        "enrollment_end_date": "enrollment_end_date",
-    },
-    add_columns=[
-        {"name": "source_file", "value": "eligibility"},
-    ],
-)
 @dataclass
 class Eligibility:
     """

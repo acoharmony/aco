@@ -4,8 +4,6 @@
 """
 Pydantic dataclass model for zip_to_county schema.
 
-Generated from: _schemas/zip_to_county.yml
-
  a type-safe Pydantic dataclass for the schema with:
 - Runtime type validation
 - Field-level validators for known patterns (MBI, NPI, ICD codes, etc.)
@@ -23,7 +21,6 @@ from acoharmony._registry import (
     register_schema,
     with_parser,
     with_storage,
-    with_transform,
 )
 from acoharmony._validators.field_validators import (
     ZIP5,
@@ -33,7 +30,6 @@ from acoharmony._validators.field_validators import (
 
 @register_schema(name="zip_to_county", version=2, tier="bronze", description="""\2""")
 @with_parser(type="parquet", encoding="utf-8", has_header=False, embedded_transforms=False)
-@with_transform()
 @with_storage(
     medallion_layer="bronze",
     bronze={"output_name": "zip_to_county.parquet"},

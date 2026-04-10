@@ -4,8 +4,6 @@
 """
 Pydantic dataclass model for voluntary_alignment schema.
 
-Generated from: _schemas/voluntary_alignment.yml
-
  a type-safe Pydantic dataclass for the schema with:
 - Runtime type validation
 - Field-level validators for known patterns (MBI, NPI, ICD codes, etc.)
@@ -21,9 +19,7 @@ from pydantic.dataclasses import dataclass
 
 from acoharmony._registry import (
     register_schema,
-    with_sources,
     with_storage,
-    with_transform,
 )
 from acoharmony._validators.field_validators import (
     MBI,
@@ -34,13 +30,11 @@ from acoharmony._validators.field_validators import (
 
 
 @register_schema(name="voluntary_alignment", version=2, tier="silver", description="""\2""")
-@with_transform()
 @with_storage(
     tier="silver",
     medallion_layer="silver",
     gold={"output_name": "voluntary_alignment.parquet"},
 )
-@with_sources("sva", "pbvar", "emails", "mailed", "email_unsubscribes")
 @dataclass
 class VoluntaryAlignment:
     """

@@ -4,8 +4,6 @@
 """
 Pydantic dataclass model for mbi_crosswalk schema.
 
-Generated from: _schemas/mbi_crosswalk.yml
-
  a type-safe Pydantic dataclass for the schema with:
 - Runtime type validation
 - Field-level validators for known patterns (MBI, NPI, ICD codes, etc.)
@@ -22,21 +20,13 @@ from pydantic.dataclasses import dataclass
 from acoharmony._registry import (
     register_schema,
     with_parser,
-    with_standardization,
     with_storage,
-    with_transform,
 )
 
 
 @register_schema(name="mbi_crosswalk", version=2, tier="silver", description="""\2""")
 @with_parser(type="parquet", encoding="utf-8", has_header=False, embedded_transforms=False)
-@with_transform()
 @with_storage(tier="silver", medallion_layer="silver")
-@with_standardization(
-    add_columns=[
-        {"name": "source_file", "value": "mbi_crosswalk"},
-    ],
-)
 @dataclass
 class MbiCrosswalk:
     """

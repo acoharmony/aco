@@ -17,7 +17,6 @@ from acoharmony._registry import (
     with_four_icli,
     with_parser,
     with_storage,
-    with_transform,
 )
 
 
@@ -31,7 +30,6 @@ from acoharmony._registry import (
 @with_parser(
     type="csv", delimiter=",", encoding="utf-8", has_header=True, embedded_transforms=False
 )
-@with_transform()
 @with_storage(
     tier="bronze",
     file_patterns={"reach": ["D????.PY????.??.SBMHS.D??????.T*.csv"]},

@@ -4,8 +4,6 @@
 """
 Pydantic dataclass model for bar schema.
 
-Generated from: _schemas/bar.yml
-
  a type-safe Pydantic dataclass for the schema with:
 - Runtime type validation
 - Field-level validators for known patterns (MBI, NPI, ICD codes, etc.)
@@ -21,13 +19,9 @@ from pydantic.dataclasses import dataclass
 
 from acoharmony._registry import (
     register_schema,
-    with_foreign_keys,
     with_four_icli,
-    with_keys,
     with_parser,
     with_storage,
-    with_transform,
-    with_xref,
 )
 from acoharmony._validators.field_validators import (
     MBI,
@@ -45,7 +39,6 @@ from acoharmony._validators.field_validators import (
     file_patterns={"reach": ["*ALGC*.xlsx", "*ALGR*.xlsx"]},
 )
 @with_parser(type="excel", encoding="utf-8", has_header=False, embedded_transforms=True)
-@with_transform()
 @with_storage(
     tier="bronze",
     file_patterns={"reach": ["*ALGC*.xlsx", "*ALGR*.xlsx"]},
@@ -55,42 +48,6 @@ from acoharmony._validators.field_validators import (
         "refresh_frequency": "monthly",
         "last_updated_by": "aco transform bar",
     },
-)
-@with_xref(
-    table="beneficiary_xref",
-    join_key="bene_mbi",
-    xref_key="prvs_num",
-    current_column="crnt_num",
-    output_column="current_bene_mbi",
-    description="Apply MBI crosswalk to get current MBI",
-)
-@with_keys(
-    primary_key=["bene_mbi_id", "start_date", "aco_id"],
-    natural_key=["bene_mbi_id", "aco_id"],
-    foreign_keys=[
-        {"column": "bene_mbi_id", "references": "cclf8.bene_mbi_id"},
-        {"column": "pcp_npi", "references": "provider.npi"},
-    ],
-)
-@with_foreign_keys(
-    description="Relationships to other tables",
-    keys=[
-        {
-            "column": "bene_mbi",
-            "references": "beneficiary_demographics.bene_mbi_id",
-            "type": "many-to-one",
-        },
-        {
-            "column": "current_bene_mbi",
-            "references": "beneficiary_xref.crnt_num",
-            "type": "many-to-one",
-        },
-        {
-            "column": "bene_county_fips",
-            "references": "zip_to_county.fips_code",
-            "type": "many-to-one",
-        },
-    ],
 )
 @with_four_icli(
     category="Beneficiary List",
