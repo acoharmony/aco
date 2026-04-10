@@ -86,6 +86,36 @@ class TestCreateLocalStructureDocSymlink:
         assert docs_target.is_file()
         assert not docs_target.is_symlink()
 
+    @pytest.mark.unit
+    def test_docs_target_existing_symlink_is_replaced(self, tmp_path):
+        """Lines 72-73: docs_target is already a symlink; unlink it and create a new one."""
+        base_path = tmp_path / "data"
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+
+        docs_source = tmp_path / "docs_src"
+        docs_source.mkdir()
+
+        # Create a pre-existing symlink pointing somewhere else.
+        old_target = tmp_path / "old_docs"
+        old_target.mkdir()
+        docs_target = tmp_path / "docs_target"
+        docs_target.symlink_to(old_target)
+        assert docs_target.is_symlink()
+
+        with patch(
+            "acoharmony._dev.setup.storage.Path",
+            side_effect=lambda x: {
+                "/home/care/acoharmony/docs": docs_source,
+                "/home/care/docs": docs_target,
+            }.get(x, Path(x)),
+        ):
+            create_local_structure(base_path, symlink_to=workspace)
+
+        # The old symlink should be gone; a new one pointing at docs_source exists.
+        assert docs_target.is_symlink()
+        assert docs_target.resolve() == docs_source.resolve()
+
 
 class TestSetupStorageFallthrough:
     """Cover branch 300->304: backend is not local/s3api/databricks/s3+create_bucket."""
