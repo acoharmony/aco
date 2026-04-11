@@ -940,9 +940,14 @@ class TestMockDataGeneratorExceptionHandling:
     def test_generate_synthetic_value_datetime_column(self):
         """generate_synthetic_value for Datetime columns (line 295)."""
 
+        import random as _random
 
         gen = MagicMock(spec=MockDataGenerator)
         gen.generate_synthetic_value = MockDataGenerator.generate_synthetic_value.__get__(gen)
+        # MockDataGenerator now uses a per-instance random.Random via ``_rng``.
+        # spec-based MagicMock does not auto-populate instance attributes set
+        # in __init__, so attach a real Random() for the bound method to use.
+        gen._rng = _random.Random()
 
         col_meta = ColumnMetadata(
             name="created_date",

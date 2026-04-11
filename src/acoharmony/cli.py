@@ -249,6 +249,12 @@ def main():
     )
     mocks_parser.add_argument("--dry-run", action="store_true", help="Only scan, don't generate")
     mocks_parser.add_argument("--force", action="store_true", help="Regenerate existing fixtures")
+    mocks_parser.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help="Deterministic RNG seed so same seed → identical fixtures",
+    )
 
     # Dev generate-tests subcommand
     _test_gen_parser = dev_subparsers.add_parser(
@@ -1026,6 +1032,7 @@ notes:
                     sample_size=args.sample_size,
                     dry_run=args.dry_run,
                     force=args.force,
+                    seed=args.seed,
                 )
                 return 0
             except Exception as e:  # ALLOWED: CLI top-level handler
