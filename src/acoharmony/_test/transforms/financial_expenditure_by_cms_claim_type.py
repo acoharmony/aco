@@ -140,6 +140,32 @@ class TestBeneAttributionOutputShape:
 
 class TestReachBeneAttribution:
     @pytest.mark.unit
+    def test_group_with_no_active_months_emits_empty_frame(self):
+        """BAR has a delivery for (D0259, PY2024) but the bene's alignment
+        window (Jan 1-1) is narrower than any single-month-end check, so
+        no month produces rows. Covers the _reach_attribution_for_group
+        empty-frames fallback.
+        """
+        bar = _bar_frame(
+            [
+                {
+                    "bene_mbi": "R1",
+                    "start_date": date(2024, 1, 1),
+                    "end_date": date(2024, 1, 1),  # same day → never 'active at month_end'
+                    "source_filename": "P.D0259.ALGC24.RP.D240601.T1111111.xlsx",
+                    "file_date": "2024-06-01",
+                }
+            ]
+        )
+        alr = _alr_frame([])
+        result = (
+            build_bene_attribution_asof(bar, alr, as_of_cutoff="2024-06-30")
+            .collect()
+            .filter(pl.col("program") == "REACH")
+        )
+        assert result.height == 0
+
+    @pytest.mark.unit
     def test_open_ended_bene_attributed_every_month(self):
         """One REACH bene, active Jan onward, cutoff June 30 → 6 attribution rows."""
         bar = _bar_frame(
@@ -190,6 +216,29 @@ class TestReachBeneAttribution:
 
 
 class TestMsspBeneAttribution:
+    @pytest.mark.unit
+    def test_cutoff_before_py_start_yields_empty_group(self):
+        """MSSP ALR delivery exists for PY2024 but cutoff is 2023-12-31
+        (before any PY2024 month exists). The group is consulted but the
+        month-end grid is empty → no attribution rows emitted for that group.
+        """
+        alr = _alr_frame(
+            [
+                {
+                    "bene_mbi": "M1",
+                    "source_filename": "P.A2671.ACO.QALR.2024Q1.D231201.T0000000_1-2.csv",
+                    "file_date": "2023-12-01",
+                }
+            ]
+        )
+        bar = _bar_frame([])
+        result = (
+            build_bene_attribution_asof(bar, alr, as_of_cutoff="2023-12-31")
+            .collect()
+        )
+        # Group existed but produced zero rows — the fallback branch.
+        assert result.height == 0
+
     @pytest.mark.unit
     def test_roster_bene_attributed_every_py_month_through_cutoff(self):
         alr = _alr_frame(
