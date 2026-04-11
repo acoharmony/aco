@@ -29,9 +29,11 @@ COPY pyproject.toml uv.lock README.md ./
 COPY src ./src
 
 # --no-editable ensures the venv contains a built copy of the wheel instead
-# of an egg-link pointing back at /src. --no-dev skips test/lint dependencies.
+# of an egg-link pointing back at /src. --no-dev skips test/lint deps.
+# --extra full pulls in marimo itself plus duckdb, pypdf, opentelemetry, etc.
+# which the notebooks depend on at runtime.
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-editable --no-dev
+    uv sync --frozen --no-editable --no-dev --extra full
 
 # -----------------------------------------------------------------------------
 # Stage 2: runtime — minimal image with only the built venv

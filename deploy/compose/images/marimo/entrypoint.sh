@@ -1,7 +1,9 @@
 #!/bin/bash
 set -e
 
-STATIC_DIR="/home/care/acoharmony/.venv/lib/python3.13/site-packages/marimo/_static"
+# marimo lives inside the image's /opt/venv (baked from the wheel via
+# `uv sync --no-editable` in the builder stage); there is no host venv.
+STATIC_DIR="/opt/venv/lib/python3.13/site-packages/marimo/_static"
 CUSTOM_DIR="/opt/marimo-custom"
 
 # Inject custom homepage script inline into marimo's index.html
@@ -27,5 +29,6 @@ if [ -f "$CUSTOM_DIR/logo.png" ]; then
     echo "Custom logo applied."
 fi
 
-exec uv run --project /home/care/acoharmony marimo edit . \
+# marimo is on $PATH via /opt/venv/bin; run it directly.
+exec marimo edit . \
     --watch --host 0.0.0.0 --port 10012 --headless --no-token

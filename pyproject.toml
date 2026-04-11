@@ -90,8 +90,10 @@ exclude = [
   "*.db",
   "/src/acoharmony/_dev",
   "/src/acoharmony/_docs",
-  "/src/acoharmony/_notes",
   "/src/acoharmony/_deploy"
+  # Note: _notes is intentionally NOT excluded. Marimo notebooks in
+  # /opt/s3/data/notebooks do `from acoharmony._notes.plugins import ...`
+  # at runtime, so the subpackage must ship with the wheel.
 ]
 
 [tool.hatch.build.targets.wheel]

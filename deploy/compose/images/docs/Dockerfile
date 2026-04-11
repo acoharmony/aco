@@ -26,8 +26,12 @@ COPY deploy/compose/images/4icli/zscaler-root.crt /usr/local/share/ca-certificat
 RUN update-ca-certificates
 ENV NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt
 
-# Activate the pnpm shim bundled with Node 22 via corepack.
-RUN corepack enable pnpm
+# Pre-fetch pnpm via corepack so the runtime image does not have to go to
+# the npm registry on first invocation (which would block on a y/n prompt
+# in a non-TTY container). COREPACK_ENABLE_DOWNLOAD_PROMPT=0 forces
+# auto-accept if corepack does ever need to fetch something at runtime.
+ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+RUN corepack enable pnpm && corepack prepare pnpm@latest --activate
 
 # Copy manifest first so the install layer is cached independently of
 # any downstream source edits.
@@ -58,9 +62,11 @@ COPY deploy/compose/images/4icli/zscaler-root.crt /usr/local/share/ca-certificat
 RUN update-ca-certificates
 ENV NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt
 
-# Activate pnpm in the runtime image as well, so `pnpm start` works inside
-# containers (e.g. for `docs-builder` which runs `pnpm run build`).
-RUN corepack enable pnpm
+# Pre-fetch pnpm so `pnpm start` never tries to resolve the package manager
+# version at container start time. COREPACK_ENABLE_DOWNLOAD_PROMPT=0 keeps
+# corepack from blocking on a TTY prompt if it does hit the network.
+ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+RUN corepack enable pnpm && corepack prepare pnpm@latest --activate
 
 WORKDIR /home/care/acoharmony/docs
 
