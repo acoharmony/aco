@@ -151,3 +151,64 @@ class TestEngineIsStatelessAcrossCalls:
         )
         assert first.risk_score == second.risk_score
         assert first.hcc_list == second.hcc_list
+
+
+class TestCustomDataFileOverrides:
+    """The override args route custom paths through to the underlying engine.
+
+    PR H will use these overrides to plug the Tuva CMS HCC silver parquets
+    (V24 + V28, PY2019–PY2025) into the scoring engine so BNMR reconciliation
+    can target historical performance years. These tests verify the override
+    wiring itself — passing an explicit path as each override keyword and
+    confirming the engine still constructs and scores correctly.
+
+    We exercise the wiring by passing the DEFAULT vendored CSV filenames as
+    explicit overrides. That is a round-trip — the engine should behave
+    identically whether the caller passes ``None`` (letting hccinfhir resolve
+    its own defaults) or the same path as an explicit string. If the
+    behavior diverges, the wiring has a bug.
+    """
+
+    @staticmethod
+    def _vendored_data_path(filename: str) -> str:
+        """Resolve a path to a file inside the vendored hccinfhir data dir."""
+        from pathlib import Path
+
+        import acoharmony._depends.hccinfhir as vendored_pkg
+
+        return str(Path(vendored_pkg.__file__).parent / "data" / filename)
+
+    @pytest.mark.unit
+    def test_coefficients_filename_override_is_forwarded(self):
+        """Passing coefficients_filename=<default path> round-trips cleanly."""
+        engine = HCCEngine(
+            coefficients_filename=self._vendored_data_path("ra_coefficients_2026.csv"),
+        )
+        # Engine must construct AND score — if the override is malformed
+        # the CSV load would explode at __init__ time.
+        result = engine.score_patient(
+            diagnosis_codes=["E119"], age=81, sex="M"
+        )
+        assert result.risk_score == pytest.approx(0.737, abs=0.001)
+
+    @pytest.mark.unit
+    def test_dx_cc_mapping_filename_override_is_forwarded(self):
+        """Passing dx_cc_mapping_filename=<default path> round-trips cleanly."""
+        engine = HCCEngine(
+            dx_cc_mapping_filename=self._vendored_data_path("ra_dx_to_cc_2026.csv"),
+        )
+        result = engine.score_patient(
+            diagnosis_codes=["E119"], age=81, sex="M"
+        )
+        assert result.risk_score == pytest.approx(0.737, abs=0.001)
+
+    @pytest.mark.unit
+    def test_hierarchies_filename_override_is_forwarded(self):
+        """Passing hierarchies_filename=<default path> round-trips cleanly."""
+        engine = HCCEngine(
+            hierarchies_filename=self._vendored_data_path("ra_hierarchies_2026.csv"),
+        )
+        result = engine.score_patient(
+            diagnosis_codes=["E119"], age=81, sex="M"
+        )
+        assert result.risk_score == pytest.approx(0.737, abs=0.001)
