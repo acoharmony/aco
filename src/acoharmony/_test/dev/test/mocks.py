@@ -216,3 +216,119 @@ class TestInferDependenciesProviderNotMatched:
         }
         deps = gen._infer_dependencies(columns)
         assert deps.count("claims") == 1
+
+
+class TestSeedDeterminism:
+    """Seed support: same seed → identical fixtures across runs."""
+
+    def _scan_fixture(self, tmp_path: Path, seed: int | None) -> pl.DataFrame:
+        """Build a generator, seed it, scan a synthetic parquet, generate a frame."""
+        # Write a source parquet with a known schema so scan_table_metadata has
+        # something to populate the metadata cache with.
+        src = tmp_path / f"fix_{seed}.parquet"
+        pl.DataFrame(
+            {
+                "id": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+                "name": ["alpha", "beta", "gamma", "delta", "eps", "zeta",
+                         "eta", "theta", "iota", "kappa"],
+                "amount": [1.0, 2.5, 3.0, 4.25, 5.5, 6.75, 7.0, 8.5, 9.25, 10.0],
+            }
+        ).write_parquet(src)
+
+        gen = MockDataGenerator(storage=MagicMock(), seed=seed)
+        meta = gen.scan_table_metadata(src, "silver", "fix")
+        gen.metadata_cache["fix"] = meta
+        return gen.generate_synthetic_dataframe("fix", n_rows=25)
+
+    @pytest.mark.unit
+    def test_same_seed_produces_identical_output(self, tmp_path):
+        """Two generators seeded with the same integer produce identical frames."""
+        a = self._scan_fixture(tmp_path, seed=42)
+        b = self._scan_fixture(tmp_path, seed=42)
+        assert a.to_dicts() == b.to_dicts()
+
+    @pytest.mark.unit
+    def test_different_seeds_produce_different_output(self, tmp_path):
+        """Distinct seeds produce distinct frames (overwhelmingly likely)."""
+        a = self._scan_fixture(tmp_path, seed=1)
+        b = self._scan_fixture(tmp_path, seed=2)
+        assert a.to_dicts() != b.to_dicts()
+
+    @pytest.mark.unit
+    def test_unseeded_generator_still_works(self, tmp_path):
+        """seed=None uses the shared random state and the generator still runs."""
+        gen = MockDataGenerator(storage=MagicMock(), seed=None)
+        src = tmp_path / "unseeded.parquet"
+        pl.DataFrame({"id": [1, 2, 3], "x": ["a", "b", "c"]}).write_parquet(src)
+        meta = gen.scan_table_metadata(src, "silver", "unseeded")
+        gen.metadata_cache["unseeded"] = meta
+        df = gen.generate_synthetic_dataframe("unseeded", n_rows=5)
+        assert df.height == 5
+        assert set(df.columns) == {"id", "x"}
+
+    @pytest.mark.unit
+    def test_seed_does_not_mutate_global_random_state(self, tmp_path):
+        """Seeding the generator must not clobber the global random module.
+
+        We rely on an isolated random.Random instance. To prove it, snapshot
+        a value from the global random stream, run a seeded generator, and
+        confirm the next value from the global stream is unaffected.
+        """
+        import random as _random
+
+        _random.seed(12345)  # prime the global stream
+        before = _random.random()
+
+        _random.seed(12345)  # rewind
+        _ = self._scan_fixture(tmp_path, seed=999)
+        after = _random.random()
+
+        assert before == after, (
+            "MockDataGenerator(seed=...) leaked into the global random state"
+        )
+
+    @pytest.mark.unit
+    def test_seed_affects_generate_synthetic_value(self):
+        """generate_synthetic_value is deterministic per-instance given a seed."""
+        col = ColumnMetadata(
+            name="amount",
+            dtype="Float64",
+            null_count=0,
+            null_percentage=0.0,
+            min_value=1.0,
+            max_value=1000.0,
+        )
+        g1 = MockDataGenerator(storage=MagicMock(), seed=7)
+        g2 = MockDataGenerator(storage=MagicMock(), seed=7)
+        seq1 = [g1.generate_synthetic_value(col, "amount") for _ in range(20)]
+        seq2 = [g2.generate_synthetic_value(col, "amount") for _ in range(20)]
+        assert seq1 == seq2
+
+
+class TestGenerateTestMocksSeedArgument:
+    """generate_test_mocks() forwards the seed argument to MockDataGenerator."""
+
+    @pytest.mark.unit
+    def test_generate_test_mocks_accepts_seed(self, tmp_path, monkeypatch):
+        """The top-level entry point accepts and forwards seed=."""
+        from acoharmony._dev.test import mocks as mocks_mod
+
+        captured = {}
+
+        class _StubGenerator:
+            def __init__(self, storage=None, sample_size=1000,
+                         sample_values_per_column=20, seed=None):
+                captured["seed"] = seed
+                self.metadata_cache = {}
+
+            def scan_all_tables(self, layers=None):
+                return {}
+
+        monkeypatch.setattr(mocks_mod, "MockDataGenerator", _StubGenerator)
+        mocks_mod.generate_test_mocks(
+            layers=["silver"],
+            output_dir=str(tmp_path),
+            dry_run=True,
+            seed=777,
+        )
+        assert captured["seed"] == 777

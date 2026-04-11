@@ -66,6 +66,7 @@ class MockDataGenerator:
         storage: StorageBackend | None = None,
         sample_size: int = 1000,
         sample_values_per_column: int = 20,
+        seed: int | None = None,
     ):
         """
         Initialize mock data generator.
@@ -74,11 +75,20 @@ class MockDataGenerator:
                     storage: Storage backend (defaults to dev profile)
                     sample_size: Number of rows to sample from each table for metadata
                     sample_values_per_column: Number of sample values to collect per column
+                    seed: Optional deterministic seed. When provided, all synthetic
+                          value generation draws from an isolated ``random.Random``
+                          instance so two runs with the same seed produce identical
+                          fixtures. When ``None``, falls back to the shared
+                          ``random`` module for backwards-compatible behaviour.
         """
         self.storage = storage or StorageBackend()
         self.sample_size = sample_size
         self.sample_values_per_column = sample_values_per_column
         self.metadata_cache: dict[str, TableMetadata] = {}
+        # Isolated RNG so seeding never mutates the global random module.
+        # When seed is None we still use a dedicated Random() instance (no seed)
+        # which matches the old behaviour without touching global state.
+        self._rng = random.Random(seed) if seed is not None else random.Random()
 
     def scan_table_metadata(
         self, path: Path, layer: str, table_name: str
@@ -118,12 +128,14 @@ class MockDataGenerator:
                     # Skip Date/Datetime columns entirely - we'll generate synthetic dates from scratch
                     # Trying to read invalid dates causes Rust panics
                     if col.dtype not in [pl.Date, pl.Datetime]:
-                        sample_vals = (
-                            col.drop_nulls()
-                            .unique()
-                            .head(self.sample_values_per_column)
-                            .to_list()
-                        )
+                        # Polars ``unique()`` returns results in hash order, which
+                        # is non-deterministic across runs. Sort the sampled
+                        # values by their string representation so the metadata
+                        # cache (and therefore seeded synthetic output) is
+                        # reproducible. None-safe via drop_nulls above.
+                        unique_vals = col.drop_nulls().unique().to_list()
+                        unique_vals.sort(key=lambda v: str(v))
+                        sample_vals = unique_vals[: self.sample_values_per_column]
                         sample_vals = [self._serialize_value(v) for v in sample_vals]
 
                     unique_count = col.n_unique()
@@ -260,12 +272,12 @@ class MockDataGenerator:
                     Synthetic value matching column type
         """
         # Honor null percentage (with some randomness)
-        if random.random() < col_meta.null_percentage * 0.8:  # 80% of original null rate
+        if self._rng.random() < col_meta.null_percentage * 0.8:  # 80% of original null rate
             return None
 
         # Use sample values if available
         if col_meta.sample_values:
-            return random.choice(col_meta.sample_values)
+            return self._rng.choice(col_meta.sample_values)
 
         # Generate based on column name patterns
         col_lower = col_name.lower()
@@ -276,11 +288,11 @@ class MockDataGenerator:
 
         # NPI patterns
         if "npi" in col_lower:
-            return str(random.randint(1000000000, 9999999999))
+            return str(self._rng.randint(1000000000, 9999999999))
 
         # TIN patterns
         if "tin" in col_lower:
-            return str(random.randint(100000000, 999999999))
+            return str(self._rng.randint(100000000, 999999999))
 
         # Date patterns
         if "date" in col_lower or col_lower.endswith("_dt"):
@@ -289,39 +301,39 @@ class MockDataGenerator:
                     min_date = datetime.fromisoformat(col_meta.min_value).date()
                     max_date = datetime.fromisoformat(col_meta.max_value).date()
                     delta = (max_date - min_date).days
-                    return min_date + timedelta(days=random.randint(0, delta))
-                return date(2024, random.randint(1, 12), random.randint(1, 28))
+                    return min_date + timedelta(days=self._rng.randint(0, delta))
+                return date(2024, self._rng.randint(1, 12), self._rng.randint(1, 28))
             elif "Datetime" in col_meta.dtype:
                 return datetime(
                     2024,
-                    random.randint(1, 12),
-                    random.randint(1, 28),
-                    random.randint(0, 23),
-                    random.randint(0, 59),
+                    self._rng.randint(1, 12),
+                    self._rng.randint(1, 28),
+                    self._rng.randint(0, 23),
+                    self._rng.randint(0, 59),
                 )
 
         # Generate by dtype with min/max bounds
         if "Int" in col_meta.dtype:
             if col_meta.min_value is not None and col_meta.max_value is not None:
-                return random.randint(col_meta.min_value, col_meta.max_value)
-            return random.randint(0, 10000)
+                return self._rng.randint(col_meta.min_value, col_meta.max_value)
+            return self._rng.randint(0, 10000)
 
         elif "Float" in col_meta.dtype:
             if col_meta.min_value is not None and col_meta.max_value is not None:
-                return random.uniform(col_meta.min_value, col_meta.max_value)
-            return random.uniform(0.0, 10000.0)
+                return self._rng.uniform(col_meta.min_value, col_meta.max_value)
+            return self._rng.uniform(0.0, 10000.0)
 
         elif "String" in col_meta.dtype:
             if "code" in col_lower or "cd" in col_lower:
-                return random.choice(["01", "02", "03", "A", "B", "C"])
+                return self._rng.choice(["01", "02", "03", "A", "B", "C"])
             elif "name" in col_lower:
-                return random.choice(["SMITH", "JONES", "WILLIAMS", "BROWN", "DAVIS"])
+                return self._rng.choice(["SMITH", "JONES", "WILLIAMS", "BROWN", "DAVIS"])
             elif "id" in col_lower:
-                return f"ID{random.randint(10000, 99999)}"
-            return f"VALUE_{random.randint(1000, 9999)}"
+                return f"ID{self._rng.randint(10000, 99999)}"
+            return f"VALUE_{self._rng.randint(1000, 9999)}"
 
         elif "Boolean" in col_meta.dtype:
-            return random.choice([True, False])
+            return self._rng.choice([True, False])
 
         return None
 
@@ -338,16 +350,16 @@ class MockDataGenerator:
 
         return (
             "1"
-            + random.choice(chars1)
-            + random.choice(chars2)
-            + random.choice(string.digits)
-            + random.choice(chars1)
-            + random.choice(chars2)
-            + random.choice(string.digits)
-            + random.choice(chars1)
-            + random.choice(chars1)
-            + random.choice(string.digits)
-            + random.choice(string.digits)
+            + self._rng.choice(chars1)
+            + self._rng.choice(chars2)
+            + self._rng.choice(string.digits)
+            + self._rng.choice(chars1)
+            + self._rng.choice(chars2)
+            + self._rng.choice(string.digits)
+            + self._rng.choice(chars1)
+            + self._rng.choice(chars1)
+            + self._rng.choice(string.digits)
+            + self._rng.choice(string.digits)
         )
 
     def generate_synthetic_dataframe(
@@ -479,6 +491,7 @@ def generate_test_mocks(
     sample_size: int = 1000,
     dry_run: bool = False,
     force: bool = False,
+    seed: int | None = None,
 ) -> None:
     """
     Main entry point to generate test mocks from production data.
@@ -491,6 +504,10 @@ def generate_test_mocks(
             sample_size: Number of rows to sample for metadata extraction
             dry_run: If True, only scan and print what would be generated
             force: If True, regenerate existing fixtures; if False, skip existing
+            seed: Optional deterministic seed forwarded to the underlying
+                  ``MockDataGenerator`` so two runs with the same seed produce
+                  identical fixtures. Uses an isolated ``random.Random`` so the
+                  global random state is never mutated.
 
     """
     output_dir = Path(output_dir)
@@ -500,7 +517,7 @@ def generate_test_mocks(
     print("=" * 80)
 
     # Initialize generator
-    generator = MockDataGenerator(sample_size=sample_size)
+    generator = MockDataGenerator(sample_size=sample_size, seed=seed)
 
     # Scan tables
     metadata = generator.scan_all_tables(layers=layers)
@@ -564,6 +581,12 @@ if __name__ == "__main__":
     parser.add_argument(
         "--force", action="store_true", help="Regenerate existing fixtures"
     )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help="Deterministic RNG seed (same seed → identical fixtures)",
+    )
 
     args = parser.parse_args()
 
@@ -575,4 +598,5 @@ if __name__ == "__main__":
         sample_size=args.sample_size,
         dry_run=args.dry_run,
         force=args.force,
+        seed=args.seed,
     )
