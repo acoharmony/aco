@@ -211,6 +211,11 @@ omit = [
     "*/conftest.py",
     "*/__pycache__/*",
     "*/.hypothesis/*",
+    # Vendored third-party code: we ship it as-is from upstream, so forcing
+    # 100% coverage on it would mean writing tests for someone else's
+    # library. The vendor-mechanics tests in _test/depends/ verify the
+    # parts of the vendored surface we actually rely on.
+    "*/_depends/*",
 ]
 
 [tool.coverage.report]
