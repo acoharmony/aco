@@ -422,6 +422,47 @@ class TestMixedRechAndMsspInSameRun:
         assert programs == {"REACH", "MSSP"}
 
 
+class TestEmptyInputs:
+    """Covers the no-data-at-all fallback branch."""
+
+    @pytest.mark.unit
+    def test_both_inputs_empty_after_filtering_returns_empty_frame(self):
+        """When every BAR and ALR row is dropped by the cutoff, the transform
+        must still return an empty, correctly-schemaed LazyFrame instead of
+        raising or returning None. This exercises the fallback branch.
+        """
+        # Both rows are AFTER the cutoff, so nothing survives.
+        bar = _bar_frame(
+            [
+                {
+                    "bene_mbi": "X",
+                    "start_date": date(2099, 1, 1),
+                    "end_date": None,
+                    "source_filename": "P.D0259.ALGC99.RP.D990101.T1111111.xlsx",
+                    "file_date": "2099-01-01",
+                }
+            ]
+        )
+        alr = _alr_frame(
+            [
+                {
+                    "bene_mbi": "Y",
+                    "source_filename": "P.A2671.ACO.QALR.2099Q1.D990101.T0000000_1-2.csv",
+                    "file_date": "2099-01-01",
+                }
+            ]
+        )
+        result = build_member_months_asof(bar, alr, as_of_cutoff="2024-12-31").collect()
+        assert result.height == 0
+        assert set(result.columns) == {
+            "aco_id",
+            "program",
+            "performance_year",
+            "year_month",
+            "member_months",
+        }
+
+
 class TestRealFixtureSmoke:
     """Smoke test against committed generate-mocks ALR/BAR fixtures."""
 
