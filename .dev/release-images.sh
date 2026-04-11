@@ -43,12 +43,15 @@ cd "$REPO_ROOT"
 # Image definitions
 # ---------------------------------------------------------------------------
 # Each entry: "<ghcr-repo>|<dockerfile>|<context>"
-# Context is the repo root for multi-stage builds that need src/; for the
-# self-contained 4icli image, context is its own subdirectory.
+# Both paths are relative to the repo root (the script cd's there). Context
+# is the repo root for multi-stage builds that need src/; for the
+# self-contained 4icli image, context is its own subdirectory — but the
+# dockerfile path must still resolve relative to the repo root, not the
+# context, because docker build interprets --file relative to PWD.
 IMAGES=(
     "ghcr.io/acoharmony/marimo|deploy/compose/images/marimo/Dockerfile|."
     "ghcr.io/acoharmony/docusaurus|deploy/compose/images/docs/Dockerfile|."
-    "ghcr.io/acoharmony/4icli|Dockerfile|deploy/compose/images/4icli"
+    "ghcr.io/acoharmony/4icli|deploy/compose/images/4icli/Dockerfile|deploy/compose/images/4icli"
 )
 
 # ---------------------------------------------------------------------------
