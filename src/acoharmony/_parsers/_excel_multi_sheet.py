@@ -185,6 +185,21 @@ def extract_matrix_fields(
     # Cache sheets to avoid re-reading
     _sheet_cache: dict[int, pl.DataFrame] = {}
 
+    # Resolve sheet names once for the whole call so a schema can point
+    # matrix_fields at a sheet by NAME (``search_sheet_name``) rather
+    # than a hardcoded index — important when CMS delivery layouts shift
+    # (e.g. a COVER PAGE inserted at index 0 that pushes the real
+    # REPORT_PARAMETERS sheet to index 1).
+    _name_to_idx: dict[str, int] | None = None
+
+    def _resolve_name(name: str) -> int | None:
+        nonlocal _name_to_idx
+        if _name_to_idx is None:
+            _name_to_idx = {
+                n.upper(): i for i, n in enumerate(list_sheet_names(file_path))
+            }
+        return _name_to_idx.get(name.upper())
+
     def _get_sheet(sheet_idx: int) -> pl.DataFrame | None:
         if sheet_idx not in _sheet_cache:
             try:
@@ -205,6 +220,15 @@ def extract_matrix_fields(
 
         target_sheet, target_row, target_col = matrix
 
+        # Prefer name-based sheet resolution when the schema declares one.
+        # Falls back to the literal matrix[0] index for schemas that don't
+        # opt in (backward compat).
+        search_sheet_name = field_config.get("search_sheet_name")
+        if search_sheet_name:
+            resolved = _resolve_name(search_sheet_name)
+            if resolved is not None:
+                target_sheet = resolved
+
         # Check if this field applies to current sheet
         if sheet_index is not None and target_sheet is not None and target_sheet != sheet_index:
             continue
@@ -222,14 +246,30 @@ def extract_matrix_fields(
                 continue
 
             # Label-based lookup: search column 0 for the label text
-            # and extract the value from target_col on the matched row
+            # and extract the value from target_col on the matched row.
+            # ``search_label`` may be a single string or a list of
+            # alternatives — try each in order until one matches. This
+            # lets a single matrix_field entry survive CMS label drift
+            # (e.g. "Accountable Care Organization ID" renamed to
+            # "ACO Entity ID" in some PY2023 preliminary deliveries).
             search_label = field_config.get("search_label")
             if search_label:
+                labels = (
+                    [search_label]
+                    if isinstance(search_label, str)
+                    else list(search_label)
+                )
                 target_row = None
                 for row_idx in range(len(df)):
                     cell = df.row(row_idx)[0]
-                    if cell and search_label.lower() in str(cell).strip().lower():
-                        target_row = row_idx
+                    if not cell:
+                        continue
+                    cell_norm = str(cell).strip().lower()
+                    for lbl in labels:
+                        if lbl.lower() in cell_norm:
+                            target_row = row_idx
+                            break
+                    if target_row is not None:
                         break
                 if target_row is None:
                     field_name = field_config.get("field_name")

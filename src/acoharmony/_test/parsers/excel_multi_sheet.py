@@ -3317,6 +3317,120 @@ class TestExtractMatrixFieldsSearchLabel:
         assert result['dt'] is not None
 
 
+class TestExtractMatrixFieldsSearchSheetName:
+    """
+    Cover the ``search_sheet_name`` resolver: schemas may point a matrix
+    field at a sheet by name rather than a hardcoded index, so CMS
+    layout shifts (e.g. a ``COVER PAGE`` inserted at index 0) don't
+    silently return nulls.
+    """
+
+    @pytest.mark.unit
+    def test_resolves_sheet_by_name_when_at_non_zero_index(self, tmp_path: Path):
+        """Data lives on the second sheet named REPORT_PARAMETERS but the
+        matrix says sheet 0. search_sheet_name must redirect the read."""
+        from openpyxl import Workbook
+
+        from acoharmony._parsers._excel_multi_sheet import extract_matrix_fields
+
+        wb = Workbook()
+        ws0 = wb.active
+        ws0.title = "COVER PAGE"
+        # Empty cover page
+        ws1 = wb.create_sheet("REPORT_PARAMETERS")
+        ws1.append(["Discount", "0.035"])
+        ws1.append(["Shared Savings Rate", "1.0"])
+        wb.save(tmp_path / "test.xlsx")
+
+        fields = [
+            {
+                "matrix": [0, None, 1],
+                "search_sheet_name": "REPORT_PARAMETERS",
+                "search_label": "Discount",
+                "field_name": "discount",
+                "data_type": "decimal",
+            }
+        ]
+        result = extract_matrix_fields(tmp_path / "test.xlsx", fields)
+        assert result["discount"] == 0.035
+
+    @pytest.mark.unit
+    def test_case_insensitive_sheet_name_match(self, tmp_path: Path):
+        from openpyxl import Workbook
+
+        from acoharmony._parsers._excel_multi_sheet import extract_matrix_fields
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Report_Parameters"
+        ws.append(["Performance Year", "2026"])
+        wb.save(tmp_path / "test.xlsx")
+
+        fields = [
+            {
+                "matrix": [0, None, 1],
+                "search_sheet_name": "REPORT_PARAMETERS",
+                "search_label": "Performance Year",
+                "field_name": "py",
+                "data_type": "string",
+            }
+        ]
+        result = extract_matrix_fields(tmp_path / "test.xlsx", fields)
+        assert result["py"] == "2026"
+
+    @pytest.mark.unit
+    def test_missing_sheet_name_falls_back_to_matrix_index(self, tmp_path: Path):
+        """If the named sheet isn't present, the resolver returns None and
+        extraction falls back to the matrix[0] index path. This is the
+        backward-compat safety net."""
+        from openpyxl import Workbook
+
+        from acoharmony._parsers._excel_multi_sheet import extract_matrix_fields
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "PARAMETERS_V2"
+        ws.append(["Discount", "0.02"])
+        wb.save(tmp_path / "test.xlsx")
+
+        # search_sheet_name points at a non-existent sheet → resolver
+        # returns None → falls back to matrix[0] = 0 (the only sheet).
+        fields = [
+            {
+                "matrix": [0, None, 1],
+                "search_sheet_name": "REPORT_PARAMETERS",
+                "search_label": "Discount",
+                "field_name": "discount",
+                "data_type": "decimal",
+            }
+        ]
+        result = extract_matrix_fields(tmp_path / "test.xlsx", fields)
+        assert result["discount"] == 0.02
+
+    @pytest.mark.unit
+    def test_no_search_sheet_name_is_backward_compatible(self, tmp_path: Path):
+        """Schemas without search_sheet_name behave exactly as before."""
+        from openpyxl import Workbook
+
+        from acoharmony._parsers._excel_multi_sheet import extract_matrix_fields
+
+        wb = Workbook()
+        ws = wb.active
+        ws.append(["Quality Withhold", "0.02"])
+        wb.save(tmp_path / "test.xlsx")
+
+        fields = [
+            {
+                "matrix": [0, None, 1],
+                "search_label": "Quality Withhold",
+                "field_name": "qw",
+                "data_type": "decimal",
+            }
+        ]
+        result = extract_matrix_fields(tmp_path / "test.xlsx", fields)
+        assert result["qw"] == 0.02
+
+
 class TestDropSparseColumnsDropBranches:
     """Cover _drop_sparse_columns branches for column iteration and drop logic."""
 
