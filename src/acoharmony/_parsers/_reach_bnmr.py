@@ -63,81 +63,65 @@ bool
         return True
 
 
-def detect_bnmr_version(file_path: Path) -> tuple[int, dict[int, int]]:
+def list_bnmr_sheet_names(file_path: Path) -> list[str]:
     """
-Detect BNMR file version and create sheet index mapping.
+    Return the sheet name list of a BNMR workbook in worksheet order.
 
-    Parameters
-
-    file_path : Path
-        Path to BNMR Excel file
-
-    Returns
-
-    tuple[int, dict[int, int]]
-        (sheet_count, mapping) where mapping maps schema sheet indices to actual file sheet indices
-
-    Notes
-
-    Schema indices (v17 layout):
-        0: ACO Parameters
-        1: Settlement (claims)
-        2: Historical Blended A&D
-        3: Historical Blended ESRD
-        4: A&D Risk Score
-        5: ESRD Risk Score
-        6: Stop-Loss Charge
-        7: Stop-Loss Payout
-        8-16: Data sheets
-
-    Actual indices vary by version:
-    - v17 (17 sheets): 1:1 mapping (no adjustment)
-    - v15 (15 sheets): Missing sheets 2-3, so sheets 4+ shift down by 2
-"""
+    Uses openpyxl in read-only mode (fastest / cheapest way to get sheet
+    names without parsing any cell data). Returns an empty list if the
+    workbook cannot be opened, so callers can treat "no sheets found" as
+    a graceful skip rather than a crash.
+    """
     try:
         import openpyxl
 
         wb = openpyxl.load_workbook(file_path, read_only=True)
-        sheet_count = len(wb.sheetnames)
-        wb.close()
+        try:
+            return list(wb.sheetnames)
+        finally:
+            wb.close()
     except Exception:
-        # Fallback: probe sheets with polars
-        sheet_count = 0
-        for i in range(1, 20):
-            try:
-                pl.read_excel(
-                    file_path,
-                    sheet_id=i,
-                    read_options={"header_row": None},
-                )
-                sheet_count = i
-            except Exception:
-                break
+        return []
 
-    if sheet_count == 17:
-        # v17: 1:1 mapping
-        mapping = {i: i for i in range(17)}
-    elif sheet_count == 16:
-        # v16: sheets 0-1 direct, sheets 2-16 shift down by 1
-        mapping = {0: 0, 1: 1}
-        for i in range(2, 17):
-            mapping[i] = i - 1 if i < 16 else None
-    elif sheet_count == 15:
-        # v15: sheets 0-1 direct, sheets 2-3 missing, sheets 4+ shift down by 2
-        mapping = {0: 0, 1: 1, 2: None, 3: None}
-        for i in range(4, 17):
-            file_idx = i - 2
-            mapping[i] = file_idx if file_idx < 15 else None
-    elif sheet_count == 3:
-        # v3: truncated report, only sheets 0-2
-        mapping = {0: 0, 1: 1, 2: 2}
-        for i in range(3, 17):
-            mapping[i] = None
-    else:
-        # Unknown version: map directly where possible
-        mapping = {i: i if i < sheet_count else None for i in range(17)}
 
-    return sheet_count, mapping
+def resolve_bnmr_sheet_indices(
+    file_path: Path, schema_sheet_names: list[str]
+) -> tuple[list[str], dict[str, int | None]]:
+    """
+    Resolve each schema-declared ``sheet_name`` to its actual index in the file.
+
+    BNMR files have evolved through at least eight distinct layouts across
+    PY2023–PY2025 deliveries. Rather than maintain a fragile
+    sheet-count-to-mapping lookup table, this resolver reads the actual
+    sheet names from the workbook and looks each one up by name:
+
+    - **Exact match first.** A schema sheet named ``DATA_CAP`` matches
+      an actual sheet named ``DATA_CAP`` (case-insensitive).
+    - **Not found → None.** If a schema sheet is not present in the file
+      (e.g. ``BENCHMARK_HISTORICAL_AD`` in a PY2023 file that predates
+      the historical-benchmark split), its entry in the returned
+      dictionary is ``None`` and downstream code skips the sheet.
+
+    Returns:
+        A ``(actual_sheets, mapping)`` tuple where ``actual_sheets`` is
+        the full ordered list of worksheet names (for diagnostics) and
+        ``mapping`` is ``{schema_sheet_name: actual_index | None}``.
+
+    This replaces the old sheet-count-driven ``detect_bnmr_version``
+    which hard-coded mappings for 15-, 16-, and 17-sheet layouts and
+    silently dropped sheets whose index shifted in undocumented layouts
+    (e.g. the Sept 2025 16-sheet files where DATA_CAP is at index 14,
+    not the index 14/15 the old detector assumed for 16-sheet files).
+    """
+    actual_sheets = list_bnmr_sheet_names(file_path)
+    actual_lower = {name.upper(): i for i, name in enumerate(actual_sheets)}
+
+    mapping: dict[str, int | None] = {}
+    for schema_name in schema_sheet_names:
+        key = schema_name.upper()
+        mapping[schema_name] = actual_lower.get(key)
+
+    return actual_sheets, mapping
 
 
 def extract_dynamic_years(
@@ -474,9 +458,6 @@ Parse BNMR (Benchmark Report) Excel files.
     Parse only DATA_ sheets:
     ['claims', 'risk', 'county']
 """
-    sheet_count, index_mapping = detect_bnmr_version(file_path)
-    print(f"Detected BNMR version: {sheet_count} sheets")
-
     # Extract file_format and sheets from schema
     if isinstance(schema, dict):
         file_format = schema.get("file_format", {})
@@ -511,6 +492,40 @@ Parse BNMR (Benchmark Report) Excel files.
     # Extract global metadata (matrix fields)
     global_metadata = extract_bnmr_matrix_fields(file_path, schema)
 
+    # Resolve schema sheet names → actual file sheet indices via name lookup.
+    # This replaces the old sheet-count-based version detector, which was
+    # brittle against CMS layout revisions (see commit message for details).
+    schema_sheet_names_list: list[str] = []
+    for sheet_def in sheets_list:
+        sd = sheet_def if isinstance(sheet_def, dict) else vars(sheet_def)
+        name = sd.get("sheet_name")
+        if name:
+            schema_sheet_names_list.append(name)
+    actual_sheets, name_to_index = resolve_bnmr_sheet_indices(
+        file_path, schema_sheet_names_list
+    )
+    print(
+        f"Resolved BNMR sheets: {len(actual_sheets)} in file, "
+        f"{sum(1 for v in name_to_index.values() if v is not None)} "
+        f"of {len(schema_sheet_names_list)} schema sheets matched"
+    )
+
+    # Sheet types that use "metadata" (form-like, row/column position) parsing
+    # rather than tabular header-matched parsing. Everything else uses the
+    # tabular ``parse_sheet_matrix`` path. This set is driven by sheet_type
+    # (semantics), not by schema index (position), so new layouts don't break
+    # the dispatch.
+    METADATA_SHEET_TYPES = {
+        "report_parameters",
+        "financial_settlement",
+        "benchmark_historical_ad",
+        "benchmark_historical_esrd",
+        "riskscore_ad",
+        "riskscore_esrd",
+        "stop_loss_charge",
+        "stop_loss_payout",
+    }
+
     # Process each sheet
     all_sheets = []
 
@@ -522,15 +537,21 @@ Parse BNMR (Benchmark Report) Excel files.
         if sheet_types and sheet_type not in sheet_types:
             continue
 
+        schema_sheet_name = sheet_def.get("sheet_name")
         schema_sheet_index = sheet_def.get("sheet_index")
 
-        # Map schema index to actual file index
-        actual_sheet_index = index_mapping.get(schema_sheet_index)
+        # Resolve to actual file index via sheet_name lookup. If the
+        # schema row has no sheet_name (shouldn't happen but defensive),
+        # fall back to None to skip gracefully.
+        actual_sheet_index = (
+            name_to_index.get(schema_sheet_name) if schema_sheet_name else None
+        )
 
-        # Skip sheets not present in this version
+        # Skip sheets not present in this file
         if actual_sheet_index is None:
             print(
-                f"Skipping sheet {schema_sheet_index} ({sheet_type}) - not present in {sheet_count}-sheet version"
+                f"Skipping sheet '{schema_sheet_name}' ({sheet_type}) - "
+                f"not present in this BNMR file"
             )
             continue
 
@@ -551,7 +572,7 @@ Parse BNMR (Benchmark Report) Excel files.
                 columns.append(vars(col))
 
         try:
-            if sheet_index >= 8:
+            if sheet_type not in METADATA_SHEET_TYPES:
                 # Data sheets: use parse_sheet_matrix
                 df_sheet, col_header_metadata = parse_sheet_matrix(
                     file_path, sheet_index, config, columns

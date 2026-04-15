@@ -445,3 +445,165 @@ class TestMabelLog:
         assert rows[0]["source_path"] is None
         assert rows[0]["destination_path"] is None
         assert rows[0]["filename"] is None
+
+
+class TestSvaDateMalformedVariants:
+    """
+    Real-world malformed SVA filenames — submitters hand-enter dates and
+    make predictable mistakes. The extractor must use the upload timestamp
+    as context to disambiguate, because SVAs are uploaded within a few days
+    of submission.
+    """
+
+    @pytest.mark.unit
+    def test_concatenated_mmddyyyy(self):
+        """SVA 03302026.pdf → Mar 30, 2026 (no separators at all)."""
+        from acoharmony._parsers._mabel_log import _extract_submission_date
+
+        uploaded = datetime(2026, 3, 30, 18, 15, 18)
+        assert _extract_submission_date("Erica Milam SVA 03302026.pdf", uploaded) == date(2026, 3, 30)
+
+    @pytest.mark.unit
+    def test_concatenated_mmddyyyy_april(self):
+        """SVA 04012026.pdf → Apr 1, 2026."""
+        from acoharmony._parsers._mabel_log import _extract_submission_date
+
+        uploaded = datetime(2026, 4, 1, 10, 15, 35)
+        assert _extract_submission_date("Edward Campbell SVA 04012026.pdf", uploaded) == date(2026, 4, 1)
+
+    @pytest.mark.unit
+    def test_space_separated_mm_dd_yy(self):
+        """SVA 03 26 26.pdf → Mar 26, 2026 (spaces instead of dots, 2-digit year)."""
+        from acoharmony._parsers._mabel_log import _extract_submission_date
+
+        uploaded = datetime(2026, 4, 1, 10, 15, 13)
+        assert _extract_submission_date("Anne L Scarce SVA 03 26 26.pdf", uploaded) == date(2026, 3, 26)
+
+    @pytest.mark.unit
+    def test_space_separated_mm_dd_yyyy(self):
+        """SVA 03 30 2026.pdf → Mar 30, 2026 (spaces, 4-digit year)."""
+        from acoharmony._parsers._mabel_log import _extract_submission_date
+
+        uploaded = datetime(2026, 4, 1, 10, 15, 19)
+        assert _extract_submission_date("Carol Koeppel SVA 03 30 2026.pdf", uploaded) == date(2026, 3, 30)
+
+    @pytest.mark.unit
+    def test_single_dot_dropped_digit(self):
+        """
+        SVA 03.19026.pdf → Mar 19, 2026.
+        The user typed ``03.192026`` but dropped one '2', leaving '19026'.
+        Upload date of Mar 19 2026 confirms Mar 19 interpretation.
+        """
+        from acoharmony._parsers._mabel_log import _extract_submission_date
+
+        uploaded = datetime(2026, 3, 19, 10, 15, 11)
+        assert _extract_submission_date("Josephine Fernandez SVA 03.19026.pdf", uploaded) == date(2026, 3, 19)
+
+    @pytest.mark.unit
+    def test_single_dot_transposed_year_digit(self):
+        """SVA 03.20226.pdf → Mar 20, 2026 (user typed 20 then '226' for '2026')."""
+        from acoharmony._parsers._mabel_log import _extract_submission_date
+
+        uploaded = datetime(2026, 3, 20, 18, 15, 15)
+        assert _extract_submission_date("Christy C Christman SVA 03.20226.pdf", uploaded) == date(2026, 3, 20)
+
+    @pytest.mark.unit
+    def test_concatenated_nospace_typo(self):
+        """SVA 023262026.pdf → Feb 26, 2026 (9-digit blob, MMDDDYYYY with extra digit)."""
+        from acoharmony._parsers._mabel_log import _extract_submission_date
+
+        uploaded = datetime(2026, 2, 26, 9, 15, 9)
+        assert _extract_submission_date("Judith Devine SVA 023262026.pdf", uploaded) == date(2026, 2, 26)
+
+    @pytest.mark.unit
+    def test_leading_dot_missing_month(self):
+        """
+        SVA .162026.pdf → Mar 16, 2026.
+        Month glyph missing; use upload month to fill. Day 16, year 2026 are explicit.
+        """
+        from acoharmony._parsers._mabel_log import _extract_submission_date
+
+        uploaded = datetime(2026, 3, 16, 18, 15, 40)
+        assert _extract_submission_date("Roberta Smith SVA .162026.pdf", uploaded) == date(2026, 3, 16)
+
+    @pytest.mark.unit
+    def test_truncated_month_only_double_dot(self):
+        """SVA 04..pdf → fall back to uploaded_at date (only partial date present)."""
+        from acoharmony._parsers._mabel_log import _extract_submission_date
+
+        uploaded = datetime(2026, 4, 6, 18, 15, 49)
+        assert _extract_submission_date("Ruth L Vanderstelt SVA 04..pdf", uploaded) == date(2026, 4, 6)
+
+    @pytest.mark.unit
+    def test_truncated_month_only_single_dot(self):
+        """SVA 04.pdf → fall back to uploaded_at date."""
+        from acoharmony._parsers._mabel_log import _extract_submission_date
+
+        uploaded = datetime(2026, 4, 13, 18, 15, 28)
+        result = _extract_submission_date("Mary Emerson Scheel SVA 04.pdf", uploaded)
+        assert result == date(2026, 4, 13)
+
+    @pytest.mark.unit
+    def test_missing_sva_keyword_but_has_date(self):
+        """LORRIE MITCHELL 04 07 26.pdf → Apr 7, 2026 (no SVA keyword, still has date)."""
+        from acoharmony._parsers._mabel_log import _extract_submission_date
+
+        uploaded = datetime(2026, 4, 8, 10, 15, 22)
+        assert _extract_submission_date("LORRIE MITCHELL 04 07 26.pdf", uploaded) == date(2026, 4, 7)
+
+    @pytest.mark.unit
+    def test_invalid_dob_year_falls_back_to_upload(self):
+        """
+        SVA 05.21.1955.pdf — user keyed a DOB instead of submission date.
+        Year 1955 is outside plausible window; fall back to upload date.
+        """
+        from acoharmony._parsers._mabel_log import _extract_submission_date
+
+        uploaded = datetime(2026, 3, 11, 18, 15, 16)
+        assert _extract_submission_date("GEORGIA JONES SVA 05.21.1955.pdf", uploaded) == date(2026, 3, 11)
+
+    @pytest.mark.unit
+    def test_invalid_day_37_falls_back_to_upload(self):
+        """SVA 03.372026.pdf — day 37 is impossible; fall back to upload date."""
+        from acoharmony._parsers._mabel_log import _extract_submission_date
+
+        uploaded = datetime(2026, 3, 27, 18, 15, 16)
+        assert _extract_submission_date("Patricia Howell SVA 03.372026.pdf", uploaded) == date(2026, 3, 27)
+
+    @pytest.mark.unit
+    def test_no_sva_marker_no_date(self):
+        """
+        Cabb.pdf — last-name-only, no SVA, no date. Unparseable; return None.
+        These are the legitimately "unresolved" cases.
+        """
+        from acoharmony._parsers._mabel_log import _extract_submission_date
+
+        uploaded = datetime(2026, 3, 17, 10, 15, 12)
+        assert _extract_submission_date("Cabb.pdf", uploaded) is None
+
+    @pytest.mark.unit
+    def test_no_sva_marker_no_date_returns_none(self):
+        """Pongratz.pdf — no SVA marker, nothing to infer."""
+        from acoharmony._parsers._mabel_log import _extract_submission_date
+
+        uploaded = datetime(2026, 3, 18, 10, 15, 17)
+        assert _extract_submission_date("Pongratz.pdf", uploaded) is None
+
+    @pytest.mark.unit
+    def test_standard_mm_dd_yyyy_still_works(self):
+        """Regression: well-formed MM.DD.YYYY must still parse correctly."""
+        from acoharmony._parsers._mabel_log import _extract_submission_date
+
+        uploaded = datetime(2026, 3, 8, 10, 0, 0)
+        assert _extract_submission_date("HELEN BILLINGS SVA 03.08.2026.pdf", uploaded) == date(2026, 3, 8)
+
+    @pytest.mark.unit
+    def test_backcompat_no_uploaded_at_arg(self):
+        """
+        Calling without uploaded_at must still work (preserves old signature for callers).
+        Well-formed dates parse; ambiguous/malformed ones return None without context.
+        """
+        from acoharmony._parsers._mabel_log import _extract_submission_date
+
+        assert _extract_submission_date("SVA_03.08.2026.pdf") == date(2026, 3, 8)
+        assert _extract_submission_date("Cabb.pdf") is None
