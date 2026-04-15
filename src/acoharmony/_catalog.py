@@ -66,6 +66,11 @@ class TableMetadata:
     sheets: list[dict[str, Any]] | None = None
     matrix_fields: list[dict[str, Any]] | None = None
 
+    # Filename-derived metadata stamped onto every row at parse time.
+    # Each entry: {"name": "<output-col>", "extractor": "<registered-extractor-name>"}.
+    # See acoharmony._parsers._filename_extractors for the registry.
+    filename_fields: list[dict[str, Any]] | None = None
+
     @property
     def unity_namespace(self) -> UnityCatalogNamespace | None:
         """
@@ -182,6 +187,7 @@ class Catalog:
                 record_types=data.get("record_types"),
                 sheets=sheets_cfg.get("sheets"),
                 matrix_fields=sheets_cfg.get("matrix_fields"),
+                filename_fields=sheets_cfg.get("filename_fields"),
             )
 
             self._table_metadata[metadata.name] = metadata

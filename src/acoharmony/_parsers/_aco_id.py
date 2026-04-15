@@ -133,9 +133,15 @@ def extract_aco_id(filename: str) -> str | None:
     if not filename:
         return None
 
-    # Pattern 1: Letter followed by digits (most common)
-    # Examples: D0259 (REACH), A2671 (MSSP)
-    match = re.search(r"([A-Z]\d{4,})", filename, re.IGNORECASE)
+    # Pattern 1: Letter followed by 4 or 5 digits (most common).
+    # Examples: D0259 (REACH), A2671 (MSSP).
+    #
+    # The 4-5 digit ceiling matters: BNMR filenames also embed a delivery
+    # date in ``D######`` form (e.g. ``D250212`` = Feb 12 2025), which
+    # would match a greedy ``\d{4,}`` pattern. ACO IDs are uniformly 4-5
+    # digits across CMS programs, so capping the count lets us ignore
+    # the date token without needing positional logic.
+    match = re.search(r"([A-Z]\d{4,5})(?!\d)", filename, re.IGNORECASE)
     if match:
         return match.group(1).upper()
 

@@ -103,17 +103,14 @@ class TestUspccGrain:
             pytest.skip("reach_bnmr_uspcc not available in silver")
 
     @pytest.mark.reconciliation
-    @pytest.mark.xfail(
-        reason="Known parser bug: aco_id null in 3 PY2024 deliveries (issue #29)",
-        strict=False,
-    )
     def test_grain_columns_have_no_nulls(self, uspcc):
         """Any null in a grain column breaks downstream joins.
 
-        Currently xfail due to issue #29: 66 rows from three PY2024
-        deliveries have ``aco_id`` null even though the ACO ID is in the
-        source filename. Flipping to xpass signals the parser has been
-        fixed.
+        Previously xfailed against issue #29 (aco_id null in 3 PY2024
+        deliveries because the parser's matrix-field extractor couldn't
+        handle a ``COVER PAGE`` sheet inserted at index 0). Resolved by
+        moving aco_id resolution to the schema-level ``filename_fields``
+        mechanism — see acoharmony._parsers._filename_extractors.
         """
         problems = {}
         for col in GRAIN_COLS:

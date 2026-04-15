@@ -1391,6 +1391,16 @@ from acoharmony._registry import (
             ],
         },
     ],
+    # Filename-derived metadata: the BNMR filename contains the authoritative
+    # aco_id and performance_year (e.g. REACH.D0259.BNMR.PY2024....xlsx). The
+    # generic parser stamps these columns on every row at parse time; they
+    # override anything the workbook content might claim, since the
+    # ``matrix_fields`` extractor below reads a hard-coded cell that is
+    # unreliable across CMS delivery formats.
+    filename_fields=[
+        {"name": "aco_id", "extractor": "aco_id"},
+        {"name": "performance_year", "extractor": "performance_year"},
+    ],
     matrix_fields=[
         {"matrix": [0, 0, 1], "field_name": "performance_year", "data_type": "string", "search_label": "Performance Year"},
         {"matrix": [0, 0, 1], "field_name": "aco_id", "data_type": "string", "search_label": "Organization ID"},
