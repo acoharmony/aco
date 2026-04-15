@@ -64,6 +64,7 @@ Use Cases
 4. **PYRED Reports**: 6 service type sheets (inpatient, SNF, home health, etc.)
 """
 
+import re
 from pathlib import Path
 from typing import Any
 
@@ -277,6 +278,185 @@ def extract_matrix_fields(
             extracted[field_name] = field_config.get("default_value")
 
     return extracted
+
+
+def list_sheet_names(file_path: Path) -> list[str]:
+    """
+    Return the sheet name list of a workbook in worksheet order.
+
+    Uses openpyxl in read-only mode — the cheapest way to get sheet names
+    without parsing any cell data. Returns an empty list if the workbook
+    cannot be opened, so callers can treat "no sheets found" as a
+    graceful skip rather than a crash.
+    """
+    try:
+        import openpyxl
+
+        wb = openpyxl.load_workbook(file_path, read_only=True)
+        try:
+            return list(wb.sheetnames)
+        finally:
+            wb.close()
+    except Exception:
+        return []
+
+
+def resolve_sheet_indices(
+    file_path: Path, schema_sheet_names: list[str]
+) -> tuple[list[str], dict[str, int | None]]:
+    """
+    Resolve each schema-declared ``sheet_name`` to its actual index in the file.
+
+    CMS workbook layouts drift between delivery vintages — a schema that
+    declared sheets by position would silently drop or misread sheets
+    when CMS reshuffles. Name-based resolution tolerates sheet inserts
+    and deletes:
+
+    - **Exact match first** (case-insensitive). A schema sheet named
+      ``DATA_CAP`` matches an actual sheet named ``DATA_CAP``.
+    - **Not found → None.** Schema sheets absent from a particular
+      delivery (e.g. ``BENCHMARK_HISTORICAL_AD`` on a PY2023 file that
+      predates the historical-benchmark split) map to ``None`` and
+      downstream code skips them.
+
+    Returns ``(actual_sheets, mapping)`` — ``actual_sheets`` is the full
+    ordered list of workbook sheet names, ``mapping`` is
+    ``{schema_sheet_name: actual_index | None}``.
+    """
+    actual_sheets = list_sheet_names(file_path)
+    actual_lower = {name.upper(): i for i, name in enumerate(actual_sheets)}
+
+    mapping: dict[str, int | None] = {}
+    for schema_name in schema_sheet_names:
+        key = schema_name.upper()
+        mapping[schema_name] = actual_lower.get(key)
+
+    return actual_sheets, mapping
+
+
+def extract_named_fields(
+    file_path: Path,
+    sheet_index: int,
+    named_fields_config: list[Any],
+) -> dict[str, Any]:
+    """
+    Pull specific cell values off a sheet by (row, column).
+
+    Named fields let a schema reach into a sheet's raw grid and hoist
+    individual cells out as columns on every row of that sheet —
+    typically CMS "summary totals" that live outside the normal
+    tabular body (e.g. a "benchmark total" cell in row 2, column 4).
+
+    Each entry in ``named_fields_config`` carries:
+
+        - ``row`` (int): 0-based row index into the raw sheet
+        - ``column`` (int): 0-based column index
+        - ``field_name`` (str): output column name
+
+    Out-of-range indices silently yield ``None`` so that sheets with
+    varying layouts don't fail the parse — callers can decide whether
+    to treat null as an error.
+    """
+    if not named_fields_config:
+        return {}
+
+    named_values: dict[str, Any] = {}
+
+    try:
+        df = pl.read_excel(
+            file_path,
+            sheet_id=sheet_index + 1,
+            read_options={"header_row": None, "skip_rows": 0},
+            infer_schema_length=0,
+        )
+
+        for field_config in named_fields_config:
+            if isinstance(field_config, dict):
+                row_idx = field_config.get("row")
+                col_idx = field_config.get("column")
+                field_name = field_config.get("field_name")
+            else:
+                row_idx = getattr(field_config, "row", None)
+                col_idx = getattr(field_config, "column", None)
+                field_name = getattr(field_config, "field_name", None)
+
+            if row_idx is None or col_idx is None or not field_name:
+                continue
+
+            try:
+                if row_idx < len(df) and col_idx < len(df.columns):
+                    row = df.row(row_idx)
+                    if col_idx < len(row):
+                        named_values[field_name] = row[col_idx]
+                    else:
+                        named_values[field_name] = None
+                else:
+                    named_values[field_name] = None
+            except Exception:
+                named_values[field_name] = None
+
+    except Exception:
+        # Sheet unreadable — yield null for every configured field
+        for field_config in named_fields_config:
+            if isinstance(field_config, dict):
+                field_name = field_config.get("field_name")
+            else:
+                field_name = getattr(field_config, "field_name", None)
+            if field_name:
+                named_values[field_name] = None
+
+    return named_values
+
+
+def extract_dynamic_years(
+    file_path: Path,
+    sheet_index: int,
+    year_header_row: int,
+    year_columns: list[int],
+) -> dict[int, str]:
+    """
+    Read a header row and map column indices to 4-digit years.
+
+    CMS reports sometimes leave year labels in the workbook header rather
+    than in the schema — e.g. a financial-history sheet might list
+    ``CY 2017 | CY 2018 | CY 2019`` above the amount columns. The schema
+    declares which columns carry years via ``dynamic_columns``, and this
+    helper reads the labels from the live workbook so the column names on
+    output reflect the actual years shipped in this delivery (not a
+    stale hardcoded pin in the schema).
+
+    Returns ``{col_idx: "YYYY"}`` for every ``col_idx`` whose header cell
+    contains a 4-digit substring. Columns with no matching digits are
+    silently omitted — callers fall back to the schema-declared name.
+    """
+    try:
+        df = pl.read_excel(
+            file_path,
+            sheet_id=sheet_index + 1,
+            read_options={"header_row": None, "skip_rows": 0},
+            infer_schema_length=0,
+        )
+    except Exception:
+        return {}
+
+    if year_header_row >= len(df):
+        return {}
+
+    year_row = df.row(year_header_row)
+    year_map: dict[int, str] = {}
+
+    for col_idx in year_columns:
+        if col_idx >= len(year_row):
+            continue
+        cell_value = year_row[col_idx]
+        if not cell_value:
+            continue
+        m = re.search(r"\d{4}", str(cell_value))
+        if not m:
+            continue
+        year_map[col_idx] = m.group(0)
+
+    return year_map
 
 
 def map_columns_by_position(
@@ -995,17 +1175,12 @@ def parse_excel_multi_sheet(
             else:
                 matrix_fields_dicts.append(vars(mf))
 
-    # Build sheet name → index lookup for name-based matching
-    _sheet_name_to_idx: dict[str, int] = {}
-    try:
-        import openpyxl as _oxl
-
-        _wb = _oxl.load_workbook(file_path, read_only=True, data_only=True)
-        for _i, _name in enumerate(_wb.sheetnames):
-            _sheet_name_to_idx[_name.upper()] = _i
-        _wb.close()
-    except Exception:
-        pass
+    # Build sheet name → index lookup for name-based matching.
+    # Uses the public list_sheet_names helper so other parsers can call
+    # it directly without duplicating the openpyxl boilerplate.
+    _sheet_name_to_idx: dict[str, int] = {
+        name.upper(): i for i, name in enumerate(list_sheet_names(file_path))
+    }
 
     # Pre-extract global matrix fields (those targeting specific sheets)
     # so they can be applied to ALL sheets as workbook-level metadata
@@ -1143,6 +1318,62 @@ def parse_excel_multi_sheet(
                 )
                 existing_columns.add(field_name)
 
+        # Apply named_fields: hoist specific cells out of the raw grid
+        # and stamp them as constant columns on every row of this sheet.
+        named_fields_config_raw = sheet_def.get("named_fields") or []
+        if named_fields_config_raw:
+            named_fields_list: list[Any] = []
+            for nf in named_fields_config_raw:
+                named_fields_list.append(nf if isinstance(nf, dict) else vars(nf))
+            named_field_values = extract_named_fields(
+                file_path, sheet_index, named_fields_list
+            )
+            for field_name, field_value in named_field_values.items():
+                if field_name in existing_columns:
+                    continue
+                df_sheet = df_sheet.with_columns(
+                    pl.lit(field_value).alias(field_name)
+                )
+                existing_columns.add(field_name)
+
+        # Apply dynamic_columns: rename schema-declared placeholder columns
+        # with live-from-workbook years (e.g. ``amt_placeholder`` → ``amt_2024``).
+        dynamic_columns_config = sheet_def.get("dynamic_columns")
+        if dynamic_columns_config:
+            if isinstance(dynamic_columns_config, dict):
+                year_header_row = dynamic_columns_config.get("year_header_row")
+                year_columns = dynamic_columns_config.get("year_columns", []) or []
+                year_column_prefix = dynamic_columns_config.get(
+                    "year_column_prefix", "year_"
+                )
+            else:
+                year_header_row = getattr(
+                    dynamic_columns_config, "year_header_row", None
+                )
+                year_columns = (
+                    getattr(dynamic_columns_config, "year_columns", []) or []
+                )
+                year_column_prefix = getattr(
+                    dynamic_columns_config, "year_column_prefix", "year_"
+                )
+
+            if year_header_row is not None and year_columns:
+                year_map = extract_dynamic_years(
+                    file_path, sheet_index, year_header_row, year_columns
+                )
+                rename_dict: dict[str, str] = {}
+                for col_idx, year_value in year_map.items():
+                    for col_def in columns:
+                        if col_def.get("position") != col_idx:
+                            continue
+                        old_name = col_def.get("name")
+                        new_name = f"{year_column_prefix}{year_value}"
+                        if old_name in df_sheet.columns:
+                            rename_dict[old_name] = new_name
+                        break
+                if rename_dict:
+                    df_sheet = df_sheet.rename(rename_dict)
+
         # Apply limit if specified
         if limit:
             df_sheet = df_sheet.head(limit)
@@ -1182,9 +1413,15 @@ def parse_excel_multi_sheet(
             df = df.with_columns(pl.lit(table_name).alias("_output_table"))
             all_output_sheets.append(df)
 
-        # Combine all sheets into single LazyFrame using diagonal (allows different schemas)
-        df_lazy = pl.concat(all_output_sheets, how="diagonal")
+        # Combine all sheets into single LazyFrame. Use ``diagonal_relaxed``
+        # so sheets with disjoint column sets AND non-matching dtypes on
+        # per-sheet columns (e.g. ``year_2023`` present on one sheet as
+        # string, absent on another) coalesce cleanly rather than raising
+        # a dtype-mismatch error. The match-all semantics are consistent
+        # with the single-output path on line 1428.
+        df_lazy = pl.concat(all_output_sheets, how="diagonal_relaxed")
         df_lazy = apply_date_parsing(df_lazy, schema)
+        df_lazy = _stamp_provenance_metadata(df_lazy, file_path, schema_name, schema)
 
         return df_lazy
     else:
@@ -1199,5 +1436,60 @@ def parse_excel_multi_sheet(
 
         # Apply date parsing for date columns
         df_lazy = apply_date_parsing(df_lazy, schema)
+        df_lazy = _stamp_provenance_metadata(df_lazy, file_path, schema_name, schema)
 
         return df_lazy
+
+
+def _stamp_provenance_metadata(
+    df_lazy: pl.LazyFrame,
+    file_path: Path,
+    schema_name: str,
+    schema: Any,
+) -> pl.LazyFrame:
+    """
+    Attach source-tracking columns and any schema-declared filename fields.
+
+    The generic multi-sheet parser owns provenance stamping for every
+    schema that runs through it: ``source_filename``, ``source_file``
+    (the schema name), and ``processed_at``. On top of that, schemas
+    may declare ``filename_fields`` — a list of ``{name, extractor}``
+    entries — to stamp additional columns derived from the filename
+    (e.g. ``aco_id``, ``performance_year``). The filename is the
+    authoritative source for those identifiers; any same-named column
+    populated from workbook content is overwritten.
+    """
+    from datetime import datetime
+
+    from ._filename_extractors import get_filename_extractor
+
+    filename_only = Path(file_path).name
+
+    cols: list[pl.Expr] = [
+        pl.lit(datetime.now().isoformat()).alias("processed_at"),
+        pl.lit(schema_name).alias("source_file"),
+        pl.lit(filename_only).alias("source_filename"),
+    ]
+
+    # Schema-declared filename fields
+    filename_fields_list: list[Any] = []
+    if isinstance(schema, dict):
+        filename_fields_list = schema.get("filename_fields", []) or []
+    elif hasattr(schema, "filename_fields"):
+        raw = getattr(schema, "filename_fields", None) or []
+        filename_fields_list = list(raw) if not isinstance(raw, list) else raw
+
+    for field_def in filename_fields_list:
+        if isinstance(field_def, dict):
+            name = field_def.get("name")
+            extractor_name = field_def.get("extractor")
+        else:
+            name = getattr(field_def, "name", None)
+            extractor_name = getattr(field_def, "extractor", None)
+        if not name or not extractor_name:
+            continue
+        extractor = get_filename_extractor(extractor_name)
+        value = extractor(filename_only)
+        cols.append(pl.lit(value, dtype=pl.Utf8).alias(name))
+
+    return df_lazy.with_columns(cols)

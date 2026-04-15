@@ -3495,3 +3495,136 @@ class TestOpenpyxlLoadWorkbookExceptionInMultiSheet:
             lf = parse_excel_multi_sheet(p, schema)
             df = lf.collect()
             assert len(df) >= 1
+
+
+class TestFilenameFieldsStamping:
+    """
+    ``filename_fields`` at the top of a schema declares which columns
+    should be derived from the source filename and stamped on every
+    row. The stamping happens after the sheet-level parse so it
+    overrides same-named columns from workbook content.
+    """
+
+    @pytest.fixture
+    def workbook(self, tmp_path: Path) -> Path:
+        if not HAS_OPENPYXL:
+            pytest.skip("openpyxl required")
+        import openpyxl
+
+        # CMS-shaped filename so the real extractors have something to pull
+        out = tmp_path / "REACH.D0259.BNMR.PY2024.D250101.T0900000.xlsx"
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "DATA"
+        ws.append(["col_a", "col_b"])
+        ws.append(["v1", "v2"])
+        ws.append(["v3", "v4"])
+        wb.save(out)
+        return out
+
+    @pytest.fixture
+    def base_schema(self) -> dict:
+        return {
+            "name": "synthetic_bnmr",
+            "file_format": {
+                "sheet_config": {
+                    "header_row": 0,
+                    "data_start_row": 1,
+                    "end_marker_column": 0,
+                    "end_marker_value": "END",
+                }
+            },
+            "sheets": [
+                {
+                    "sheet_name": "DATA",
+                    "sheet_index": 0,
+                    "sheet_type": "data",
+                    "columns": [
+                        {"position": 0, "name": "col_a", "data_type": "string"},
+                        {"position": 1, "name": "col_b", "data_type": "string"},
+                    ],
+                }
+            ],
+        }
+
+    @pytest.mark.unit
+    def test_aco_id_and_performance_year_stamped(self, workbook, base_schema):
+        base_schema["filename_fields"] = [
+            {"name": "aco_id", "extractor": "aco_id"},
+            {"name": "performance_year", "extractor": "performance_year"},
+        ]
+        df = parse_excel_multi_sheet(workbook, base_schema).collect()
+        assert df["aco_id"].drop_nulls().unique().to_list() == ["D0259"]
+        assert df["performance_year"].drop_nulls().unique().to_list() == ["2024"]
+
+    @pytest.mark.unit
+    def test_filename_fields_empty_list_adds_no_cols(self, workbook, base_schema):
+        base_schema["filename_fields"] = []
+        df = parse_excel_multi_sheet(workbook, base_schema).collect()
+        # aco_id/performance_year are not stamped when list is empty
+        assert "aco_id" not in df.columns
+        assert "performance_year" not in df.columns
+
+    @pytest.mark.unit
+    def test_filename_fields_omitted_key_is_equivalent_to_empty(
+        self, workbook, base_schema
+    ):
+        # No filename_fields key at all
+        df = parse_excel_multi_sheet(workbook, base_schema).collect()
+        assert "aco_id" not in df.columns
+
+    @pytest.mark.unit
+    def test_unknown_extractor_raises_at_parse_time(self, workbook, base_schema):
+        base_schema["filename_fields"] = [
+            {"name": "aco_id", "extractor": "not_a_real_extractor"}
+        ]
+        with pytest.raises(ValueError, match="Unknown filename extractor"):
+            parse_excel_multi_sheet(workbook, base_schema).collect()
+
+    @pytest.mark.unit
+    def test_filename_fields_override_workbook_column(self, tmp_path, base_schema):
+        """A column named ``aco_id`` in the workbook itself must be
+        overwritten by the filename-derived value. The filename is the
+        source of truth."""
+        if not HAS_OPENPYXL:
+            pytest.skip("openpyxl required")
+        import openpyxl
+
+        out = tmp_path / "REACH.D9999.BNMR.PY2024.xlsx"
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "DATA"
+        ws.append(["aco_id", "col_b"])
+        ws.append(["WORKBOOK_ACO", "v2"])
+        wb.save(out)
+
+        schema = dict(base_schema)
+        schema["sheets"] = [
+            {
+                "sheet_name": "DATA",
+                "sheet_index": 0,
+                "sheet_type": "data",
+                "columns": [
+                    {"position": 0, "name": "aco_id", "data_type": "string"},
+                    {"position": 1, "name": "col_b", "data_type": "string"},
+                ],
+            }
+        ]
+        schema["filename_fields"] = [{"name": "aco_id", "extractor": "aco_id"}]
+
+        df = parse_excel_multi_sheet(out, schema).collect()
+        # Filename says D9999; workbook says WORKBOOK_ACO — filename wins.
+        assert df["aco_id"].drop_nulls().unique().to_list() == ["D9999"]
+
+    @pytest.mark.unit
+    def test_provenance_columns_always_stamped(self, workbook, base_schema):
+        """Even with no filename_fields, source_filename / source_file /
+        processed_at are always stamped."""
+        df = parse_excel_multi_sheet(workbook, base_schema).collect()
+        assert "source_filename" in df.columns
+        assert "source_file" in df.columns
+        assert "processed_at" in df.columns
+        assert (
+            df["source_filename"].unique().to_list()
+            == ["REACH.D0259.BNMR.PY2024.D250101.T0900000.xlsx"]
+        )
