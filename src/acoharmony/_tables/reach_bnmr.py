@@ -1285,13 +1285,31 @@ from acoharmony._registry import (
             "sheet_name": "DATA_CAP",
             "sheet_index": 16,
             "sheet_type": "cap",
-            "description": "Capitation payment data",
+            "description": (
+                "Capitation payment data. CMS changed the DATA_CAP schema in "
+                "the BNMR release cycle around April 2025: the old format "
+                "(9 columns) reported a single ACO_<metric>_AMT_TOTAL / "
+                "ACO_<metric>_AMT_TOTAL_SEQ column per metric, while the "
+                "new format (15 columns) splits each metric into pre-seq / "
+                "post-seq / paid variants. This schema defines both the old "
+                "and new columns so the same parser handles deliveries from "
+                "either side of the format break. On any given row only one "
+                "format's columns are populated; the other format's columns "
+                "are null. Downstream reconciliation code must NOT coalesce "
+                "the two formats — the underlying methodology changed with "
+                "the format, so old TOTAL_SEQ and new POST_SEQ_PAID values "
+                "are not directly comparable."
+            ),
             "columns": [
+                # --- Shared dim columns (identical in both formats) ---
                 {"name": "perf_yr", "header_text": "PERF_YR", "data_type": "string"},
                 {"name": "aco_id", "header_text": "ACO_ID", "data_type": "string"},
                 {"name": "bnmrk", "header_text": "BNMRK", "data_type": "string"},
                 {"name": "pmt_mnth", "header_text": "PMT_MNTH", "data_type": "string"},
                 {"name": "align_type", "header_text": "ALIGN_TYPE", "data_type": "string"},
+                # --- Old-format metric columns (pre-April-2025 BNMR deliveries) ---
+                # These columns only appear in old-format files and will be
+                # null on new-format rows.
                 {
                     "name": "aco_tcc_amt_total",
                     "header_text": "ACO_TCC_AMT_TOTAL",
@@ -1310,6 +1328,64 @@ from acoharmony._registry import (
                 {
                     "name": "aco_apo_amt_total_seq",
                     "header_text": "ACO_APO_AMT_TOTAL_SEQ",
+                    "data_type": "decimal",
+                },
+                # --- New-format metric columns (post-April-2025 BNMR deliveries) ---
+                # Three variants per metric. PRE_SEQ_ACTUAL is what the ACO
+                # would have received before the statutory ~2% sequester was
+                # applied. POST_SEQ_ACTUAL is that same number after the
+                # sequester reduction. POST_SEQ_PAID is the actual dollars
+                # CMS paid after all offsets/withholds/netting. These columns
+                # only appear in new-format files and will be null on old-
+                # format rows.
+                {
+                    "name": "aco_tcc_amt_pre_seq_actual",
+                    "header_text": "ACO_TCC_AMT_PRE_SEQ_ACTUAL",
+                    "data_type": "decimal",
+                },
+                {
+                    "name": "aco_bpcc_amt_pre_seq_actual",
+                    "header_text": "ACO_BPCC_AMT_PRE_SEQ_ACTUAL",
+                    "data_type": "decimal",
+                },
+                {
+                    "name": "aco_apo_amt_pre_seq_actual",
+                    "header_text": "ACO_APO_AMT_PRE_SEQ_ACTUAL",
+                    "data_type": "decimal",
+                },
+                {
+                    "name": "aco_tcc_amt_post_seq_actual",
+                    "header_text": "ACO_TCC_AMT_POST_SEQ_ACTUAL",
+                    "data_type": "decimal",
+                },
+                {
+                    "name": "aco_bpcc_amt_post_seq_actual",
+                    "header_text": "ACO_BPCC_AMT_POST_SEQ_ACTUAL",
+                    "data_type": "decimal",
+                },
+                {
+                    "name": "aco_apo_amt_post_seq_actual",
+                    "header_text": "ACO_APO_AMT_POST_SEQ_ACTUAL",
+                    "data_type": "decimal",
+                },
+                {
+                    "name": "aco_tcc_amt_post_seq_paid",
+                    "header_text": "ACO_TCC_AMT_POST_SEQ_PAID",
+                    "data_type": "decimal",
+                },
+                {
+                    "name": "aco_bpcc_amt_post_seq_paid",
+                    "header_text": "ACO_BPCC_AMT_POST_SEQ_PAID",
+                    "data_type": "decimal",
+                },
+                {
+                    "name": "aco_epcc_amt_post_seq_paid",
+                    "header_text": "ACO_EPCC_AMT_POST_SEQ_PAID",
+                    "data_type": "decimal",
+                },
+                {
+                    "name": "aco_apo_amt_post_seq_paid",
+                    "header_text": "ACO_APO_AMT_POST_SEQ_PAID",
                     "data_type": "decimal",
                 },
             ],

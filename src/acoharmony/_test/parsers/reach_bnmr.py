@@ -36,54 +36,60 @@ class TestBNMRVersionDetection:
 
     @pytest.mark.unit
     def test_detect_17_sheet_version(self, test_files):
-        """Test detection of 17-sheet version (2025 files)."""
-        # Find a 2025 file
+        """PY2025 files have the full 17-sheet layout with every schema sheet present."""
         py2025_files = [f for f in test_files if "PY2025" in f.name]
         if not py2025_files:
             pytest.skip("No PY2025 files available")
 
         file_path = py2025_files[0]
-        sheet_count, index_mapping = detect_bnmr_version(file_path)
+        actual_sheets = list_bnmr_sheet_names(file_path)
+        assert len(actual_sheets) == 17, f"Expected 17 sheets, got {len(actual_sheets)}"
 
-        assert sheet_count == 17, f"Expected 17 sheets, got {sheet_count}"
-        assert index_mapping[0] == 0  # Direct mapping
-        assert index_mapping[2] == 2  # Historical sheets present
-        assert index_mapping[3] == 3
+        # All core schema sheets should resolve to an index.
+        _, mapping = resolve_bnmr_sheet_indices(
+            file_path,
+            ["REPORT_PARAMETERS", "BENCHMARK_HISTORICAL_AD", "BENCHMARK_HISTORICAL_ESRD"],
+        )
+        assert mapping["REPORT_PARAMETERS"] is not None
+        assert mapping["BENCHMARK_HISTORICAL_AD"] is not None
+        assert mapping["BENCHMARK_HISTORICAL_ESRD"] is not None
 
     @pytest.mark.unit
     def test_detect_15_sheet_version(self, test_files):
-        """Test detection of 15-sheet version (2023 files)."""
-        # Find a 2023 file
+        """PY2023 files predate the historical-benchmark split → those sheets resolve to None."""
         py2023_files = [f for f in test_files if "PY2023" in f.name]
         if not py2023_files:
             pytest.skip("No PY2023 files available")
 
         file_path = py2023_files[0]
-        sheet_count, index_mapping = detect_bnmr_version(file_path)
+        actual_sheets = list_bnmr_sheet_names(file_path)
+        assert len(actual_sheets) in {15, 16}, f"Expected 15-16 sheets, got {len(actual_sheets)}"
 
-        # Should be 15 or 16 sheets
-        assert sheet_count in [15, 16], f"Expected 15-16 sheets, got {sheet_count}"
-        # Sheets 2-3 should be missing in 15-sheet version
-        if sheet_count == 15:
-            assert index_mapping[2] is None
-            assert index_mapping[3] is None
-            assert index_mapping[4] == 2  # Shifted down by 2
+        _, mapping = resolve_bnmr_sheet_indices(
+            file_path,
+            ["REPORT_PARAMETERS", "BENCHMARK_HISTORICAL_AD", "BENCHMARK_HISTORICAL_ESRD"],
+        )
+        # REPORT_PARAMETERS is present in every layout.
+        assert mapping["REPORT_PARAMETERS"] is not None
+        # In 15-sheet layouts the two historical benchmark sheets are absent.
+        if len(actual_sheets) == 15:
+            assert mapping["BENCHMARK_HISTORICAL_AD"] is None
+            assert mapping["BENCHMARK_HISTORICAL_ESRD"] is None
 
     @pytest.mark.unit
     def test_index_mapping_consistency(self, test_files):
-        """Test that index mapping is consistent for all files."""
+        """Name-based resolution yields one entry per schema sheet for every file."""
         if not test_files:
             pytest.skip("No test files available")
 
-        for file_path in test_files[:5]:  # Test first 5 files
-            sheet_count, index_mapping = detect_bnmr_version(file_path)
-
-            # All mappings should be dicts
-            assert isinstance(index_mapping, dict)
-            # Should have mappings for sheets 0-16
-            assert len(index_mapping) == 17
-            # Sheet 0 should always map to 0
-            assert index_mapping[0] == 0
+        schema_names = ["REPORT_PARAMETERS", "FINANCIAL_SETTLEMENT", "DATA_CLAIMS"]
+        for file_path in test_files[:5]:
+            actual_sheets, mapping = resolve_bnmr_sheet_indices(file_path, schema_names)
+            assert isinstance(actual_sheets, list)
+            assert len(actual_sheets) >= 1
+            assert set(mapping.keys()) == set(schema_names)
+            # REPORT_PARAMETERS is always sheet 0 across all known layouts.
+            assert mapping["REPORT_PARAMETERS"] == 0
 
 
 class TestBNMRDataExtraction:
@@ -418,7 +424,7 @@ class TestParseBnmrMetadataSheetException:
 
     @pytest.mark.unit
     def test_metadata_sheet_read_failure(self, tmp_path):
-        """Lines 656-657: exception reading metadata sheet raises ParseError."""
+        """Exception reading a metadata sheet raises ParseError."""
         from unittest.mock import patch
 
         from acoharmony._exceptions import ParseError
@@ -436,13 +442,17 @@ class TestParseBnmrMetadataSheetException:
             "sheets": [
                 {
                     "sheet_type": "aco_params",
+                    "sheet_name": "Sheet",
                     "sheet_index": 0,
                     "columns": [{"name": "col1", "position": 0}],
                 }
             ],
         }
 
-        with patch("acoharmony._parsers._reach_bnmr.detect_bnmr_version", return_value=(17, {i: i for i in range(17)})):
+        with patch(
+            "acoharmony._parsers._reach_bnmr.resolve_bnmr_sheet_indices",
+            return_value=(["Sheet"], {"Sheet": 0}),
+        ):
             with patch("acoharmony._parsers._reach_bnmr.extract_bnmr_matrix_fields", return_value={}):
                 with patch("acoharmony._parsers._reach_bnmr.is_sheet_empty", return_value=False):
                     with patch("polars.read_excel", side_effect=Exception("read error")):
@@ -450,30 +460,17 @@ class TestParseBnmrMetadataSheetException:
                             parse_reach_bnmr(tmp_path / "test.xlsx", schema)
 
     @pytest.mark.unit
-    def test_detect_version_fallback_to_polars(self, tmp_path: Path) -> None:
-        """Test fallback to polars sheet counting when openpyxl fails."""
+    def test_list_sheet_names_empty_on_openpyxl_failure(self, tmp_path: Path) -> None:
+        """list_bnmr_sheet_names returns [] when openpyxl can't open the file."""
         from unittest.mock import patch
 
-        from acoharmony._parsers._reach_bnmr import detect_bnmr_version
+        from acoharmony._parsers._reach_bnmr import list_bnmr_sheet_names
 
-        # Create a dummy Excel file
         test_file = tmp_path / "test.xlsx"
         test_file.touch()
 
-        # Mock openpyxl to raise exception, forcing fallback to polars
         with patch("openpyxl.load_workbook", side_effect=Exception("openpyxl failed")):
-            # Mock polars to succeed for 15 sheets
-            def mock_read_excel(file_path, sheet_id, read_options):
-                if sheet_id <= 15:
-                    return pl.DataFrame({"col": [1, 2, 3]})
-                raise Exception("No more sheets")
-
-            with patch("polars.read_excel", side_effect=mock_read_excel):
-                sheet_count, mapping = detect_bnmr_version(test_file)
-
-                # Should have counted 15 sheets using polars fallback
-                assert sheet_count == 15
-                assert isinstance(mapping, dict)
+            assert list_bnmr_sheet_names(test_file) == []
 
     @pytest.mark.unit
     def test_extract_dynamic_years_with_cell_value(self, tmp_path: Path) -> None:
@@ -544,7 +541,8 @@ class TestParseBnmrMetadataSheetException:
         test_file = tmp_path / "test.xlsx"
         test_file.touch()
 
-        # Create schema with year columns
+        # Use a metadata sheet type so the parser takes the simpler direct-read path
+        # (parse_sheet_matrix has its own internal Excel reads that are awkward to mock).
         schema = {
             "file_format": {
                 "sheet_config": {
@@ -556,16 +554,19 @@ class TestParseBnmrMetadataSheetException:
             },
             "sheets": [
                 {
-                    "sheet_type": "benchmark_data",
+                    "sheet_type": "benchmark_historical_ad",
+                    "sheet_name": "BENCHMARK",
                     "sheet_index": 1,
-                    "year_header_row": 0,
-                    "year_columns": [1, 2],
-                    "year_column_prefix": "metric_",
                     "columns": [
-                        {"name": "label", "position": 0},
-                        {"name": "year_col_1", "position": 1},
-                        {"name": "year_col_2", "position": 2},
-                    ]
+                        {"name": "label", "position": 0, "data_type": "string"},
+                        {"name": "year_col_1", "position": 1, "data_type": "string"},
+                        {"name": "year_col_2", "position": 2, "data_type": "string"},
+                    ],
+                    "dynamic_columns": {
+                        "year_header_row": 0,
+                        "year_columns": [1, 2],
+                        "year_column_prefix": "metric_",
+                    },
                 }
             ]
         }
@@ -589,23 +590,27 @@ class TestParseBnmrMetadataSheetException:
                 return year_header_df
             return data_df
 
-        with patch("acoharmony._parsers._reach_bnmr.detect_bnmr_version", return_value=(17, {i: i for i in range(17)})):
+        with patch(
+            "acoharmony._parsers._reach_bnmr.resolve_bnmr_sheet_indices",
+            return_value=(["Params", "BENCHMARK"], {"BENCHMARK": 1}),
+        ):
             with patch("acoharmony._parsers._reach_bnmr.extract_bnmr_matrix_fields", return_value={}):
                 with patch("acoharmony._parsers._reach_bnmr.is_sheet_empty", return_value=False):
                     with patch("polars.read_excel", side_effect=mock_read_excel):
                         result = parse_reach_bnmr(test_file, schema)
                         df = result.collect()
 
-                        # Columns should be renamed with year prefix
-                        assert "metric_RY2024" in df.columns or "year_col_1" in df.columns
+                        # Columns should be renamed with year prefix (extract_dynamic_years
+                        # strips the RY prefix, so the final names are metric_YYYY).
+                        assert "metric_2024" in df.columns or "year_col_1" in df.columns
                         assert len(df) >= 1  # Parser returns at least 1 row
 
 class TestReachBnmrAdditional:
     """Additional tests to fill coverage gaps in _reach_bnmr.py."""
 
     @pytest.mark.unit
-    def test_detect_bnmr_version_fallback_no_openpyxl(self, tmp_path: Path):
-        """Cover lines 108-116: fallback when openpyxl fails."""
+    def test_list_sheet_names_openpyxl_failure_returns_empty(self, tmp_path: Path):
+        """When openpyxl can't open the file, list_bnmr_sheet_names returns []."""
         if not HAS_OPENPYXL:
             pytest.skip('openpyxl required')
         import openpyxl
@@ -614,14 +619,14 @@ class TestReachBnmrAdditional:
         ws = wb.active
         ws.append(['A'])
         wb.save(p)
-        from acoharmony._parsers._reach_bnmr import detect_bnmr_version
+        from acoharmony._parsers._reach_bnmr import list_bnmr_sheet_names
         with patch('openpyxl.load_workbook', side_effect=Exception('fail')):
-            count, mapping = detect_bnmr_version(p)
-            assert count >= 1
+            names = list_bnmr_sheet_names(p)
+            assert names == []
 
     @pytest.mark.unit
-    def test_detect_bnmr_version_unknown_sheet_count(self, tmp_path: Path):
-        """Cover line 142: unknown version (not 3, 15, 16, or 17 sheets)."""
+    def test_resolve_unknown_layout(self, tmp_path: Path):
+        """Custom / unknown layout (10 sheets): names are still listed verbatim."""
         if not HAS_OPENPYXL:
             pytest.skip('openpyxl required')
         import openpyxl
@@ -635,12 +640,13 @@ class TestReachBnmrAdditional:
                 ws = wb.create_sheet(f'S{i}')
             ws.append(['data'])
         wb.save(p)
-        from acoharmony._parsers._reach_bnmr import detect_bnmr_version
-        count, mapping = detect_bnmr_version(p)
-        assert count == 10
-        assert mapping[0] == 0
-        assert mapping[9] == 9
-        assert mapping[10] is None
+        from acoharmony._parsers._reach_bnmr import list_bnmr_sheet_names, resolve_bnmr_sheet_indices
+        names = list_bnmr_sheet_names(p)
+        assert len(names) == 10
+        _, mapping = resolve_bnmr_sheet_indices(p, ['S0', 'S9', 'S10'])
+        assert mapping['S0'] == 0
+        assert mapping['S9'] == 9
+        assert mapping['S10'] is None
 
     @pytest.mark.unit
     def test_extract_reference_year_sheet6_fallback(self, tmp_path: Path):
@@ -741,7 +747,7 @@ class TestReachBnmrAdditional:
 
     @pytest.mark.unit
     def test_parse_reach_bnmr_namespace_schema_full(self, tmp_path: Path):
-        """Cover lines 508-516: namespace schema for parse_reach_bnmr."""
+        """Namespace-object schema is unpacked and drives the parse."""
         if not HAS_OPENPYXL:
             pytest.skip('openpyxl required')
         import openpyxl
@@ -761,7 +767,7 @@ class TestReachBnmrAdditional:
                 ws.append(['m', '42'])
         wb.save(p)
         from acoharmony._parsers._reach_bnmr import parse_reach_bnmr
-        schema = SimpleNamespace(name='reach_bnmr', file_format=SimpleNamespace(sheet_config={'header_row': 0, 'data_start_row': 1, 'end_marker_column': 0, 'end_marker_value': 'TOTAL'}), matrix_fields=[], sheets=[SimpleNamespace(sheet_type='data', sheet_index=8, columns=[SimpleNamespace(position=1, name='col1', data_type='string')], named_fields=None, dynamic_columns=None)])
+        schema = SimpleNamespace(name='reach_bnmr', file_format=SimpleNamespace(sheet_config={'header_row': 0, 'data_start_row': 1, 'end_marker_column': 0, 'end_marker_value': 'TOTAL'}), matrix_fields=[], sheets=[SimpleNamespace(sheet_type='data', sheet_name='S8', sheet_index=8, columns=[SimpleNamespace(position=1, name='col1', data_type='string')], named_fields=None, dynamic_columns=None)])
         lf = parse_reach_bnmr(p, schema)
         df = lf.collect()
         assert len(df) >= 1
@@ -791,7 +797,7 @@ class TestReachBnmrAdditional:
                 ws.append(['B'])
         wb.save(p)
         from acoharmony._parsers._reach_bnmr import parse_reach_bnmr
-        schema = {'name': 'reach_bnmr', 'file_format': {'sheet_config': {'header_row': 0, 'data_start_row': 1, 'end_marker_column': 0, 'end_marker_value': 'TOTAL'}}, 'sheets': [{'sheet_type': 'settlement', 'sheet_index': 1, 'columns': [{'position': 0, 'name': 'label', 'data_type': 'string'}, {'position': 1, 'name': 'yr1', 'data_type': 'string'}, {'position': 2, 'name': 'yr2', 'data_type': 'string'}], 'dynamic_columns': SimpleNamespace(year_header_row=0, year_columns=[1, 2], year_column_prefix='year_')}]}
+        schema = {'name': 'reach_bnmr', 'file_format': {'sheet_config': {'header_row': 0, 'data_start_row': 1, 'end_marker_column': 0, 'end_marker_value': 'TOTAL'}}, 'sheets': [{'sheet_type': 'settlement', 'sheet_name': 'S1', 'sheet_index': 1, 'columns': [{'position': 0, 'name': 'label', 'data_type': 'string'}, {'position': 1, 'name': 'yr1', 'data_type': 'string'}, {'position': 2, 'name': 'yr2', 'data_type': 'string'}], 'dynamic_columns': SimpleNamespace(year_header_row=0, year_columns=[1, 2], year_column_prefix='year_')}]}
         lf = parse_reach_bnmr(p, schema)
         df = lf.collect()
         assert len(df) >= 1
@@ -821,7 +827,7 @@ class TestReachBnmrAdditional:
                 ws.append(['B'])
         wb.save(p)
         from acoharmony._parsers._reach_bnmr import parse_reach_bnmr
-        schema = {'name': 'reach_bnmr', 'file_format': {'sheet_config': {'header_row': 0, 'data_start_row': 1, 'end_marker_column': 0, 'end_marker_value': 'TOTAL'}}, 'sheets': [{'sheet_type': 'settlement', 'sheet_index': 1, 'columns': [{'position': 0, 'name': 'field', 'data_type': 'string'}], 'named_fields': [SimpleNamespace(row=0, column=0, field_name='header_val')]}]}
+        schema = {'name': 'reach_bnmr', 'file_format': {'sheet_config': {'header_row': 0, 'data_start_row': 1, 'end_marker_column': 0, 'end_marker_value': 'TOTAL'}}, 'sheets': [{'sheet_type': 'settlement', 'sheet_name': 'S1', 'sheet_index': 1, 'columns': [{'position': 0, 'name': 'field', 'data_type': 'string'}], 'named_fields': [SimpleNamespace(row=0, column=0, field_name='header_val')]}]}
         lf = parse_reach_bnmr(p, schema)
         df = lf.collect()
         assert 'header_val' in df.columns
@@ -848,7 +854,7 @@ class TestReachBnmrAdditional:
                 ws.append(['B'])
         wb.save(p)
         from acoharmony._parsers._reach_bnmr import parse_reach_bnmr
-        schema = {'name': 'reach_bnmr', 'file_format': {'sheet_config': {'header_row': 0, 'data_start_row': 1, 'end_marker_column': 0, 'end_marker_value': 'TOTAL'}}, 'sheets': [{'sheet_type': 'hist_blended_ad', 'sheet_index': 2, 'columns': []}, {'sheet_type': 'data', 'sheet_index': 8, 'columns': [{'position': 1, 'name': 'col1', 'data_type': 'string'}]}]}
+        schema = {'name': 'reach_bnmr', 'file_format': {'sheet_config': {'header_row': 0, 'data_start_row': 1, 'end_marker_column': 0, 'end_marker_value': 'TOTAL'}}, 'sheets': [{'sheet_type': 'hist_blended_ad', 'sheet_name': 'NOT_IN_FILE', 'sheet_index': 2, 'columns': []}, {'sheet_type': 'data', 'sheet_name': 'S8', 'sheet_index': 8, 'columns': [{'position': 1, 'name': 'col1', 'data_type': 'string'}]}]}
         lf = parse_reach_bnmr(p, schema)
         df = lf.collect()
         assert len(df) >= 1
@@ -876,7 +882,7 @@ class TestReachBnmrAdditional:
                 ws.append(['B'])
         wb.save(p)
         from acoharmony._parsers._reach_bnmr import parse_reach_bnmr
-        schema = {'name': 'reach_bnmr', 'file_format': {'sheet_config': {'header_row': 0, 'data_start_row': 1, 'end_marker_column': 0, 'end_marker_value': 'TOTAL'}}, 'sheets': [{'sheet_type': 'empty_sheet', 'sheet_index': 1, 'columns': [{'position': 0, 'name': 'f', 'data_type': 'string'}]}, {'sheet_type': 'data', 'sheet_index': 8, 'columns': [{'position': 1, 'name': 'col1', 'data_type': 'string'}]}]}
+        schema = {'name': 'reach_bnmr', 'file_format': {'sheet_config': {'header_row': 0, 'data_start_row': 1, 'end_marker_column': 0, 'end_marker_value': 'TOTAL'}}, 'sheets': [{'sheet_type': 'empty_sheet', 'sheet_name': 'Empty', 'sheet_index': 1, 'columns': [{'position': 0, 'name': 'f', 'data_type': 'string'}]}, {'sheet_type': 'data', 'sheet_name': 'S8', 'sheet_index': 8, 'columns': [{'position': 1, 'name': 'col1', 'data_type': 'string'}]}]}
         lf = parse_reach_bnmr(p, schema)
         df = lf.collect()
         sheet_types = df['sheet_type'].unique().to_list()
@@ -905,7 +911,7 @@ class TestReachBnmrAdditional:
                 ws.append(['A'])
         wb.save(p)
         from acoharmony._parsers._reach_bnmr import parse_reach_bnmr
-        schema = {'name': 'reach_bnmr', 'file_format': {'sheet_config': {'header_row': 0, 'data_start_row': 1, 'end_marker_column': 0, 'end_marker_value': 'TOTAL'}}, 'sheets': [{'sheet_type': 'settlement', 'sheet_index': 1, 'columns': [{'position': 0, 'name': 'f1', 'data_type': 'string'}, {'position': 999, 'name': 'f2', 'data_type': 'string'}]}]}
+        schema = {'name': 'reach_bnmr', 'file_format': {'sheet_config': {'header_row': 0, 'data_start_row': 1, 'end_marker_column': 0, 'end_marker_value': 'TOTAL'}}, 'sheets': [{'sheet_type': 'financial_settlement', 'sheet_name': 'S1', 'sheet_index': 1, 'columns': [{'position': 0, 'name': 'f1', 'data_type': 'string'}, {'position': 999, 'name': 'f2', 'data_type': 'string'}]}]}
         lf = parse_reach_bnmr(p, schema)
         df = lf.collect()
         assert 'f2' in df.columns
@@ -936,7 +942,7 @@ class TestReachBnmrAdditional:
                 ws.append(['B'])
         wb.save(p)
         from acoharmony._parsers._reach_bnmr import parse_reach_bnmr
-        schema = {'name': 'reach_bnmr', 'file_format': {'sheet_config': {'header_row': 0, 'data_start_row': 1, 'end_marker_column': 0, 'end_marker_value': 'TOTAL', 'column_mapping_strategy': 'header_match'}}, 'sheets': [{'sheet_type': 'claims', 'sheet_index': 8, 'columns': [{'header_text': 'Claims', 'name': 'claims', 'data_type': 'string', 'extract_header_metadata': [{'field_name': 'claim_year', 'extract_pattern': 'CY(\\d{4})'}]}]}]}
+        schema = {'name': 'reach_bnmr', 'file_format': {'sheet_config': {'header_row': 0, 'data_start_row': 1, 'end_marker_column': 0, 'end_marker_value': 'TOTAL', 'column_mapping_strategy': 'header_match'}}, 'sheets': [{'sheet_type': 'claims', 'sheet_name': 'S8', 'sheet_index': 8, 'columns': [{'header_text': 'Claims', 'name': 'claims', 'data_type': 'string', 'extract_header_metadata': [{'field_name': 'claim_year', 'extract_pattern': 'CY(\\d{4})'}]}]}]}
         lf = parse_reach_bnmr(p, schema)
         df = lf.collect()
         assert 'claim_year' in df.columns
@@ -1030,24 +1036,27 @@ class TestReachBnmr:
         assert is_sheet_empty(Path('/nonexistent.xlsx'), 0) is True
 
     @pytest.mark.unit
-    def test_detect_bnmr_version_17(self, bnmr_xlsx_17: Path):
-        from acoharmony._parsers._reach_bnmr import detect_bnmr_version
-        count, mapping = detect_bnmr_version(bnmr_xlsx_17)
-        assert count == 17
-        assert mapping[0] == 0
-        assert mapping[16] == 16
+    def test_list_sheet_names_17(self, bnmr_xlsx_17: Path):
+        """17-sheet fixture: name list is returned in workbook order."""
+        from acoharmony._parsers._reach_bnmr import list_bnmr_sheet_names
+        names = list_bnmr_sheet_names(bnmr_xlsx_17)
+        assert len(names) == 17
+        assert names[0] == 'ACO_PARAMS'
+        assert names[16] == 'Sheet16'
 
     @pytest.mark.unit
-    def test_detect_bnmr_version_15(self, bnmr_xlsx_15: Path):
-        from acoharmony._parsers._reach_bnmr import detect_bnmr_version
-        count, mapping = detect_bnmr_version(bnmr_xlsx_15)
-        assert count == 15
-        assert mapping[2] is None
-        assert mapping[3] is None
-        assert mapping[4] == 2
+    def test_resolve_sheet_indices_15(self, bnmr_xlsx_15: Path):
+        """15-sheet fixture: missing schema names resolve to None."""
+        from acoharmony._parsers._reach_bnmr import resolve_bnmr_sheet_indices
+        _, mapping = resolve_bnmr_sheet_indices(
+            bnmr_xlsx_15, ['ACO_PARAMS', 'Sheet2', 'Sheet99']
+        )
+        assert mapping['ACO_PARAMS'] == 0
+        assert mapping['Sheet2'] == 2
+        assert mapping['Sheet99'] is None
 
     @pytest.mark.unit
-    def test_detect_bnmr_version_3_sheets(self, tmp_path: Path):
+    def test_list_sheet_names_3_sheets(self, tmp_path: Path):
         if not HAS_OPENPYXL:
             pytest.skip('openpyxl required')
         import openpyxl
@@ -1058,16 +1067,17 @@ class TestReachBnmr:
         wb.create_sheet('S2').append(['B'])
         wb.create_sheet('S3').append(['C'])
         wb.save(p)
-        from acoharmony._parsers._reach_bnmr import detect_bnmr_version
-        count, mapping = detect_bnmr_version(p)
-        assert count == 3
-        assert mapping[0] == 0
-        assert mapping[1] == 1
-        assert mapping[2] == 2
-        assert mapping[3] is None
+        from acoharmony._parsers._reach_bnmr import list_bnmr_sheet_names, resolve_bnmr_sheet_indices
+        names = list_bnmr_sheet_names(p)
+        assert len(names) == 3
+        _, mapping = resolve_bnmr_sheet_indices(p, ['Sheet', 'S2', 'S3', 'MISSING'])
+        assert mapping['Sheet'] == 0  # openpyxl's default active-sheet name
+        assert mapping['S2'] == 1
+        assert mapping['S3'] == 2
+        assert mapping['MISSING'] is None
 
     @pytest.mark.unit
-    def test_detect_bnmr_version_16(self, tmp_path: Path):
+    def test_list_sheet_names_16_custom_names(self, tmp_path: Path):
         if not HAS_OPENPYXL:
             pytest.skip('openpyxl required')
         import openpyxl
@@ -1081,12 +1091,13 @@ class TestReachBnmr:
                 ws = wb.create_sheet(f'S{i}')
             ws.append(['data'])
         wb.save(p)
-        from acoharmony._parsers._reach_bnmr import detect_bnmr_version
-        count, mapping = detect_bnmr_version(p)
-        assert count == 16
-        assert mapping[0] == 0
-        assert mapping[1] == 1
-        assert mapping[2] == 1
+        from acoharmony._parsers._reach_bnmr import list_bnmr_sheet_names, resolve_bnmr_sheet_indices
+        names = list_bnmr_sheet_names(p)
+        assert len(names) == 16
+        _, mapping = resolve_bnmr_sheet_indices(p, ['S0', 'S1', 'S15'])
+        assert mapping['S0'] == 0
+        assert mapping['S1'] == 1
+        assert mapping['S15'] == 15
 
     @pytest.mark.unit
     def test_extract_dynamic_years(self, tmp_path: Path):
@@ -1279,7 +1290,7 @@ class TestReachBnmr:
     @pytest.mark.unit
     def test_parse_reach_bnmr_basic(self, bnmr_xlsx_17: Path):
         from acoharmony._parsers._reach_bnmr import parse_reach_bnmr
-        schema = {'name': 'reach_bnmr', 'file_format': {'sheet_config': {'header_row': 0, 'data_start_row': 1, 'end_marker_column': 0, 'end_marker_value': 'TOTAL', 'column_mapping_strategy': 'position'}}, 'matrix_fields': [{'matrix': [0, 0, 1], 'field_name': 'aco_id', 'data_type': 'string'}], 'sheets': [{'sheet_type': 'data_claims', 'sheet_index': 8, 'columns': [{'position': 0, 'name': 'col1', 'data_type': 'string'}, {'position': 1, 'name': 'col2', 'data_type': 'string'}]}]}
+        schema = {'name': 'reach_bnmr', 'file_format': {'sheet_config': {'header_row': 0, 'data_start_row': 1, 'end_marker_column': 0, 'end_marker_value': 'TOTAL', 'column_mapping_strategy': 'position'}}, 'matrix_fields': [{'matrix': [0, 0, 1], 'field_name': 'aco_id', 'data_type': 'string'}], 'sheets': [{'sheet_type': 'data_claims', 'sheet_name': 'Sheet8', 'sheet_index': 8, 'columns': [{'position': 0, 'name': 'col1', 'data_type': 'string'}, {'position': 1, 'name': 'col2', 'data_type': 'string'}]}]}
         lf = parse_reach_bnmr(bnmr_xlsx_17, schema)
         df = lf.collect()
         assert 'sheet_type' in df.columns
@@ -1298,7 +1309,7 @@ class TestReachBnmr:
     def test_parse_reach_bnmr_metadata_sheet(self, bnmr_xlsx_17: Path):
         """Test parsing a metadata sheet (index < 8)."""
         from acoharmony._parsers._reach_bnmr import parse_reach_bnmr
-        schema = {'name': 'reach_bnmr', 'file_format': {'sheet_config': {'header_row': 0, 'data_start_row': 1, 'end_marker_column': 0, 'end_marker_value': 'TOTAL'}}, 'sheets': [{'sheet_type': 'settlement', 'sheet_index': 1, 'columns': [{'position': 0, 'name': 'field', 'data_type': 'string'}, {'position': 1, 'name': 'value', 'data_type': 'string'}]}]}
+        schema = {'name': 'reach_bnmr', 'file_format': {'sheet_config': {'header_row': 0, 'data_start_row': 1, 'end_marker_column': 0, 'end_marker_value': 'TOTAL'}}, 'sheets': [{'sheet_type': 'settlement', 'sheet_name': 'Sheet1', 'sheet_index': 1, 'columns': [{'position': 0, 'name': 'field', 'data_type': 'string'}, {'position': 1, 'name': 'value', 'data_type': 'string'}]}]}
         lf = parse_reach_bnmr(bnmr_xlsx_17, schema)
         df = lf.collect()
         assert 'sheet_type' in df.columns
@@ -1307,7 +1318,7 @@ class TestReachBnmr:
     @pytest.mark.unit
     def test_parse_reach_bnmr_with_named_fields(self, bnmr_xlsx_17: Path):
         from acoharmony._parsers._reach_bnmr import parse_reach_bnmr
-        schema = {'name': 'reach_bnmr', 'file_format': {'sheet_config': {'header_row': 0, 'data_start_row': 1, 'end_marker_column': 0, 'end_marker_value': 'TOTAL'}}, 'sheets': [{'sheet_type': 'settlement', 'sheet_index': 1, 'columns': [{'position': 0, 'name': 'field', 'data_type': 'string'}], 'named_fields': [{'row': 0, 'column': 0, 'field_name': 'header_value'}]}]}
+        schema = {'name': 'reach_bnmr', 'file_format': {'sheet_config': {'header_row': 0, 'data_start_row': 1, 'end_marker_column': 0, 'end_marker_value': 'TOTAL'}}, 'sheets': [{'sheet_type': 'settlement', 'sheet_name': 'Sheet1', 'sheet_index': 1, 'columns': [{'position': 0, 'name': 'field', 'data_type': 'string'}], 'named_fields': [{'row': 0, 'column': 0, 'field_name': 'header_value'}]}]}
         lf = parse_reach_bnmr(bnmr_xlsx_17, schema)
         df = lf.collect()
         assert 'header_value' in df.columns
@@ -1325,7 +1336,7 @@ class TestReachBnmr:
     @pytest.mark.unit
     def test_parse_reach_bnmr_with_limit(self, bnmr_xlsx_17: Path):
         from acoharmony._parsers._reach_bnmr import parse_reach_bnmr
-        schema = {'name': 'reach_bnmr', 'file_format': {'sheet_config': {'header_row': 0, 'data_start_row': 1, 'end_marker_column': 0, 'end_marker_value': 'TOTAL'}}, 'sheets': [{'sheet_type': 'data', 'sheet_index': 8, 'columns': [{'position': 0, 'name': 'col1', 'data_type': 'string'}]}]}
+        schema = {'name': 'reach_bnmr', 'file_format': {'sheet_config': {'header_row': 0, 'data_start_row': 1, 'end_marker_column': 0, 'end_marker_value': 'TOTAL'}}, 'sheets': [{'sheet_type': 'data', 'sheet_name': 'Sheet8', 'sheet_index': 8, 'columns': [{'position': 0, 'name': 'col1', 'data_type': 'string'}]}]}
         lf = parse_reach_bnmr(bnmr_xlsx_17, schema, limit=1)
         df = lf.collect()
         assert len(df) <= 1
@@ -1333,7 +1344,7 @@ class TestReachBnmr:
     @pytest.mark.unit
     def test_parse_reach_bnmr_namespace_schema(self, bnmr_xlsx_17: Path):
         from acoharmony._parsers._reach_bnmr import parse_reach_bnmr
-        schema = SimpleNamespace(name='reach_bnmr', file_format=SimpleNamespace(sheet_config={'header_row': 0, 'data_start_row': 1, 'end_marker_column': 0, 'end_marker_value': 'TOTAL'}), matrix_fields=[], sheets=[SimpleNamespace(sheet_type='data', sheet_index=8, columns=[SimpleNamespace(position=0, name='col1', data_type='string')], named_fields=[], dynamic_columns=None)])
+        schema = SimpleNamespace(name='reach_bnmr', file_format=SimpleNamespace(sheet_config={'header_row': 0, 'data_start_row': 1, 'end_marker_column': 0, 'end_marker_value': 'TOTAL'}), matrix_fields=[], sheets=[SimpleNamespace(sheet_type='data', sheet_name='Sheet8', sheet_index=8, columns=[SimpleNamespace(position=0, name='col1', data_type='string')], named_fields=[], dynamic_columns=None)])
         lf = parse_reach_bnmr(bnmr_xlsx_17, schema)
         df = lf.collect()
         assert len(df) >= 1
@@ -1360,7 +1371,7 @@ class TestReachBnmr:
             ws.append(['TOTAL', ''])
         wb.save(p)
         from acoharmony._parsers._reach_bnmr import parse_reach_bnmr
-        schema = {'name': 'reach_bnmr', 'file_format': {'sheet_config': {'header_row': 0, 'data_start_row': 1, 'end_marker_column': 0, 'end_marker_value': 'TOTAL'}}, 'sheets': [{'sheet_type': 'settlement', 'sheet_index': 1, 'columns': [{'position': 0, 'name': 'label', 'data_type': 'string'}, {'position': 1, 'name': 'col2', 'data_type': 'string'}, {'position': 2, 'name': 'year_placeholder1', 'data_type': 'string'}, {'position': 3, 'name': 'year_placeholder2', 'data_type': 'string'}], 'dynamic_columns': {'year_header_row': 0, 'year_columns': [2, 3], 'year_column_prefix': 'year_'}}]}
+        schema = {'name': 'reach_bnmr', 'file_format': {'sheet_config': {'header_row': 0, 'data_start_row': 1, 'end_marker_column': 0, 'end_marker_value': 'TOTAL'}}, 'sheets': [{'sheet_type': 'settlement', 'sheet_name': 'Sheet1', 'sheet_index': 1, 'columns': [{'position': 0, 'name': 'label', 'data_type': 'string'}, {'position': 1, 'name': 'col2', 'data_type': 'string'}, {'position': 2, 'name': 'year_placeholder1', 'data_type': 'string'}, {'position': 3, 'name': 'year_placeholder2', 'data_type': 'string'}], 'dynamic_columns': {'year_header_row': 0, 'year_columns': [2, 3], 'year_column_prefix': 'year_'}}]}
         lf = parse_reach_bnmr(p, schema)
         df = lf.collect()
         cols = df.columns
@@ -1412,7 +1423,7 @@ class TestReachBnmrMoreCoverage:
                 ws.append(['B'])
         wb.save(p)
         from acoharmony._parsers._reach_bnmr import parse_reach_bnmr
-        schema = {'name': 'reach_bnmr', 'file_format': {'sheet_config': SimpleNamespace(header_row=0, data_start_row=1, end_marker_column=0, end_marker_value='TOTAL', column_mapping_strategy='position', header_search_text=None)}, 'sheets': [{'sheet_type': 'data', 'sheet_index': 8, 'columns': [{'position': 1, 'name': 'col1', 'data_type': 'string'}]}]}
+        schema = {'name': 'reach_bnmr', 'file_format': {'sheet_config': SimpleNamespace(header_row=0, data_start_row=1, end_marker_column=0, end_marker_value='TOTAL', column_mapping_strategy='position', header_search_text=None)}, 'sheets': [{'sheet_type': 'data', 'sheet_name': 'S8', 'sheet_index': 8, 'columns': [{'position': 1, 'name': 'col1', 'data_type': 'string'}]}]}
         lf = parse_reach_bnmr(p, schema)
         df = lf.collect()
         assert len(df) >= 1
@@ -1602,13 +1613,11 @@ class TestReachBnmrBranchCoverage:
     """Cover specific uncovered branches in _reach_bnmr.py."""
 
     @pytest.mark.unit
-    def test_detect_bnmr_version_openpyxl_fallback_all_sheets(self, tmp_path: Path):
-        """Cover branch 106->117: fallback loop exhausts all 19 probes without break."""
-        from acoharmony._parsers._reach_bnmr import detect_bnmr_version
+    def test_list_sheet_names_openpyxl_exception_returns_empty(self, tmp_path: Path):
+        """openpyxl failure is the only way to get an empty sheet list."""
+        from acoharmony._parsers._reach_bnmr import list_bnmr_sheet_names, resolve_bnmr_sheet_indices
         from openpyxl import Workbook
 
-        # Create an Excel file with 20 sheets (each with data) so the polars
-        # fallback loop iterates all 19 probes (range(1,20)) without breaking.
         wb = Workbook()
         wb.active.append(["data"])
         for i in range(19):
@@ -1616,12 +1625,12 @@ class TestReachBnmrBranchCoverage:
             ws.append(["data"])
         wb.save(tmp_path / "test.xlsx")
 
-        # Mock openpyxl.load_workbook to raise so the except branch triggers
         with patch("openpyxl.load_workbook", side_effect=RuntimeError("forced")):
-            sheet_count, mapping = detect_bnmr_version(tmp_path / "test.xlsx")
-        # All 19 probes succeeded → sheet_count=19
-        assert isinstance(mapping, dict)
-        assert sheet_count == 19
+            names = list_bnmr_sheet_names(tmp_path / "test.xlsx")
+            assert names == []
+            # Resolver gracefully yields all-None mapping when sheet list is empty.
+            _, mapping = resolve_bnmr_sheet_indices(tmp_path / "test.xlsx", ["DATA_CLAIMS"])
+            assert mapping["DATA_CLAIMS"] is None
 
     @pytest.mark.unit
     def test_extract_reference_year_falsy_cell_value(self, tmp_path: Path):
@@ -1923,6 +1932,7 @@ class TestRenameDictOldNameNotInColumns:
             "sheets": [
                 {
                     "sheet_type": "settlement",
+                    "sheet_name": "Sheet1",
                     "sheet_index": 1,
                     "columns": [
                         {"position": 0, "name": "label", "data_type": "string"},
@@ -2021,6 +2031,7 @@ class TestParseBnmrSheetBranchCoverage:
             "sheets": [
                 {
                     "sheet_type": "empty",
+                    "sheet_name": "Sheet",
                     "sheet_index": 0,
                     "columns": [
                         {"position": None, "name": "ignored", "data_type": "string"}
@@ -2062,6 +2073,7 @@ class TestParseBnmrSheetBranchCoverage:
             "sheets": [
                 {
                     "sheet_type": "nohdr",
+                    "sheet_name": "Sheet",
                     "sheet_index": 0,
                     "columns": [
                         {"position": 0, "name": "label", "data_type": "string"},
