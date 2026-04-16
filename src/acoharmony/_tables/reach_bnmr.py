@@ -1402,6 +1402,7 @@ from acoharmony._registry import (
         {"name": "performance_year", "extractor": "performance_year"},
     ],
     matrix_fields=[
+        {"matrix": [0, 0, 1], "search_sheet_name": "REPORT_PARAMETERS", "field_name": "report_type", "data_type": "string", "search_label": "ACO Parameters"},
         {"matrix": [0, 0, 1], "search_sheet_name": "REPORT_PARAMETERS", "field_name": "performance_year", "data_type": "string", "search_label": "Performance Year"},
         {"matrix": [0, 0, 1], "search_sheet_name": "REPORT_PARAMETERS", "field_name": "aco_id", "data_type": "string", "search_label": ["Organization ID", "Entity ID"]},
         {"matrix": [0, 0, 1], "search_sheet_name": "REPORT_PARAMETERS", "field_name": "aco_type", "data_type": "string", "search_label": ["Organization Type", "Entity Type"]},
