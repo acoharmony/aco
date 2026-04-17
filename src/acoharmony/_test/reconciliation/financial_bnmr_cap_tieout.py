@@ -519,3 +519,67 @@ class TestAggregateHelpers:
         assert float(row["plaru_epcc"]) == pytest.approx(200.0)
         assert float(row["plaru_apo"]) == pytest.approx(50.0)
         assert float(row["plaru_tcc"]) == pytest.approx(1250.0)
+
+
+# ---------------------------------------------------------------------------
+# Tests: format-detection expression coverage
+# ---------------------------------------------------------------------------
+
+
+class TestFormatDetectionExpressions:
+    """
+    Directly exercise ``is_new_cap_format_expr()`` and
+    ``is_old_cap_format_expr()`` so the static-method bodies are covered.
+    """
+
+    @pytest.mark.reconciliation
+    def test_is_new_cap_format_true_when_new_field_set(self):
+        from acoharmony._expressions._bnmr_cap_reconciliation import (
+            BnmrCapReconciliationExpression,
+        )
+
+        df = pl.DataFrame(
+            [{**_NEW_FORMAT_DEFAULTS, "aco_tcc_amt_post_seq_paid": 100.0}],
+            schema=_BNMR_CAP_SCHEMA,
+        )
+        result = df.select(BnmrCapReconciliationExpression.is_new_cap_format_expr())
+        assert result["is_new_cap_format"][0] is True
+
+    @pytest.mark.reconciliation
+    def test_is_new_cap_format_false_when_all_new_fields_null(self):
+        from acoharmony._expressions._bnmr_cap_reconciliation import (
+            BnmrCapReconciliationExpression,
+        )
+
+        df = pl.DataFrame(
+            [_OLD_FORMAT_DEFAULTS],
+            schema=_BNMR_CAP_SCHEMA,
+        )
+        result = df.select(BnmrCapReconciliationExpression.is_new_cap_format_expr())
+        assert result["is_new_cap_format"][0] is False
+
+    @pytest.mark.reconciliation
+    def test_is_old_cap_format_true_when_old_field_set(self):
+        from acoharmony._expressions._bnmr_cap_reconciliation import (
+            BnmrCapReconciliationExpression,
+        )
+
+        df = pl.DataFrame(
+            [{**_OLD_FORMAT_DEFAULTS, "aco_tcc_amt_total": 500.0}],
+            schema=_BNMR_CAP_SCHEMA,
+        )
+        result = df.select(BnmrCapReconciliationExpression.is_old_cap_format_expr())
+        assert result["is_old_cap_format"][0] is True
+
+    @pytest.mark.reconciliation
+    def test_is_old_cap_format_false_when_all_old_fields_null(self):
+        from acoharmony._expressions._bnmr_cap_reconciliation import (
+            BnmrCapReconciliationExpression,
+        )
+
+        df = pl.DataFrame(
+            [_NEW_FORMAT_DEFAULTS],
+            schema=_BNMR_CAP_SCHEMA,
+        )
+        result = df.select(BnmrCapReconciliationExpression.is_old_cap_format_expr())
+        assert result["is_old_cap_format"][0] is False

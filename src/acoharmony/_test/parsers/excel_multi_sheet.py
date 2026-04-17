@@ -3742,3 +3742,419 @@ class TestFilenameFieldsStamping:
             df["source_filename"].unique().to_list()
             == ["REACH.D0259.BNMR.PY2024.D250101.T0900000.xlsx"]
         )
+
+
+# ---------------------------------------------------------------------------
+# Coverage: extract_matrix_fields — search_label with empty first-column cell
+# ---------------------------------------------------------------------------
+
+
+class TestExtractMatrixFieldsSearchLabelEmptyCell:
+    """
+    Line 265-266: when scanning for a search_label, rows whose first column
+    is falsy (None / empty string) must be skipped via ``continue``.
+    """
+
+    @pytest.mark.unit
+    def test_search_label_skips_empty_first_column(self, tmp_path):
+        """A None cell in column 0 triggers the ``if not cell: continue`` branch."""
+        if not HAS_OPENPYXL:
+            pytest.skip("openpyxl required")
+        import openpyxl
+
+        from acoharmony._parsers._excel_multi_sheet import extract_matrix_fields
+
+        # Build a workbook where row 0 col 0 is empty, row 1 has the label
+        out = tmp_path / "search.xlsx"
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.append([None, "ignore"])      # row 0: first cell is None
+        ws.append(["Target Label", 42])  # row 1: label is here
+        wb.save(out)
+
+        matrix_fields = [
+            {
+                "matrix": [0, 0, 1],  # sheet 0, start row 0, target_col 1
+                "field_name": "found_value",
+                "search_label": "Target Label",
+            }
+        ]
+        result = extract_matrix_fields(out, matrix_fields, sheet_index=0)
+        # Excel reads with infer_schema_length=0 return strings
+        assert str(result["found_value"]) == "42"
+
+
+# ---------------------------------------------------------------------------
+# Coverage: extract_named_fields — outer except with namespace configs
+# ---------------------------------------------------------------------------
+
+
+class TestExtractNamedFieldsExceptPaths:
+    """
+    Lines 438-444: when ``pl.read_excel`` raises in ``extract_named_fields``,
+    the outer except block must yield None for every field. When the
+    ``field_config`` is a namespace (not dict), line 444 is exercised.
+    """
+
+    @pytest.mark.unit
+    def test_read_raises_dict_config_yields_none(self, tmp_path):
+        """Outer except block with dict configs."""
+        from acoharmony._parsers._excel_multi_sheet import extract_named_fields
+
+        bogus_path = tmp_path / "nonexistent.xlsx"
+        config = [
+            {"row": 0, "column": 0, "field_name": "alpha"},
+            {"row": 1, "column": 1, "field_name": "beta"},
+        ]
+        result = extract_named_fields(bogus_path, 0, config)
+        assert result == {"alpha": None, "beta": None}
+
+    @pytest.mark.unit
+    def test_read_raises_namespace_config_yields_none(self, tmp_path):
+        """Outer except block with namespace (non-dict) field configs (line 444)."""
+        from acoharmony._parsers._excel_multi_sheet import extract_named_fields
+
+        bogus_path = tmp_path / "nonexistent.xlsx"
+        ns_config = [
+            SimpleNamespace(row=0, column=0, field_name="gamma"),
+            SimpleNamespace(row=1, column=1, field_name="delta"),
+        ]
+        result = extract_named_fields(bogus_path, 0, ns_config)
+        assert result == {"gamma": None, "delta": None}
+
+    @pytest.mark.unit
+    def test_col_idx_exceeds_df_columns(self, tmp_path):
+        """
+        Lines 433-434: row_idx valid but col_idx >= len(df.columns) yields None.
+        """
+        if not HAS_OPENPYXL:
+            pytest.skip("openpyxl required")
+        import openpyxl
+
+        from acoharmony._parsers._excel_multi_sheet import extract_named_fields
+
+        out = tmp_path / "tiny.xlsx"
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.append(["only_col"])
+        wb.save(out)
+
+        config = [{"row": 0, "column": 999, "field_name": "missing_col"}]
+        result = extract_named_fields(out, 0, config)
+        assert result == {"missing_col": None}
+
+
+# ---------------------------------------------------------------------------
+# Coverage: _stamp_provenance_metadata — namespace schema + namespace fields
+# ---------------------------------------------------------------------------
+
+
+class TestStampProvenanceNamespacePaths:
+    """
+    Lines 1518-1520: schema is a namespace object with ``filename_fields``.
+    Lines 1526-1528: field_def is a namespace (not dict).
+    Line 1530: ``continue`` when name or extractor_name is None.
+    """
+
+    @pytest.mark.unit
+    def test_namespace_schema_with_namespace_field_defs(self, tmp_path):
+        """Namespace schema whose filename_fields are namespace objects."""
+        from acoharmony._parsers._excel_multi_sheet import _stamp_provenance_metadata
+
+        df = pl.LazyFrame({"col_a": ["v1"]})
+
+        # Use a real extractor name so it resolves
+        schema = SimpleNamespace(
+            filename_fields=[
+                SimpleNamespace(name="aco_id", extractor="aco_id"),
+            ]
+        )
+        result = _stamp_provenance_metadata(
+            df,
+            Path(tmp_path / "REACH.D0259.BNMR.PY2024.xlsx"),
+            "test_schema",
+            schema,
+        )
+        out = result.collect()
+        assert "aco_id" in out.columns
+        assert out["aco_id"][0] == "D0259"
+
+    @pytest.mark.unit
+    def test_namespace_field_def_missing_name_skipped(self, tmp_path):
+        """A namespace field_def with name=None triggers the ``continue`` at line 1530."""
+        from acoharmony._parsers._excel_multi_sheet import _stamp_provenance_metadata
+
+        df = pl.LazyFrame({"col_a": ["v1"]})
+
+        schema = SimpleNamespace(
+            filename_fields=[
+                SimpleNamespace(name=None, extractor="aco_id"),   # missing name
+                SimpleNamespace(name="perf_yr", extractor=None),  # missing extractor
+            ]
+        )
+        result = _stamp_provenance_metadata(
+            df,
+            Path(tmp_path / "REACH.D0259.BNMR.PY2024.xlsx"),
+            "test_schema",
+            schema,
+        )
+        out = result.collect()
+        # Neither field should be added
+        assert "aco_id" not in [c for c in out.columns if c not in ("col_a", "processed_at", "source_file", "source_filename")]
+        assert "perf_yr" not in out.columns
+
+    @pytest.mark.unit
+    def test_namespace_schema_filename_fields_as_tuple(self, tmp_path):
+        """
+        Lines 1519-1520: raw is not a list (e.g. tuple) and gets wrapped
+        via ``list(raw)``.
+        """
+        from acoharmony._parsers._excel_multi_sheet import _stamp_provenance_metadata
+
+        df = pl.LazyFrame({"col_a": ["v1"]})
+
+        schema = SimpleNamespace(
+            filename_fields=(
+                SimpleNamespace(name="aco_id", extractor="aco_id"),
+            )
+        )
+        result = _stamp_provenance_metadata(
+            df,
+            Path(tmp_path / "REACH.D0259.BNMR.PY2024.xlsx"),
+            "test_schema",
+            schema,
+        )
+        out = result.collect()
+        assert out["aco_id"][0] == "D0259"
+
+
+class TestExtractNamedFieldsInnerException:
+    """Exception inside df.row() triggers inner except → None."""
+
+    @pytest.mark.unit
+    def test_row_access_raises_yields_none(self, tmp_path):
+        from unittest.mock import patch, MagicMock
+        from acoharmony._parsers._excel_multi_sheet import extract_named_fields
+
+        # Create a real small file so read_excel succeeds
+        if not HAS_OPENPYXL:
+            pytest.skip("openpyxl required")
+        import openpyxl
+        p = tmp_path / "test.xlsx"
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.append(["val1"])
+        wb.save(p)
+
+        # Monkey-patch the DataFrame's .row() to raise
+        _real_read = pl.read_excel
+        def _patched_read(*a, **kw):
+            _df = _real_read(*a, **kw)
+            _orig_row = _df.row
+            def _exploding_row(idx):
+                raise RuntimeError("forced")
+            _df.row = _exploding_row
+            return _df
+
+        with patch("acoharmony._parsers._excel_multi_sheet.pl.read_excel", side_effect=_patched_read):
+            config = [{"row": 0, "column": 0, "field_name": "test_field"}]
+            result = extract_named_fields(p, 0, config)
+        assert result["test_field"] is None
+
+
+class TestNamedFieldsExistingColumnSkipped:
+    """Cover line 1373: named_field name already in existing_columns → skip."""
+
+    @pytest.mark.unit
+    def test_duplicate_named_field_skipped(self, tmp_path):
+        if not HAS_OPENPYXL:
+            pytest.skip("openpyxl required")
+        import openpyxl
+        from acoharmony._parsers._excel_multi_sheet import parse_excel_multi_sheet
+
+        p = tmp_path / "test.xlsx"
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "DATA"
+        # "col_a" is both a regular column AND a named_field target
+        ws.append(["col_a", "col_b"])
+        ws.append(["v1", "v2"])
+        ws.append(["TOTAL", ""])
+        wb.save(p)
+
+        schema = {
+            "name": "test_dup_named",
+            "file_format": {
+                "sheet_config": {
+                    "header_row": 0,
+                    "data_start_row": 1,
+                    "end_marker_column": 0,
+                    "end_marker_value": "TOTAL",
+                }
+            },
+            "sheets": [
+                {
+                    "sheet_name": "DATA",
+                    "sheet_index": 0,
+                    "sheet_type": "data",
+                    "columns": [
+                        {"position": 0, "name": "col_a", "data_type": "string"},
+                        {"position": 1, "name": "col_b", "data_type": "string"},
+                    ],
+                    # named_field targets "col_a" which already exists from position mapping
+                    "named_fields": [
+                        {"row": 0, "column": 0, "field_name": "col_a"},
+                    ],
+                }
+            ],
+        }
+        df = parse_excel_multi_sheet(p, schema).collect()
+        # col_a should exist (from position mapping), named_field skipped
+        assert "col_a" in df.columns
+        # Value should be from the data row, not from the named_field extraction
+        assert df["col_a"][0] == "v1"
+
+
+class TestResolveNameCaching:
+    """Branch 197->201: _resolve_name called twice uses cached _name_to_idx."""
+
+    @pytest.mark.unit
+    def test_two_fields_with_search_sheet_name_hits_cache(self, tmp_path: Path):
+        from openpyxl import Workbook
+
+        from acoharmony._parsers._excel_multi_sheet import extract_matrix_fields
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "REPORT_PARAMETERS"
+        ws.append(["Discount", "0.035"])
+        ws.append(["Shared Savings Rate", "1.0"])
+        wb.save(tmp_path / "test.xlsx")
+
+        fields = [
+            {
+                "matrix": [0, None, 1],
+                "search_sheet_name": "REPORT_PARAMETERS",
+                "search_label": "Discount",
+                "field_name": "discount",
+                "data_type": "decimal",
+            },
+            {
+                "matrix": [0, None, 1],
+                "search_sheet_name": "REPORT_PARAMETERS",
+                "search_label": "Shared Savings Rate",
+                "field_name": "savings_rate",
+                "data_type": "decimal",
+            },
+        ]
+        result = extract_matrix_fields(tmp_path / "test.xlsx", fields)
+        assert result["discount"] == 0.035
+        assert result["savings_rate"] == 1.0
+
+
+class TestNamedFieldsOuterExceptNonDict:
+    """Branch 445->440: outer except with non-dict field_config objects."""
+
+    @pytest.mark.unit
+    def test_unreadable_sheet_with_attr_config(self):
+        from acoharmony._parsers._excel_multi_sheet import extract_named_fields
+
+        class AttrConfig:
+            def __init__(self, row, column, field_name):
+                self.row = row
+                self.column = column
+                self.field_name = field_name
+
+        # Pass a non-existent file to trigger the outer except
+        config = [AttrConfig(0, 0, "test_field")]
+        result = extract_named_fields(Path("/nonexistent/file.xlsx"), 0, config)
+        assert result["test_field"] is None
+
+
+class TestNamedFieldsOuterExceptFalsyFieldName:
+    """Branch 441->436: field_config in outer except with falsy field_name."""
+
+    @pytest.mark.unit
+    def test_none_field_name_skipped_in_outer_except(self):
+        from acoharmony._parsers._excel_multi_sheet import extract_named_fields
+
+        # One config with valid field_name, one with None — both hit the
+        # outer except (unreadable file).  The None entry loops back without
+        # setting a value.
+        config = [
+            {"row": 0, "column": 0, "field_name": None},
+            {"row": 0, "column": 0, "field_name": "real_field"},
+        ]
+        result = extract_named_fields(Path("/nonexistent/file.xlsx"), 0, config)
+        assert result["real_field"] is None
+        assert None not in result
+
+
+class TestDynamicColumnsNameNotInDataframe:
+    """Branch 1407->1409: old_name not in df_sheet.columns → skip rename."""
+
+    @pytest.mark.unit
+    def test_output_name_differs_from_name(self, tmp_path: Path):
+        """When a column def has output_name != name, parse_sheet_matrix
+        renames to output_name. dynamic_columns looks up col_def["name"],
+        which won't be in df_sheet.columns → rename skipped."""
+        if not HAS_OPENPYXL:
+            pytest.skip("openpyxl required")
+        import openpyxl
+
+        from acoharmony._parsers._excel_multi_sheet import parse_excel_multi_sheet
+
+        p = tmp_path / "test.xlsx"
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "DATA"
+        # Row 0: year header — "2025" at column 2
+        ws.append(["a", "b", "2025"])
+        # Row 1: header
+        ws.append(["col_a", "col_b", "amt"])
+        # Row 2: data
+        ws.append(["v1", "v2", "100"])
+        ws.append(["TOTAL", "", ""])
+        wb.save(p)
+
+        schema = {
+            "name": "test_dyn_output",
+            "file_format": {
+                "sheet_config": {
+                    "header_row": 1,
+                    "data_start_row": 2,
+                    "end_marker_column": 0,
+                    "end_marker_value": "TOTAL",
+                }
+            },
+            "sheets": [
+                {
+                    "sheet_name": "DATA",
+                    "sheet_index": 0,
+                    "sheet_type": "data",
+                    "columns": [
+                        {"position": 0, "name": "col_a", "data_type": "string"},
+                        {"position": 1, "name": "col_b", "data_type": "string"},
+                        # output_name differs from name — parse_sheet_matrix
+                        # renames column to "amt_live", but dynamic_columns
+                        # looks for "amt_placeholder" which doesn't exist
+                        {
+                            "position": 2,
+                            "name": "amt_placeholder",
+                            "output_name": "amt_live",
+                            "data_type": "string",
+                        },
+                    ],
+                    "dynamic_columns": {
+                        "year_header_row": 0,
+                        "year_columns": [2],
+                        "year_column_prefix": "year_",
+                    },
+                }
+            ],
+        }
+        df = parse_excel_multi_sheet(p, schema).collect()
+        # "amt_placeholder" not in columns so rename was skipped
+        assert "year_2025" not in df.columns
+        # The output_name column survives unchanged
+        assert "amt_live" in df.columns
