@@ -607,3 +607,70 @@ class TestSvaDateMalformedVariants:
 
         assert _extract_submission_date("SVA_03.08.2026.pdf") == date(2026, 3, 8)
         assert _extract_submission_date("Cabb.pdf") is None
+
+
+class TestScoreCandidateFutureDates:
+    """Cover _score_candidate when candidate is AFTER the upload date (delta < 0)."""
+
+    @pytest.mark.unit
+    def test_future_candidate_returns_high_penalty(self):
+        """A candidate date one day after upload should score 100.0."""
+        from acoharmony._parsers._mabel_log import _score_candidate
+
+        uploaded = datetime(2026, 3, 10)
+        candidate = date(2026, 3, 11)  # 1 day in the future
+        score = _score_candidate(candidate, uploaded)
+        assert score == 100.0
+
+    @pytest.mark.unit
+    def test_future_candidate_three_days_ahead(self):
+        """A candidate three days after upload should score 300.0."""
+        from acoharmony._parsers._mabel_log import _score_candidate
+
+        uploaded = datetime(2026, 3, 10)
+        candidate = date(2026, 3, 13)  # 3 days in the future
+        score = _score_candidate(candidate, uploaded)
+        assert score == 300.0
+
+
+class TestBuildCandidatesDuplicateAndErrors:
+    """Cover _push duplicate-key early return and ValueError/IndexError except block."""
+
+    @pytest.mark.unit
+    def test_duplicate_candidate_deduplicated(self):
+        """
+        A filename like ``SVA 03.08.2026 03.08.2026`` generates the same
+        (3, 8, 2026) candidate twice. The second push should be silently
+        dropped, so only one candidate survives.
+        """
+        from acoharmony._parsers._mabel_log import _build_candidates
+
+        # Two identical MM.DD.YYYY segments in the stem
+        candidates = _build_candidates("SVA 03.08.2026 copy 03.08.2026")
+        # Count how many times (3, 8, 2026) appears
+        count = sum(1 for c in candidates if c == (3, 8, 2026))
+        assert count == 1, f"Expected 1 occurrence of (3,8,2026), got {count}"
+
+    @pytest.mark.unit
+    def test_pattern_with_too_few_groups_triggers_index_error(self):
+        """
+        The except (ValueError, IndexError) block at lines 145-146 fires
+        when int(match.group(N)) raises because the pattern has fewer
+        groups than expected. Monkeypatch a 2-group pattern into the list
+        to exercise this path.
+        """
+        import re as _re
+        from unittest.mock import patch
+
+        from acoharmony._parsers import _mabel_log
+
+        # A pattern with only 2 groups — group(3) will raise IndexError
+        bad_pattern = _re.compile(r"(\d{2})\.(\d{2})")
+        original = _mabel_log._SVA_DATE_PATTERNS
+        try:
+            _mabel_log._SVA_DATE_PATTERNS = [bad_pattern]
+            candidates = _mabel_log._build_candidates("03.08")
+            # The IndexError is caught; no candidates are produced
+            assert candidates == []
+        finally:
+            _mabel_log._SVA_DATE_PATTERNS = original

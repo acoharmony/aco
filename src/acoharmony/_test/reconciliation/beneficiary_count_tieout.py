@@ -247,6 +247,37 @@ class TestAnnualCountsMatch:
 
 
 # ---------------------------------------------------------------------------
+# Tests: annual PIT filter
+# ---------------------------------------------------------------------------
+
+
+class TestAnnualPointInTimeFiltering:
+    @pytest.mark.reconciliation
+    def test_post_cutoff_annual_rows_excluded(self):
+        """A BNMR row with file_date after cutoff must be dropped from
+        the annual view."""
+        scenario = _basic_monthly_scenario()
+        bnmr_rows = scenario["bnmr"].collect().to_dicts()
+        bnmr_rows.append(
+            {
+                **_BNMR_DEFAULTS,
+                "clndr_mnth": "3",
+                "bene_dcnt": 9999,
+                "bene_dcnt_annual": 9999,
+                "file_date": "2026-12-31",
+            }
+        )
+        scenario["bnmr"] = _bnmr(
+            [{k: v for k, v in r.items() if k in _BNMR_RISK_SCHEMA} for r in bnmr_rows]
+        )
+        diff = build_bnmr_risk_annual_count_reconciliation_view(
+            scenario["bnmr"], scenario["elig"], as_of_delivery_date="2026-06-30"
+        ).collect()
+        bad = diff.filter(pl.col("bene_dcnt_annual_diff") > 0)
+        assert bad.height == 0
+
+
+# ---------------------------------------------------------------------------
 # Tests: deliberate mismatch detection
 # ---------------------------------------------------------------------------
 
