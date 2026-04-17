@@ -4013,3 +4013,115 @@ class TestNamedFieldsExistingColumnSkipped:
         assert "col_a" in df.columns
         # Value should be from the data row, not from the named_field extraction
         assert df["col_a"][0] == "v1"
+
+
+class TestResolveNameCaching:
+    """Branch 197->201: _resolve_name called twice uses cached _name_to_idx."""
+
+    @pytest.mark.unit
+    def test_two_fields_with_search_sheet_name_hits_cache(self, tmp_path: Path):
+        from openpyxl import Workbook
+
+        from acoharmony._parsers._excel_multi_sheet import extract_matrix_fields
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "REPORT_PARAMETERS"
+        ws.append(["Discount", "0.035"])
+        ws.append(["Shared Savings Rate", "1.0"])
+        wb.save(tmp_path / "test.xlsx")
+
+        fields = [
+            {
+                "matrix": [0, None, 1],
+                "search_sheet_name": "REPORT_PARAMETERS",
+                "search_label": "Discount",
+                "field_name": "discount",
+                "data_type": "decimal",
+            },
+            {
+                "matrix": [0, None, 1],
+                "search_sheet_name": "REPORT_PARAMETERS",
+                "search_label": "Shared Savings Rate",
+                "field_name": "savings_rate",
+                "data_type": "decimal",
+            },
+        ]
+        result = extract_matrix_fields(tmp_path / "test.xlsx", fields)
+        assert result["discount"] == 0.035
+        assert result["savings_rate"] == 1.0
+
+
+class TestNamedFieldsOuterExceptNonDict:
+    """Branch 445->440: outer except with non-dict field_config objects."""
+
+    @pytest.mark.unit
+    def test_unreadable_sheet_with_attr_config(self):
+        from acoharmony._parsers._excel_multi_sheet import extract_named_fields
+
+        class AttrConfig:
+            def __init__(self, row, column, field_name):
+                self.row = row
+                self.column = column
+                self.field_name = field_name
+
+        # Pass a non-existent file to trigger the outer except
+        config = [AttrConfig(0, 0, "test_field")]
+        result = extract_named_fields(Path("/nonexistent/file.xlsx"), 0, config)
+        assert result["test_field"] is None
+
+
+class TestDynamicColumnsEmptyRenameDict:
+    """Branch 1411->1413: dynamic_columns configured but no columns match."""
+
+    @pytest.mark.unit
+    def test_no_matching_year_columns(self, tmp_path: Path):
+        if not HAS_OPENPYXL:
+            pytest.skip("openpyxl required")
+        import openpyxl
+
+        from acoharmony._parsers._excel_multi_sheet import parse_excel_multi_sheet
+
+        p = tmp_path / "test.xlsx"
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "DATA"
+        # Row 0: year header row — but year at column 5 which has no column def
+        ws.append(["a", "b", "", "", "", "2025"])
+        # Row 1: header
+        ws.append(["col_a", "col_b"])
+        # Row 2: data
+        ws.append(["v1", "v2"])
+        ws.append(["TOTAL", ""])
+        wb.save(p)
+
+        schema = {
+            "name": "test_dyn_empty",
+            "file_format": {
+                "sheet_config": {
+                    "header_row": 1,
+                    "data_start_row": 2,
+                    "end_marker_column": 0,
+                    "end_marker_value": "TOTAL",
+                }
+            },
+            "sheets": [
+                {
+                    "sheet_name": "DATA",
+                    "sheet_index": 0,
+                    "sheet_type": "data",
+                    "columns": [
+                        {"position": 0, "name": "col_a", "data_type": "string"},
+                        {"position": 1, "name": "col_b", "data_type": "string"},
+                    ],
+                    "dynamic_columns": {
+                        "year_header_row": 0,
+                        "year_columns": [5],
+                        "year_column_prefix": "year_",
+                    },
+                }
+            ],
+        }
+        df = parse_excel_multi_sheet(p, schema).collect()
+        assert "col_a" in df.columns
+        assert df["col_a"][0] == "v1"
