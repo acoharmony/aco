@@ -3926,3 +3926,90 @@ class TestStampProvenanceNamespacePaths:
         )
         out = result.collect()
         assert out["aco_id"][0] == "D0259"
+
+
+class TestExtractNamedFieldsInnerException:
+    """Cover line 432: exception inside df.row() triggers inner except."""
+
+    @pytest.mark.unit
+    def test_row_access_raises_yields_none(self, tmp_path):
+        from unittest.mock import patch, MagicMock
+        from acoharmony._parsers._excel_multi_sheet import extract_named_fields
+
+        # Create a real small file so read_excel succeeds
+        if not HAS_OPENPYXL:
+            pytest.skip("openpyxl required")
+        import openpyxl
+        p = tmp_path / "test.xlsx"
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.append(["val1"])
+        wb.save(p)
+
+        # Monkey-patch the DataFrame's .row() to raise
+        _real_read = pl.read_excel
+        def _patched_read(*a, **kw):
+            _df = _real_read(*a, **kw)
+            _orig_row = _df.row
+            def _exploding_row(idx):
+                raise RuntimeError("forced")
+            _df.row = _exploding_row
+            return _df
+
+        with patch("acoharmony._parsers._excel_multi_sheet.pl.read_excel", side_effect=_patched_read):
+            config = [{"row": 0, "column": 0, "field_name": "test_field"}]
+            result = extract_named_fields(p, 0, config)
+        assert result["test_field"] is None
+
+
+class TestNamedFieldsExistingColumnSkipped:
+    """Cover line 1373: named_field name already in existing_columns → skip."""
+
+    @pytest.mark.unit
+    def test_duplicate_named_field_skipped(self, tmp_path):
+        if not HAS_OPENPYXL:
+            pytest.skip("openpyxl required")
+        import openpyxl
+        from acoharmony._parsers._excel_multi_sheet import parse_excel_multi_sheet
+
+        p = tmp_path / "test.xlsx"
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "DATA"
+        # "col_a" is both a regular column AND a named_field target
+        ws.append(["col_a", "col_b"])
+        ws.append(["v1", "v2"])
+        ws.append(["TOTAL", ""])
+        wb.save(p)
+
+        schema = {
+            "name": "test_dup_named",
+            "file_format": {
+                "sheet_config": {
+                    "header_row": 0,
+                    "data_start_row": 1,
+                    "end_marker_column": 0,
+                    "end_marker_value": "TOTAL",
+                }
+            },
+            "sheets": [
+                {
+                    "sheet_name": "DATA",
+                    "sheet_index": 0,
+                    "sheet_type": "data",
+                    "columns": [
+                        {"position": 0, "name": "col_a", "data_type": "string"},
+                        {"position": 1, "name": "col_b", "data_type": "string"},
+                    ],
+                    # named_field targets "col_a" which already exists from position mapping
+                    "named_fields": [
+                        {"row": 0, "column": 0, "field_name": "col_a"},
+                    ],
+                }
+            ],
+        }
+        df = parse_excel_multi_sheet(p, schema).collect()
+        # col_a should exist (from position mapping), named_field skipped
+        assert "col_a" in df.columns
+        # Value should be from the data row, not from the named_field extraction
+        assert df["col_a"][0] == "v1"
