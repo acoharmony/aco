@@ -4071,11 +4071,33 @@ class TestNamedFieldsOuterExceptNonDict:
         assert result["test_field"] is None
 
 
-class TestDynamicColumnsEmptyRenameDict:
-    """Branch 1411->1413: dynamic_columns configured but no columns match."""
+class TestNamedFieldsOuterExceptFalsyFieldName:
+    """Branch 441->436: field_config in outer except with falsy field_name."""
 
     @pytest.mark.unit
-    def test_no_matching_year_columns(self, tmp_path: Path):
+    def test_none_field_name_skipped_in_outer_except(self):
+        from acoharmony._parsers._excel_multi_sheet import extract_named_fields
+
+        # One config with valid field_name, one with None — both hit the
+        # outer except (unreadable file).  The None entry loops back without
+        # setting a value.
+        config = [
+            {"row": 0, "column": 0, "field_name": None},
+            {"row": 0, "column": 0, "field_name": "real_field"},
+        ]
+        result = extract_named_fields(Path("/nonexistent/file.xlsx"), 0, config)
+        assert result["real_field"] is None
+        assert None not in result
+
+
+class TestDynamicColumnsNameNotInDataframe:
+    """Branch 1407->1409: old_name not in df_sheet.columns → skip rename."""
+
+    @pytest.mark.unit
+    def test_output_name_differs_from_name(self, tmp_path: Path):
+        """When a column def has output_name != name, parse_sheet_matrix
+        renames to output_name. dynamic_columns looks up col_def["name"],
+        which won't be in df_sheet.columns → rename skipped."""
         if not HAS_OPENPYXL:
             pytest.skip("openpyxl required")
         import openpyxl
@@ -4086,17 +4108,17 @@ class TestDynamicColumnsEmptyRenameDict:
         wb = openpyxl.Workbook()
         ws = wb.active
         ws.title = "DATA"
-        # Row 0: year header row — but year at column 5 which has no column def
-        ws.append(["a", "b", "", "", "", "2025"])
+        # Row 0: year header — "2025" at column 2
+        ws.append(["a", "b", "2025"])
         # Row 1: header
-        ws.append(["col_a", "col_b"])
+        ws.append(["col_a", "col_b", "amt"])
         # Row 2: data
-        ws.append(["v1", "v2"])
-        ws.append(["TOTAL", ""])
+        ws.append(["v1", "v2", "100"])
+        ws.append(["TOTAL", "", ""])
         wb.save(p)
 
         schema = {
-            "name": "test_dyn_empty",
+            "name": "test_dyn_output",
             "file_format": {
                 "sheet_config": {
                     "header_row": 1,
@@ -4113,15 +4135,26 @@ class TestDynamicColumnsEmptyRenameDict:
                     "columns": [
                         {"position": 0, "name": "col_a", "data_type": "string"},
                         {"position": 1, "name": "col_b", "data_type": "string"},
+                        # output_name differs from name — parse_sheet_matrix
+                        # renames column to "amt_live", but dynamic_columns
+                        # looks for "amt_placeholder" which doesn't exist
+                        {
+                            "position": 2,
+                            "name": "amt_placeholder",
+                            "output_name": "amt_live",
+                            "data_type": "string",
+                        },
                     ],
                     "dynamic_columns": {
                         "year_header_row": 0,
-                        "year_columns": [5],
+                        "year_columns": [2],
                         "year_column_prefix": "year_",
                     },
                 }
             ],
         }
         df = parse_excel_multi_sheet(p, schema).collect()
-        assert "col_a" in df.columns
-        assert df["col_a"][0] == "v1"
+        # "amt_placeholder" not in columns so rename was skipped
+        assert "year_2025" not in df.columns
+        # The output_name column survives unchanged
+        assert "amt_live" in df.columns
