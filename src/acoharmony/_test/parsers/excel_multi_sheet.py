@@ -3929,7 +3929,7 @@ class TestStampProvenanceNamespacePaths:
 
 
 class TestExtractNamedFieldsInnerException:
-    """Cover line 432: exception inside df.row() triggers inner except."""
+    """Exception inside df.row() triggers inner except → None."""
 
     @pytest.mark.unit
     def test_row_access_raises_yields_none(self, tmp_path):

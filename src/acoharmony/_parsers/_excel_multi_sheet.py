@@ -425,11 +425,7 @@ def extract_named_fields(
 
             try:
                 if row_idx < len(df) and col_idx < len(df.columns):
-                    row = df.row(row_idx)
-                    if col_idx < len(row):
-                        named_values[field_name] = row[col_idx]
-                    else:
-                        named_values[field_name] = None
+                    named_values[field_name] = df.row(row_idx)[col_idx]
                 else:
                     named_values[field_name] = None
             except Exception:
