@@ -79,106 +79,106 @@ class Bar:
         - Bar.lineage_config() -> dict
     """
 
-    beneficiary_mbi_id: str = MBI(
+    bene_mbi: str = MBI(
         alias="Beneficiary_MBI_ID",
         description="Medicare Beneficiary Identifier",
     )
-    beneficiary_alignment_effective_start_date: date | None = Field(
+    start_date: date | None = Field(
         alias="Beneficiary_Alignment_Effective_Start_Date",
         default=None,
         description="Alignment effective start date",
     )
-    beneficiary_alignment_effective_termination_date: date | None = Field(
+    end_date: date | None = Field(
         alias="Beneficiary_Alignment_Effective_Termination_Date",
         default=None,
         description="Alignment effective termination date",
     )
-    beneficiary_first_name: str | None = Field(
+    bene_first_name: str | None = Field(
         alias="Beneficiary_First_Name",
     )
-    beneficiary_last_name: str | None = Field(
+    bene_last_name: str | None = Field(
         alias="Beneficiary_Last_Name",
     )
-    beneficiary_line_1_address: str | None = Field(
+    bene_address_line_1: str | None = Field(
         alias="Beneficiary_Line_1_Address",
     )
-    beneficiary_line_2_address: str | None = Field(
+    bene_address_line_2: str | None = Field(
         alias="Beneficiary_Line_2_Address",
     )
-    beneficiary_line_3_address: str | None = Field(
+    bene_address_line_3: str | None = Field(
         alias="Beneficiary_Line_3_Address",
     )
-    beneficiary_line_4_address: str | None = Field(
+    bene_address_line_4: str | None = Field(
         alias="Beneficiary_Line_4_Address",
     )
-    beneficiary_line_5_address: str | None = Field(
+    bene_address_line_5: str | None = Field(
         alias="Beneficiary_Line_5_Address",
     )
-    beneficiary_line_6_address: str | None = Field(
+    bene_address_line_6: str | None = Field(
         alias="Beneficiary_Line_6_Address",
     )
-    beneficiary_city: str | None = Field(default=None, description="City", alias="Beneficiary City")
-    beneficiary_usps_state_code: str | None = Field(
+    bene_city: str | None = Field(default=None, description="City", alias="Beneficiary City")
+    bene_state: str | None = Field(
         alias="Beneficiary_USPS_State_Code",
     )
-    beneficiary_zip_5: str | None = ZIP5(
+    bene_zip_5: str | None = ZIP5(
         alias="Beneficiary_Zip_5",
     )
-    beneficiary_zip_4: str | None = Field(
+    bene_zip_4: str | None = Field(
         alias="Beneficiary_Zip_4",
     )
-    beneficiary_state_county_of_residence_ssa: str | None = Field(
+    bene_county_ssa: str | None = Field(
         alias="Beneficiary_State_County_of_Residence_SSA",
         default=None,
         description="SSA State-County code",
     )
-    beneficiary_state_county_of_residence_fips: str | None = Field(
+    bene_county_fips: str | None = Field(
         alias="Beneficiary_State_County_of_Residence_FIPS",
         default=None,
         description="FIPS county code",
     )
-    beneficiary_gender: str | None = Field(
+    bene_gender: str | None = Field(
         alias="Beneficiary_Gender",
     )
-    race_ethnicity: str | None = Field(
+    bene_race_ethnicity: str | None = Field(
         alias="Race_Ethnicity",
     )
-    beneficiary_date_of_birth: date | None = Field(
+    bene_date_of_birth: date | None = Field(
         alias="Beneficiary_Date_of_Birth",
     )
-    beneficiary_age: int | None = Field(
+    bene_age: int | None = Field(
         alias="Beneficiary_Age",
     )
-    beneficiary_date_of_death: date | None = Field(
+    bene_date_of_death: date | None = Field(
         alias="Beneficiary_Date_of_Death",
     )
-    beneficiary_eligibility_alignment_year_1: str | None = Field(
+    bene_eligibility_year_1: str | None = Field(
         alias="Beneficiary_Eligibility_Alignment_Year_1",
         default=None,
         description="Eligibility for Year 1",
     )
-    beneficiary_eligibility_alignment_year_2: str | None = Field(
+    bene_eligibility_year_2: str | None = Field(
         alias="Beneficiary_Eligibility_Alignment_Year_2",
         default=None,
         description="Eligibility for Year 2",
     )
-    beneficiary_part_d_coverage_alignment_year_1: str | None = Field(
+    bene_part_d_year_1: str | None = Field(
         alias="Beneficiary_Part_D_Coverage_Alignment_Year_1",
         default=None,
         description="Part D Coverage Year 1",
     )
-    beneficiary_part_d_coverage_alignment_year_2: str | None = Field(
+    bene_part_d_year_2: str | None = Field(
         alias="Beneficiary_Part_D_Coverage_Alignment_Year_2",
         default=None,
         description="Part D Coverage Year 2",
     )
-    newly_aligned_beneficiary_flag: str | None = Field(
+    newly_aligned_flag: str | None = Field(
         alias="Newly_Aligned_Beneficiary_Flag",
     )
-    prospective_plus_alignment: str | None = Field(
+    prospective_plus_flag: str | None = Field(
         alias="Prospective_Plus_Alignment",
     )
-    claim_based_alignment_indicator: str | None = Field(
+    claims_based_flag: str | None = Field(
         alias="Claim_Based_Alignment_Indicator",
         default=None,
         description="Claims-based alignment flag",
@@ -186,24 +186,24 @@ class Bar:
     voluntary_alignment_type: str | None = Field(
         alias="Voluntary_Alignment_Type",
     )
-    mobility_impairment_indicator: str | None = Field(
+    mobility_impairment_flag: str | None = Field(
         alias="Mobility_Impairment_Indicator",
     )
-    frailty_indicator: str | None = Field(
+    frailty_flag: str | None = Field(
         alias="Frailty_Indicator",
     )
-    medium_risk_with_unplanned_admissions_indicator: str | None = Field(
+    medium_risk_unplanned_flag: str | None = Field(
         alias="Medium_Risk_with_Unplanned_Admissions_Indicator",
         default=None,
         description="Medium risk with unplanned admissions",
     )
-    high_risk_score_indicator: str | None = Field(
+    high_risk_flag: str | None = Field(
         alias="High_Risk_Score_Indicator",
     )
 
     # Field Validators (from centralized _validators module)
-    _validate_beneficiary_mbi_id = mbi_validator("beneficiary_mbi_id")
-    _validate_beneficiary_zip_5 = zip5_validator("beneficiary_zip_5")
+    _validate_bene_mbi = mbi_validator("bene_mbi")
+    _validate_bene_zip_5 = zip5_validator("bene_zip_5")
 
     def to_dict(self) -> dict:
         """Convert to dictionary."""
