@@ -1270,7 +1270,7 @@ class TestNotebookGenerator:
         assert "generated" in str(gen.output_dir)
 
     @pytest.mark.unit
-    def test_init_default_storage(self, mock_catalog):
+    def test_init_default_storage(self, mock_catalog, tmp_path):
         """NotebookGenerator creates default StorageBackend when none given."""
         mock_sb = MagicMock()
         mock_sb.get_data_path.return_value = Path("/tmp/data")
