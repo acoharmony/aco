@@ -1481,7 +1481,7 @@ notes:
         ) as e:  # ALLOWED: CLI top-level handler, prints error and returns exit code
             print(f"[ERROR] Error: {e}")
             print("\nMake sure you're running from the project root")
-            print("or docker-compose.yml exists in deploy/compose/")
+            print("or docker-compose.yml exists in deploy/")
             return 1
         except (
             ValueError

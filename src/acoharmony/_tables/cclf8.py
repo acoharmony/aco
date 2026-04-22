@@ -100,7 +100,7 @@ class Cclf8:
         description="Medicare Beneficiary Identifier",
         json_schema_extra={"start_pos": 1, "end_pos": 11, "length": 11},
     )
-    bene_hic_num: str | None = ZIP5(default=None, description="Beneficiary HIC Number (deprecated)", json_schema_extra={"start_pos": 12, "end_pos": 22, "length": 11})
+    bene_hic_num: str | None = Field(default=None, description="Beneficiary HIC Number (deprecated)", json_schema_extra={"start_pos": 12, "end_pos": 22, "length": 11})
     bene_fips_state_cd: str | None = Field(default=None, description="Beneficiary FIPS State Code", json_schema_extra={"start_pos": 23, "end_pos": 24, "length": 2})
     bene_fips_cnty_cd: str | None = Field(default=None, description="Beneficiary FIPS County Code", json_schema_extra={"start_pos": 25, "end_pos": 27, "length": 3})
     bene_zip_cd: str | None = Field(default=None, description="Beneficiary ZIP Code", json_schema_extra={"start_pos": 28, "end_pos": 32, "length": 5})
@@ -169,15 +169,15 @@ class Cclf8:
         alias="geo_zip_plc_name", default=None, description="Beneficiary City",
         json_schema_extra={"start_pos": 439, "end_pos": 538, "length": 100},
     )
-    bene_state: str | None = ZIP5(
+    bene_state: str | None = Field(
         alias="geo_usps_state_cd", default=None, description="Beneficiary State",
         json_schema_extra={"start_pos": 539, "end_pos": 540, "length": 2},
     )
-    bene_zip: str | None = Field(
+    bene_zip: str | None = ZIP5(
         alias="geo_zip5_cd", default=None, description="Beneficiary Zip Code",
         json_schema_extra={"start_pos": 541, "end_pos": 545, "length": 5},
     )
-    bene_zip_ext: str | None = ZIP5(
+    bene_zip_ext: str | None = Field(
         alias="geo_zip4_cd", default=None, description="Beneficiary Zip Code Extension",
         json_schema_extra={"start_pos": 546, "end_pos": 549, "length": 4},
     )
@@ -185,9 +185,7 @@ class Cclf8:
     # Field Validators (from centralized _validators module)
     _validate_bene_mbi_id = mbi_validator("bene_mbi_id")
     _validate_bene_zip_cd = zip5_validator("bene_zip_cd")
-    _validate_bene_city = zip5_validator("bene_city")
     _validate_bene_zip = zip5_validator("bene_zip")
-    _validate_bene_zip_ext = zip5_validator("bene_zip_ext")
 
     def to_dict(self) -> dict:
         """Convert to dictionary."""

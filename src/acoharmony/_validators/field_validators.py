@@ -32,11 +32,6 @@ VALIDATION_PATTERNS = {
         "description": "Tax Identification Number (9 digits)",
         "examples": ["123456789"],
     },
-    "hicn": {
-        "pattern": r"^[A-Z\d]{3,12}$",
-        "description": "Health Insurance Claim Number (3-12 alphanumeric)",
-        "examples": ["ABC123456789"],
-    },
     # Medical codes
     "icd_10": {
         "pattern": r"^[A-TV-Z]\d{2}",
@@ -194,21 +189,6 @@ def tin_validator(field_name: str) -> Callable:
             Pydantic field_validator for TIN format
     """
     return pattern_validator(field_name, "tin")
-
-
-def hicn_validator(field_name: str) -> Callable:
-    """
-    Create a validator for Health Insurance Claim Number fields.
-
-        Validates legacy HICN format (3-12 alphanumeric characters).
-
-        Args:
-            field_name: Name of the HICN field
-
-        Returns:
-            Pydantic field_validator for HICN format
-    """
-    return pattern_validator(field_name, "hicn")
 
 
 def icd_10_validator(field_name: str) -> Callable:
@@ -406,11 +386,6 @@ def NPI(**kwargs):
 def TIN(**kwargs):
     """Field with Tax Identification Number (9-digit) pattern."""
     return _pattern_field("tin", **kwargs)
-
-
-def HICN(**kwargs):
-    """Field with Health Insurance Claim Number pattern."""
-    return _pattern_field("hicn", **kwargs)
 
 
 def ICD10(**kwargs):

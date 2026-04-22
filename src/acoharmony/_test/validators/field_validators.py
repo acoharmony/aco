@@ -22,7 +22,6 @@ from acoharmony._validators.field_validators import (
     get_pattern_info,
     get_validator_for_pattern,
     hcpcs_validator,
-    hicn_validator,
     icd_9_validator,
     icd_10_validator,
     list_available_patterns,
@@ -61,7 +60,7 @@ class TestValidationPatterns:
     @pytest.mark.unit
     def test_all_expected_patterns_present(self):
         """All expected pattern types exist in registry."""
-        expected = ['mbi', 'npi', 'tin', 'hicn', 'icd_10', 'icd_9', 'cpt', 'hcpcs', 'ndc', 'drg', 'revenue_code', 'zip5', 'zip9', 'date_yyyymmdd', 'date_ccyymmdd']
+        expected = ['mbi', 'npi', 'tin', 'icd_10', 'icd_9', 'cpt', 'hcpcs', 'ndc', 'drg', 'revenue_code', 'zip5', 'zip9', 'date_yyyymmdd', 'date_ccyymmdd']
         for pat in expected:
             assert pat in VALIDATION_PATTERNS, f"Pattern '{pat}' missing"
 
@@ -150,21 +149,6 @@ class TestTinValidator:
     @pytest.mark.parametrize('value', ['12345678', '1234567890', 'ABCDEFGHI', ''])
     def test_invalid_tin(self, value):
         pattern = VALIDATION_PATTERNS['tin']['pattern']
-        assert re.match(pattern, value) is None
-
-class TestHicnValidator:
-    """Tests for HICN validation pattern."""
-
-    @pytest.mark.unit
-    @pytest.mark.parametrize('value', ['ABC', 'ABC123456789', 'A1B', '123'])
-    def test_valid_hicn(self, value):
-        pattern = VALIDATION_PATTERNS['hicn']['pattern']
-        assert re.match(pattern, value) is not None
-
-    @pytest.mark.unit
-    @pytest.mark.parametrize('value', ['AB', 'ab', 'A1B2C3D4E5F6G', ''])
-    def test_invalid_hicn(self, value):
-        pattern = VALIDATION_PATTERNS['hicn']['pattern']
         assert re.match(pattern, value) is None
 
 class TestIcd10Validator:
@@ -333,11 +317,6 @@ class TestValidatorFactoryFunctions:
     @pytest.mark.unit
     def test_tin_validator_returns_callable(self):
         result = tin_validator('my_tin')
-        assert result is not None
-
-    @pytest.mark.unit
-    def test_hicn_validator_returns_callable(self):
-        result = hicn_validator('my_hicn')
         assert result is not None
 
     @pytest.mark.unit

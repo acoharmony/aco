@@ -21,8 +21,8 @@ WORKDIR /app
 # talk to the npm registry through the Zscaler SSL-inspection proxy.
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates \
     && rm -rf /var/lib/apt/lists/*
-COPY deploy/compose/images/4icli/zscaler-root-ca.crt /usr/local/share/ca-certificates/
-COPY deploy/compose/images/4icli/zscaler-root.crt /usr/local/share/ca-certificates/
+COPY deploy/images/4icli/zscaler-root-ca.crt /usr/local/share/ca-certificates/
+COPY deploy/images/4icli/zscaler-root.crt /usr/local/share/ca-certificates/
 RUN update-ca-certificates
 ENV NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt
 
@@ -57,8 +57,8 @@ LABEL org.opencontainers.image.source=https://github.com/acoharmony/aco \
 # without the extra root CAs.
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates \
     && rm -rf /var/lib/apt/lists/*
-COPY deploy/compose/images/4icli/zscaler-root-ca.crt /usr/local/share/ca-certificates/
-COPY deploy/compose/images/4icli/zscaler-root.crt /usr/local/share/ca-certificates/
+COPY deploy/images/4icli/zscaler-root-ca.crt /usr/local/share/ca-certificates/
+COPY deploy/images/4icli/zscaler-root.crt /usr/local/share/ca-certificates/
 RUN update-ca-certificates
 ENV NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt
 

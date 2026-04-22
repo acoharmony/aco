@@ -131,10 +131,10 @@ class ConsolidatedAlignment:
     )
     reach_tin: str | None = TIN(default=None, description="REACH Tax Identification Number")
     reach_npi: str | None = NPI(default=None, description="REACH National Provider Identifier")
-    reach_provider_name: str | None = NPI(default=None, description="REACH provider/practice name")
+    reach_provider_name: str | None = Field(default=None, description="REACH provider/practice name")
     mssp_tin: str | None = TIN(default=None, description="MSSP Tax Identification Number")
     mssp_npi: str | None = NPI(default=None, description="MSSP National Provider Identifier")
-    mssp_provider_name: str | None = NPI(default=None, description="MSSP provider/practice name")
+    mssp_provider_name: str | None = Field(default=None, description="MSSP provider/practice name")
     has_voluntary_alignment: bool | None = Field(
         default=None, description="Whether beneficiary has any voluntary alignment"
     )
@@ -150,10 +150,10 @@ class ConsolidatedAlignment:
     voluntary_provider_npi: str | None = NPI(
         default=None, description="NPI from voluntary alignment"
     )
-    voluntary_provider_tin: str | None = NPI(
+    voluntary_provider_tin: str | None = TIN(
         default=None, description="TIN from voluntary alignment"
     )
-    voluntary_provider_name: str | None = NPI(
+    voluntary_provider_name: str | None = Field(
         default=None, description="Provider name from voluntary alignment"
     )
     first_valid_signature_date: date | None = Field(
@@ -180,17 +180,17 @@ class ConsolidatedAlignment:
     last_sva_submission_date: date | None = Field(
         default=None, description="Most recent SVA submission date"
     )
-    last_sva_provider_name: str | None = NPI(
+    last_sva_provider_name: str | None = Field(
         default=None, description="Provider name from last SVA"
     )
     last_sva_provider_npi: str | None = NPI(default=None, description="Provider NPI from last SVA")
-    last_sva_provider_tin: str | None = NPI(default=None, description="Provider TIN from last SVA")
+    last_sva_provider_tin: str | None = TIN(default=None, description="Provider TIN from last SVA")
     aligned_practitioner_name: str | None = Field(
         default=None, description="Name of aligned practitioner"
     )
-    aligned_provider_tin: str | None = NPI(default=None, description="TIN of aligned provider")
+    aligned_provider_tin: str | None = TIN(default=None, description="TIN of aligned provider")
     aligned_provider_npi: str | None = NPI(default=None, description="NPI of aligned provider")
-    aligned_provider_org: str | None = NPI(
+    aligned_provider_org: str | None = Field(
         default=None, description="Organization name of aligned provider"
     )
     response_code_list: str | None = Field(
@@ -295,7 +295,7 @@ class ConsolidatedAlignment:
     is_transition: bool | None = Field(
         default=None, description="Whether this block represents a program transition"
     )
-    continuous_enrollment: str | None = TIN(
+    continuous_enrollment: str | None = Field(
         default=None, description="Continuous enrollment span information"
     )
     enrollment_span_id: str | None = Field(
@@ -337,7 +337,7 @@ class ConsolidatedAlignment:
         description="Type of MBI mapping used; xref means a mapping, direct means no crosswalk needed from new to old",
     )
     hcmpi: str | None = Field(default=None, description="Healthcare member patient identifier")
-    has_multiple_prvs_mbi: bool | None = MBI(
+    has_multiple_prvs_mbi: bool | None = Field(
         default=None,
         description="Whether beneficiary has multiple provider MBI mappings",
     )

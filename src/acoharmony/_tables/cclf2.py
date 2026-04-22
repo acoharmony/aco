@@ -25,9 +25,7 @@ from acoharmony._registry import (
     with_storage,
 )
 from acoharmony._validators.field_validators import (
-    HICN,
     MBI,
-    hicn_validator,
     mbi_validator,
 )
 
@@ -97,15 +95,15 @@ class Cclf2:
         - Cclf2.lineage_config() -> dict
     """
 
-    cur_clm_uniq_id: str = MBI(
+    cur_clm_uniq_id: str = Field(
         description="Current Claim Unique Identifier - A unique identification number assigned to the claim",
         json_schema_extra={"start_pos": 1, "end_pos": 13, "length": 13},
     )
-    clm_line_num: str = HICN(
+    clm_line_num: str = Field(
         description="Claim Line Number - A sequential number that identifies a specific claim line",
         json_schema_extra={"start_pos": 14, "end_pos": 23, "length": 10},
     )
-    bene_mbi_id: str = Field(
+    bene_mbi_id: str = MBI(
         description="Medicare Beneficiary Identifier - A Medicare Beneficiary Identifier assigned to a beneficiary",
         json_schema_extra={"start_pos": 24, "end_pos": 34, "length": 11},
     )
@@ -212,7 +210,6 @@ class Cclf2:
 
     # Field Validators (from centralized _validators module)
     _validate_bene_mbi_id = mbi_validator("bene_mbi_id")
-    _validate_bene_eqtbl_bic_hicn_num = hicn_validator("bene_eqtbl_bic_hicn_num")
 
     def to_dict(self) -> dict:
         """Convert to dictionary."""

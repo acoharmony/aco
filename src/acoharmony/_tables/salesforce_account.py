@@ -55,11 +55,11 @@ class SalesforceAccount:
         - SalesforceAccount.lineage_config() -> dict
     """
 
-    account_id: str = NPI(description="Salesforce Account ID")
-    account_name: str | None = TIN(default=None, description="Account name")
+    account_id: str = Field(description="Salesforce Account ID")
+    account_name: str | None = Field(default=None, description="Account name")
     account_type: str | None = Field(default=None, description="Type of account")
-    tin: str | None = Field(default=None, description="Tax Identification Number")
-    npi: str | None = Field(default=None, description="National Provider Identifier")
+    tin: str | None = TIN(default=None, description="Tax Identification Number")
+    npi: str | None = NPI(default=None, description="National Provider Identifier")
     address_line_1: str | None = Field(default=None, description="Street address line 1")
     address_line_2: str | None = Field(default=None, description="Street address line 2")
     city: str | None = Field(default=None, description="City")

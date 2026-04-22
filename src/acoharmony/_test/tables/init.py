@@ -118,7 +118,6 @@ VALID_MBI = '1AC2HJ3RT4Y'
 VALID_NPI = '1234567890'
 VALID_TIN = '123456789'
 VALID_ZIP5 = '12345'
-VALID_HICN = 'ABC123456789'
 VALID_DRG = '001'
 
 def _unwrap_optional(tp):
@@ -260,8 +259,6 @@ def _str_value_for_field(field_name: str, field_obj=None, cls=None) -> str:
                 return VALID_ZIP5
             if '\\d{3}' in pattern:
                 return VALID_DRG
-            if 'A-Z' in pattern and '\\d' in pattern and ('3,12' in pattern):
-                return VALID_HICN
     if 'mbi' in fn and 'count' not in fn and ('stability' not in fn) and ('format' not in fn):
         return VALID_MBI
     if 'npi' in fn:
@@ -272,8 +269,6 @@ def _str_value_for_field(field_name: str, field_obj=None, cls=None) -> str:
         return VALID_ZIP5
     if 'drg' in fn:
         return VALID_DRG
-    if 'hicn' in fn or 'bic' in fn:
-        return VALID_HICN
     return 'test_value'
 
 def _has_real_default(f) -> bool:
@@ -615,9 +610,8 @@ class TestCclf0:
 class TestCclf1:
     """Test Cclf1 - complex fixed_width schema with many validators."""
 
-    # cur_clm_uniq_id has MBI pattern; bene_mbi_id has HICN pattern AND MBI field_validator
-    CCLF1_CLM_ID = VALID_MBI  # cur_clm_uniq_id requires MBI pattern
-    CCLF1_BENE_MBI = VALID_MBI  # bene_mbi_id requires both ^[A-Z\d]{3,12}$ and MBI format
+    CCLF1_CLM_ID = 'CLM0000000001'  # cur_clm_uniq_id is a plain Field
+    CCLF1_BENE_MBI = VALID_MBI  # bene_mbi_id requires MBI format
 
     @pytest.mark.unit
     def test_valid_instance(self):
@@ -648,11 +642,6 @@ class TestCclf1:
     def test_invalid_drg_rejected(self):
         with pytest.raises(ValidationError):
             Cclf1(cur_clm_uniq_id=self.CCLF1_CLM_ID, bene_mbi_id=self.CCLF1_BENE_MBI, dgns_drg_cd='12')
-
-    @pytest.mark.unit
-    def test_valid_hicn(self):
-        obj = Cclf1(cur_clm_uniq_id=self.CCLF1_CLM_ID, bene_mbi_id=self.CCLF1_BENE_MBI, bene_eqtbl_bic_hicn_num=VALID_HICN)
-        assert obj.bene_eqtbl_bic_hicn_num == VALID_HICN
 
     @pytest.mark.unit
     def test_decimal_fields(self):
@@ -700,10 +689,9 @@ class TestCclf1:
 class TestCclf5:
     """Test Cclf5 - Part B Physicians file with multiple validators."""
 
-    # cur_clm_uniq_id requires MBI pattern; clm_line_num requires 10-digit pattern; bene_mbi_id requires HICN pattern AND MBI validator
-    CCLF5_CLM_ID = VALID_MBI
-    CCLF5_LINE_NUM = VALID_NPI  # 10-digit pattern
-    CCLF5_BENE_MBI = VALID_MBI  # requires both ^[A-Z\d]{3,12}$ and MBI format
+    CCLF5_CLM_ID = 'CLM0000000001'  # plain Field
+    CCLF5_LINE_NUM = '0000000001'  # plain Field
+    CCLF5_BENE_MBI = VALID_MBI  # bene_mbi_id requires MBI format
 
     @pytest.mark.unit
     def test_valid_instance(self):
@@ -722,15 +710,15 @@ class TestCclf5:
         assert obj.clm_dgns_1_cd == 'A01'
 
     @pytest.mark.unit
-    def test_drg_validator_on_type_code(self):
-        """rndrg_prvdr_type_cd uses drg_validator (3 digits)."""
-        obj = Cclf5(cur_clm_uniq_id=self.CCLF5_CLM_ID, clm_line_num=self.CCLF5_LINE_NUM, bene_mbi_id=self.CCLF5_BENE_MBI, rndrg_prvdr_type_cd='001')
-        assert obj.rndrg_prvdr_type_cd == '001'
+    def test_tin_validator_on_tax_num(self):
+        """clm_rndrg_prvdr_tax_num uses tin_validator (9 digits)."""
+        obj = Cclf5(cur_clm_uniq_id=self.CCLF5_CLM_ID, clm_line_num=self.CCLF5_LINE_NUM, bene_mbi_id=self.CCLF5_BENE_MBI, clm_rndrg_prvdr_tax_num=VALID_TIN)
+        assert obj.clm_rndrg_prvdr_tax_num == VALID_TIN
 
     @pytest.mark.unit
-    def test_invalid_drg_validator_on_type_code(self):
+    def test_invalid_tin_validator_on_tax_num(self):
         with pytest.raises(ValidationError):
-            Cclf5(cur_clm_uniq_id=self.CCLF5_CLM_ID, clm_line_num=self.CCLF5_LINE_NUM, bene_mbi_id=self.CCLF5_BENE_MBI, rndrg_prvdr_type_cd='1234')
+            Cclf5(cur_clm_uniq_id=self.CCLF5_CLM_ID, clm_line_num=self.CCLF5_LINE_NUM, bene_mbi_id=self.CCLF5_BENE_MBI, clm_rndrg_prvdr_tax_num='12345')
 
 class TestCclf8:
     """Test Cclf8 - Beneficiary demographics with ZIP validators."""
@@ -762,8 +750,8 @@ class TestCclf9:
 
     @pytest.mark.unit
     def test_valid_instance(self):
-        obj = Cclf9(hicn_mbi_xref_ind=VALID_MBI, crnt_num='current_mbi', prvs_num='previous_mbi')
-        assert obj.crnt_num == 'current_mbi'
+        obj = Cclf9(hicn_mbi_xref_ind='M', crnt_num=VALID_MBI, prvs_num=VALID_MBI)
+        assert obj.crnt_num == VALID_MBI
 
     @pytest.mark.unit
     def test_schema_name(self):
@@ -1104,7 +1092,7 @@ class TestTparc:
 
     @pytest.mark.unit
     def test_with_all_fields(self):
-        obj = Tparc(record_type=VALID_NPI, line_number=1, rev_code='0450', rendering_provider_tin=VALID_NPI, from_date=20240101, thru_date=20240331, service_units=5, total_charge_amt=Decimal('1000.00'), allowed_charge_amt=Decimal('800.00'), covered_paid_amt=Decimal('750.00'), coinsurance_amt=Decimal('50.00'), deductible_amt=Decimal('200.00'), sequestration_amt=Decimal('15.00'), pcc_reduction_amt=Decimal('0.00'), hcpcs_code='99213', source_file='test.txt', processed_at=date(2025, 1, 1))
+        obj = Tparc(record_type='CLML', line_number=1, rev_code='0450', rendering_provider_tin=VALID_TIN, from_date=20240101, thru_date=20240331, service_units=5, total_charge_amt=Decimal('1000.00'), allowed_charge_amt=Decimal('800.00'), covered_paid_amt=Decimal('750.00'), coinsurance_amt=Decimal('50.00'), deductible_amt=Decimal('200.00'), sequestration_amt=Decimal('15.00'), pcc_reduction_amt=Decimal('0.00'), hcpcs_code='99213', source_file='test.txt', processed_at=date(2025, 1, 1))
         assert obj.total_charge_amt == Decimal('1000.00')
         assert obj.line_number == 1
 
@@ -1481,12 +1469,6 @@ class TestValidatorEdgeCases:
     def test_invalid_drg_patterns(self, bad_drg):
         with pytest.raises(ValidationError):
             Cclf1(cur_clm_uniq_id='CLM001', bene_mbi_id=VALID_MBI, dgns_drg_cd=bad_drg)
-
-    @pytest.mark.parametrize('bad_hicn', ['AB', 'lowercase123', 'ABC DEF'])
-    @pytest.mark.unit
-    def test_invalid_hicn_patterns(self, bad_hicn):
-        with pytest.raises(ValidationError):
-            Cclf1(cur_clm_uniq_id='CLM001', bene_mbi_id=VALID_MBI, bene_eqtbl_bic_hicn_num=bad_hicn)
 
     @pytest.mark.parametrize('valid_mbi', ['1AC2HJ3RT4Y', '9AAAAAAAAA0', 'CACACACACA1', '2HJNPRTYHJ3'])
     @pytest.mark.unit

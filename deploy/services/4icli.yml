@@ -14,16 +14,15 @@ services:
       - FOURICLI_API_SECRET=${FOURICLI_API_SECRET}
       - FOURICLI_APM_ID=${FOURICLI_APM_ID}
     volumes:
-      # Profile configuration (for profile-aware path resolution)
-      #- type: bind
-      #  source: ../../src/acoharmony/_config
-      #  target: /home/care/acoharmony/src/acoharmony/_config
-      #  read_only: true
-      #  bind:
-      #    create_host_path: false
+      # Host-side 4icli creds (written by `4icli configure` on the host).
+      # Mounting RO into the container's XDG config path means the binary
+      # picks up the host creds directly — no in-container configure needed.
+      - type: bind
+        source: /home/care/.config/4icli/config.txt
+        target: /home/care/.config/4icli/config.txt
+        read_only: true
 
-      # S3-backed workspace - same mount as aco container
-      # Profile config (storage.data_path) determines subdirectory usage
+      # S3-backed workspace — same mount as aco container.
       - type: bind
         source: /opt/s3/data/workspace
         target: /opt/s3/data/workspace
@@ -31,21 +30,15 @@ services:
         bind:
           create_host_path: true
 
-      # 4icli config.txt with API credentials
-      - type: bind
-        source: ../conf/4icli/config.txt
-        target: /opt/s3/data/workspace/bronze/config.txt
-        read_only: false
-        bind:
-          create_host_path: false
-
     # Working directory matches profile's bronze_dir (data_path/bronze)
     working_dir: /opt/s3/data/workspace/bronze
     networks:
       - acoharmony-external
     stdin_open: true
     tty: true
-    entrypoint: ["/bin/sh", "-c", "while true; do sleep 3600; done"]
+    # Entrypoint comes from the image — it configures 4icli from env vars,
+    # then execs the command below to keep the container alive for `docker exec`.
+    command: ["tail", "-f", "/dev/null"]
     deploy:
       resources:
         limits:

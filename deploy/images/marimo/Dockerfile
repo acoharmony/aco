@@ -52,11 +52,11 @@ RUN groupadd -g 1002 care \
     && chown -R 1002:1002 /home/care
 
 # Marimo config (custom homepage + HarmonyCares theme).
-COPY --chown=1002:1002 deploy/compose/conf/marimo/marimo.toml \
+COPY --chown=1002:1002 deploy/images/marimo/marimo.toml \
      /home/care/.config/marimo/marimo.toml
 
 # Entrypoint that injects the custom homepage into marimo's index.html.
-COPY --chown=1002:1002 deploy/compose/images/marimo/entrypoint.sh \
+COPY --chown=1002:1002 deploy/images/marimo/entrypoint.sh \
      /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 

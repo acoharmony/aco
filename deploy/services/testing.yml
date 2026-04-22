@@ -1,8 +1,8 @@
 services:
   skinny-test:
     build:
-      context: ../../../
-      dockerfile: deploy/compose/images/skinny-test/Dockerfile
+      context: ../../
+      dockerfile: deploy/images/skinny-test/Dockerfile
     image: acoharmony/skinny-test:latest
     container_name: skinny-test
     environment:

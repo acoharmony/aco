@@ -74,15 +74,15 @@ class SvaSubmissions:
         - SvaSubmissions.lineage_config() -> dict
     """
 
-    sva_id: str = MBI(
+    sva_id: str = Field(
         description="Unique SVA submission identifier (UUID)",
         json_schema_extra={"source_name": "SVA ID"},
     )
-    submission_id: str = NPI(
+    submission_id: str = Field(
         description="Submission identifier from source system",
         json_schema_extra={"source_name": "Submission ID"},
     )
-    submission_source: str = TIN(
+    submission_source: str = Field(
         description="Source of submission (EarthClassMail, DropboxUpload, Jotform)",
         json_schema_extra={"source_name": "Submission Source"},
     )
@@ -98,7 +98,7 @@ class SvaSubmissions:
         description="Provider name or medical group",
         json_schema_extra={"source_name": "Provider Name Or Med Group"},
     )
-    mbi: str | None = NPI(
+    mbi: str | None = MBI(
         default=None,
         description="Medicare Beneficiary Identifier",
         json_schema_extra={"source_name": "MBI"},
@@ -143,7 +143,7 @@ class SvaSubmissions:
         description="ZIP code",
         json_schema_extra={"source_name": "Zip"},
     )
-    provider_npi: str | None = Field(
+    provider_npi: str | None = NPI(
         default=None,
         description="Provider National Provider Identifier",
         json_schema_extra={"source_name": "Provider NPI"},
@@ -153,12 +153,12 @@ class SvaSubmissions:
         description="Updated NPI if corrected",
         json_schema_extra={"source_name": "Updated NPI"},
     )
-    provider_name: str | None = NPI(
+    provider_name: str | None = Field(
         default=None,
         description="Individual provider name",
         json_schema_extra={"source_name": "Provider Name"},
     )
-    tin: str | None = Field(
+    tin: str | None = TIN(
         default=None,
         description="Tax Identification Number",
         json_schema_extra={"source_name": "TIN"},

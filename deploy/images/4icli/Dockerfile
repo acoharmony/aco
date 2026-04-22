@@ -12,8 +12,10 @@ LABEL org.opencontainers.image.source=https://github.com/acoharmony/aco \
       aco.description="4Innovation DataHub CLI tool"
 
 # Install minimal dependencies
+# `expect` drives the interactive `4icli configure` TTY prompts from env vars at startup.
 RUN apt-get update && apt-get install -y \
     ca-certificates \
+    expect \
     && rm -rf /var/lib/apt/lists/*
 
 # Add Zscaler CA certificates to system trust store
@@ -32,6 +34,10 @@ RUN groupadd -g 1002 care && \
 # Copy 4icli binary and make available to all users
 COPY 4icli /usr/local/bin/4icli
 RUN chmod +x /usr/local/bin/4icli
+
+# Entrypoint bootstraps config.txt from FOURICLI_API_KEY/SECRET on every start
+COPY entrypoint.sh /usr/local/bin/4icli-entrypoint
+RUN chmod +x /usr/local/bin/4icli-entrypoint
 
 # Create working directory with proper ownership
 RUN mkdir -p /workspace/bronze && \
@@ -52,8 +58,8 @@ RUN mkdir -p /home/care/.4icli
 
 WORKDIR /workspace/bronze
 
-# config.txt will be bind-mounted at runtime
+# config.txt is generated at container start by the entrypoint (from env vars)
 # Storage backend will be mounted at runtime
 
-# Default shell for interactive use
+ENTRYPOINT ["/usr/local/bin/4icli-entrypoint"]
 CMD ["/bin/sh"]

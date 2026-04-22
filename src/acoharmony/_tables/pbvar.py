@@ -83,12 +83,12 @@ class Pbvar:
         - Pbvar.lineage_config() -> dict
     """
 
-    aco_id: str = MBI(alias="ACO_ID", description="ACO Identifier")
-    sva_response_code_list: str | None = NPI(
+    aco_id: str = Field(alias="ACO_ID", description="ACO Identifier")
+    sva_response_code_list: str | None = Field(
         alias="RESPONSE_CODE_LIST", default=None, description="Response code list"
     )
-    id_received: str | None = TIN(alias="ID_RECEIVED", default=None, description="ID received")
-    bene_mbi: str = ZIP5(
+    id_received: str | None = Field(alias="ID_RECEIVED", default=None, description="ID received")
+    bene_mbi: str = MBI(
         alias="BENE_MBI",
         description="Medicare Beneficiary Identifier",
     )
@@ -118,7 +118,7 @@ class Pbvar:
         alias="PRACTITIONER_NAME", default=None, description="Practitioner Name"
     )
     sva_npi: str = NPI(alias="IND_NPI", description="Individual Provider NPI")
-    sva_tin: str | None = Field(
+    sva_tin: str | None = TIN(
         alias="IND_TIN", default=None, description="Individual Provider TIN"
     )
     sva_signature_date: date | None = Field(

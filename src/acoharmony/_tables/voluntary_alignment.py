@@ -24,6 +24,7 @@ from acoharmony._registry import (
 from acoharmony._validators.field_validators import (
     MBI,
     NPI,
+    TIN,
     mbi_validator,
     npi_validator,
 )
@@ -63,10 +64,10 @@ class VoluntaryAlignment:
     normalized_mbi: str = MBI(
         description="Crosswalk-normalized MBI for consistent tracking",
     )
-    hcmpi: str | None = MBI(
+    hcmpi: str | None = Field(
         default=None, description="Master patient identifier from enterprise crosswalk"
     )
-    previous_mbi_count: str = NPI(
+    previous_mbi_count: str = Field(
         description="Number of previous MBIs for this beneficiary",
     )
     email_campaigns_sent: str = Field(
@@ -99,11 +100,11 @@ class VoluntaryAlignment:
     most_recent_sva_date: date | None = Field(
         default=None, description="Date of most recent SVA signature"
     )
-    sva_provider_npi: str | None = Field(
+    sva_provider_npi: str | None = NPI(
         default=None, description="NPI of most recent SVA provider"
     )
-    sva_provider_tin: str | None = NPI(default=None, description="TIN of most recent SVA provider")
-    sva_provider_name: str | None = NPI(
+    sva_provider_tin: str | None = TIN(default=None, description="TIN of most recent SVA provider")
+    sva_provider_name: str | None = Field(
         default=None, description="Name of most recent SVA provider"
     )
     sva_provider_valid: bool = Field(

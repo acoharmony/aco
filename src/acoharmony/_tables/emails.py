@@ -68,25 +68,67 @@ class Emails:
         - Emails.lineage_config() -> dict
     """
 
-    aco_id: str = MBI(description="ACO identifier")
-    campaign: str = Field(description='Email campaign name (e.g., "CAHPS Reminder")')
-    email_id: str = Field(description="Unique email identifier (UUID)")
-    has_been_clicked: str = Field(description="Whether email links were clicked")
-    has_been_opened: str = Field(description="Whether email was opened")
+    aco_id: str = Field(
+        description="ACO identifier",
+        json_schema_extra={"source_name": "ACO ID"},
+    )
+    campaign: str = Field(
+        description='Email campaign name (e.g., "CAHPS Reminder")',
+        json_schema_extra={"source_name": "Campaign"},
+    )
+    email_id: str = Field(
+        description="Unique email identifier (UUID)",
+        json_schema_extra={"source_name": "Email ID"},
+    )
+    has_been_clicked: str = Field(
+        description="Whether email links were clicked",
+        json_schema_extra={"source_name": "Has Been Clicked"},
+    )
+    has_been_opened: str = Field(
+        description="Whether email was opened",
+        json_schema_extra={"source_name": "Has Been Opened"},
+    )
     mbi: str | None = Field(
         default=None,
         description="Medicare Beneficiary Identifier",
+        json_schema_extra={"source_name": "MBI"},
     )
-    network_id: str = Field(description="Network identifier (UUID)")
-    network_name: str = Field(description="Network/ACO name")
-    patient_id: str = Field(description="Patient identifier (UUID)")
-    patient_name: str = Field(description="Patient full name")
-    practice: str = Field(description="Medical practice name")
+    network_id: str = Field(
+        description="Network identifier (UUID)",
+        json_schema_extra={"source_name": "Network ID"},
+    )
+    network_name: str = Field(
+        description="Network/ACO name",
+        json_schema_extra={"source_name": "Network Name"},
+    )
+    patient_id: str = Field(
+        description="Patient identifier (UUID)",
+        json_schema_extra={"source_name": "Patient ID"},
+    )
+    external_patient_id: str | None = Field(
+        default=None,
+        description="External patient identifier (source system)",
+        json_schema_extra={"source_name": "External Patient ID"},
+    )
+    patient_name: str = Field(
+        description="Patient full name",
+        json_schema_extra={"source_name": "Patient Name"},
+    )
+    practice: str = Field(
+        description="Medical practice name",
+        json_schema_extra={"source_name": "Practice"},
+    )
     send_datetime: date | None = Field(
         description='Email send timestamp (formatted as "Month DD, YYYY, H:MM AM/PM")',
-        json_schema_extra={"date_format": ["%B %d, %Y, %I:%M %p", "%Y-%m-%d"]},
+        json_schema_extra={
+            "source_name": "Send Datetime",
+            "date_format": ["%B %d, %Y, %I:%M %p", "%Y-%m-%d"],
+        },
     )
-    status: str = Field(description="Delivery status (Delivered, Opened, Failed, etc.)")
+    status: str = Field(
+        description="Delivery status (Delivered, Opened, Failed, etc.)",
+        json_schema_extra={"source_name": "Status"},
+    )
     send_date: date = Field(description="Parsed send date")
     send_timestamp: datetime = Field(description="Parsed send timestamp")
     opened_flag: bool = Field(description="Whether email was opened")

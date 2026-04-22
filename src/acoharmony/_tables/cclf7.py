@@ -97,7 +97,7 @@ class Cclf7:
         - Cclf7.lineage_config() -> dict
     """
 
-    cur_clm_uniq_id: str = MBI(
+    cur_clm_uniq_id: str = Field(
         description="Current Claim Unique Identifier - A unique identification number assigned to the claim",
         json_schema_extra={"start_pos": 1, "end_pos": 13, "length": 13},
     )

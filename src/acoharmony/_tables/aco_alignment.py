@@ -67,10 +67,10 @@ class AcoAlignment:
     current_mbi: str = MBI(
         description="Current MBI from crosswalk for consistent tracking",
     )
-    hcmpi: str | None = MBI(
+    hcmpi: str | None = Field(
         default=None, description="Master patient identifier from enterprise crosswalk"
     )
-    previous_mbi_count: str = NPI(
+    previous_mbi_count: str = Field(
         description="Number of previous MBIs for this beneficiary",
     )
     birth_date: date | None = Field(default=None, description="Beneficiary date of birth")

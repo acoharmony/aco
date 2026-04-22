@@ -25,14 +25,12 @@ from acoharmony._registry import (
     with_storage,
 )
 from acoharmony._validators.field_validators import (
-    DRG,
-    HICN,
     MBI,
     NPI,
-    drg_validator,
-    hicn_validator,
+    TIN,
     mbi_validator,
     npi_validator,
+    tin_validator,
 )
 
 
@@ -101,19 +99,19 @@ class Cclf5:
         - Cclf5.lineage_config() -> dict
     """
 
-    cur_clm_uniq_id: str = MBI(
+    cur_clm_uniq_id: str = Field(
         description="Current Claim Unique Identifier - A unique identification number assigned to the claim",
         json_schema_extra={"start_pos": 1, "end_pos": 13, "length": 13},
     )
-    clm_line_num: str = NPI(
+    clm_line_num: str = Field(
         description="Claim Line Number - A sequential number that identifies a specific claim line within a given claim",
         json_schema_extra={"start_pos": 14, "end_pos": 23, "length": 10},
     )
-    bene_mbi_id: str = HICN(
+    bene_mbi_id: str = MBI(
         description="Medicare Beneficiary Identifier - A Medicare Beneficiary Identifier assigned to a beneficiary",
         json_schema_extra={"start_pos": 24, "end_pos": 34, "length": 11},
     )
-    bene_hic_num: str | None = DRG(
+    bene_hic_num: str | None = Field(
         default=None,
         description="Beneficiary HIC Number - Legacy Beneficiary HICN field",
         json_schema_extra={"start_pos": 35, "end_pos": 45, "length": 11},
@@ -138,12 +136,12 @@ class Cclf5:
         description="Rendering Provider Type Code - Type of provider (0=Clinics/groups, 1=Solo practitioners, 2=Suppliers, etc.)",
         json_schema_extra={"start_pos": 68, "end_pos": 70, "length": 3},
     )
-    rndrg_prvdr_fips_st_cd: str | None = DRG(
+    rndrg_prvdr_fips_st_cd: str | None = Field(
         default=None,
         description="Rendering Provider FIPS State Code - State where provider is located",
         json_schema_extra={"start_pos": 71, "end_pos": 72, "length": 2},
     )
-    clm_prvdr_spclty_cd: str | None = DRG(
+    clm_prvdr_spclty_cd: str | None = Field(
         default=None,
         description="Claim-Line Provider Specialty Code - CMS specialty code for pricing",
         json_schema_extra={"start_pos": 73, "end_pos": 74, "length": 2},
@@ -188,17 +186,17 @@ class Cclf5:
         description="Diagnosis Code - ICD-9/10 diagnosis for principal illness or disability",
         json_schema_extra={"start_pos": 119, "end_pos": 125, "length": 7},
     )
-    clm_rndrg_prvdr_tax_num: str | None = Field(
+    clm_rndrg_prvdr_tax_num: str | None = TIN(
         default=None,
         description="Claim Provider Tax Number - SSN or EIN of provider receiving payment",
         json_schema_extra={"start_pos": 126, "end_pos": 135, "length": 10},
     )
-    rndrg_prvdr_npi_num: str | None = Field(
+    rndrg_prvdr_npi_num: str | None = NPI(
         default=None,
         description="Rendering Provider NPI Number - NPI of provider rendering service from PECOS",
         json_schema_extra={"start_pos": 136, "end_pos": 145, "length": 10},
     )
-    clm_carr_pmt_dnl_cd: str | None = NPI(
+    clm_carr_pmt_dnl_cd: str | None = Field(
         default=None,
         description="Claim Carrier Payment Denial Code - To whom payment made or if denied",
         json_schema_extra={"start_pos": 146, "end_pos": 147, "length": 2},
@@ -343,7 +341,7 @@ class Cclf5:
         description="HCPCS BETOS Code - Berenson-Eggers Type of Service clinical category code",
         json_schema_extra={"start_pos": 361, "end_pos": 363, "length": 3},
     )
-    clm_rndrg_prvdr_npi_num: str | None = Field(
+    clm_rndrg_prvdr_npi_num: str | None = NPI(
         default=None,
         description="Claim Rendering Provider NPI Number - NPI from claims processing system (as of Jan 2022)",
         json_schema_extra={"start_pos": 364, "end_pos": 373, "length": 10},
@@ -361,11 +359,8 @@ class Cclf5:
 
     # Field Validators (from centralized _validators module)
     _validate_bene_mbi_id = mbi_validator("bene_mbi_id")
-    _validate_rndrg_prvdr_type_cd = drg_validator("rndrg_prvdr_type_cd")
-    _validate_rndrg_prvdr_fips_st_cd = drg_validator("rndrg_prvdr_fips_st_cd")
-    _validate_clm_rndrg_prvdr_tax_num = drg_validator("clm_rndrg_prvdr_tax_num")
+    _validate_clm_rndrg_prvdr_tax_num = tin_validator("clm_rndrg_prvdr_tax_num")
     _validate_rndrg_prvdr_npi_num = npi_validator("rndrg_prvdr_npi_num")
-    _validate_bene_eqtbl_bic_hicn_num = hicn_validator("bene_eqtbl_bic_hicn_num")
     _validate_clm_rndrg_prvdr_npi_num = npi_validator("clm_rndrg_prvdr_npi_num")
     _validate_clm_rfrg_prvdr_npi_num = npi_validator("clm_rfrg_prvdr_npi_num")
 

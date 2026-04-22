@@ -26,9 +26,11 @@ from acoharmony._registry import (
 from acoharmony._validators.field_validators import (
     MBI,
     NPI,
+    TIN,
     ZIP5,
     mbi_validator,
     npi_validator,
+    tin_validator,
     zip5_validator,
 )
 
@@ -81,8 +83,8 @@ class Sva:
         - Sva.lineage_config() -> dict
     """
 
-    aco_id: str = MBI(description="ACO Identifier", alias="ACO ID")
-    beneficiary_s_mbi: str = NPI(
+    aco_id: str = Field(description="ACO Identifier", alias="ACO ID")
+    beneficiary_s_mbi: str = MBI(
         alias="Beneficiary_s_MBI",
         description="Medicare Beneficiary Identifier",
     )
@@ -105,7 +107,7 @@ class Sva:
         description="Provider name from SVA letter",
         alias="Provider Name/Primary place the Beneficiary receives care (as it appears on the signed SVA letter)",
     )
-    name_of_individual_participant_provider_associated_w_attestation: str | None = NPI(
+    name_of_individual_participant_provider_associated_w_attestation: str | None = Field(
         alias="Name_of_Individual__Participant_Provider_associated_w__attestation",
         default=None,
         description="DC Participant Provider name",
@@ -114,7 +116,7 @@ class Sva:
         alias="iNPI_for_Individual__Participant_Provider__column_J_",
         description="DC Participant Provider NPI",
     )
-    tin_for_individual_participant_provider_column_j: str | None = NPI(
+    tin_for_individual_participant_provider_column_j: str | None = TIN(
         alias="TIN_for_Individual_Participant_Provider__column_J_",
         default=None,
         description="DC Participant Provider TIN",
@@ -131,17 +133,11 @@ class Sva:
     # Field Validators (from centralized _validators module)
     _validate_beneficiary_s_mbi = mbi_validator("beneficiary_s_mbi")
     _validate_zip = zip5_validator("zip")
-    _validate_provider_name_primary_place_the_beneficiary_receives_care_as_it_appears_on_the_signed_sva_letter = npi_validator(
-        "Provider_Name_Primary_place_the_Beneficiary_receives_care__as_it_appears_on_the_signed_SVA_letter_"
-    )
-    _validate_name_of_individual_participant_provider_associated_w_attestation = npi_validator(
-        "Name_of_Individual__Participant_Provider_associated_w__attestation"
-    )
     _validate_i_npi_for_individual_participant_provider_column_j = npi_validator(
-        "iNPI_for_Individual__Participant_Provider__column_J_"
+        "i_npi_for_individual_participant_provider_column_j"
     )
-    _validate_tin_for_individual_participant_provider_column_j = npi_validator(
-        "TIN_for_Individual_Participant_Provider__column_J_"
+    _validate_tin_for_individual_participant_provider_column_j = tin_validator(
+        "tin_for_individual_participant_provider_column_j"
     )
 
     def to_dict(self) -> dict:

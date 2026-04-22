@@ -49,9 +49,9 @@ cd "$REPO_ROOT"
 # dockerfile path must still resolve relative to the repo root, not the
 # context, because docker build interprets --file relative to PWD.
 IMAGES=(
-    "ghcr.io/acoharmony/marimo|deploy/compose/images/marimo/Dockerfile|."
-    "ghcr.io/acoharmony/docusaurus|deploy/compose/images/docs/Dockerfile|."
-    "ghcr.io/acoharmony/4icli|deploy/compose/images/4icli/Dockerfile|deploy/compose/images/4icli"
+    "ghcr.io/acoharmony/marimo|deploy/images/marimo/Dockerfile|."
+    "ghcr.io/acoharmony/docusaurus|deploy/images/docs/Dockerfile|."
+    "ghcr.io/acoharmony/4icli|deploy/images/4icli/Dockerfile|deploy/images/4icli"
 )
 
 # ---------------------------------------------------------------------------

@@ -94,7 +94,7 @@ class Cclfb:
         - Cclfb.lineage_config() -> dict
     """
 
-    cur_clm_uniq_id: str = MBI(
+    cur_clm_uniq_id: str = Field(
         description="Current Claim Unique Identifier - A unique identification number assigned to the claim",
         json_schema_extra={"start_pos": 1, "end_pos": 13, "length": 13},
     )
@@ -102,7 +102,7 @@ class Cclfb:
         description="Claim Line Number - A sequential number that identifies a specific claim line within a given claim",
         json_schema_extra={"start_pos": 14, "end_pos": 23, "length": 10},
     )
-    bene_mbi_id: str = Field(
+    bene_mbi_id: str = MBI(
         description="Medicare Beneficiary Identifier - A Medicare Beneficiary Identifier assigned to a beneficiary",
         json_schema_extra={"start_pos": 24, "end_pos": 34, "length": 11},
     )

@@ -26,8 +26,8 @@ from acoharmony._registry import (
     with_storage,
 )
 from acoharmony._validators.field_validators import (
-    NPI,
-    npi_validator,
+    TIN,
+    tin_validator,
 )
 
 
@@ -132,10 +132,10 @@ class Tparc:
         - Tparc.lineage_config() -> dict
     """
 
-    record_type: str | None = NPI(default=None, description="record_type field")
+    record_type: str | None = Field(default=None, description="record_type field")
     line_number: int | None = Field(default=None, description="line_number field", ge=0)
     rev_code: str | None = Field(default=None, description="rev_code field")
-    rendering_provider_tin: str | None = Field(
+    rendering_provider_tin: str | None = TIN(
         default=None, description="rendering_provider_tin field"
     )
     from_date: int | None = Field(default=None, description="from_date field")
@@ -160,7 +160,7 @@ class Tparc:
     processed_at: date | None = Field(default=None, description="processed_at field")
 
     # Field Validators (from centralized _validators module)
-    _validate_rendering_provider_tin = npi_validator("rendering_provider_tin")
+    _validate_rendering_provider_tin = tin_validator("rendering_provider_tin")
 
     def to_dict(self) -> dict:
         """Convert to dictionary."""

@@ -94,15 +94,15 @@ class Cclf9:
         - Cclf9.lineage_config() -> dict
     """
 
-    hicn_mbi_xref_ind: str = MBI(
+    hicn_mbi_xref_ind: str = Field(
         description="HICN/MBI XREF Indicator (M = MBI)",
         json_schema_extra={"start_pos": 1, "end_pos": 1, "length": 1},
     )
-    crnt_num: str = Field(
+    crnt_num: str = MBI(
         description="Current Beneficiary Identifier (Current Beneficiary MBI)",
         json_schema_extra={"start_pos": 2, "end_pos": 12, "length": 11},
     )
-    prvs_num: str = Field(
+    prvs_num: str = MBI(
         description="Previous Beneficiary Identifier (Previous Beneficiary MBI)",
         json_schema_extra={"start_pos": 13, "end_pos": 23, "length": 11},
     )
@@ -123,7 +123,8 @@ class Cclf9:
     )
 
     # Field Validators (from centralized _validators module)
-    _validate_hicn_mbi_xref_ind = mbi_validator("hicn_mbi_xref_ind")
+    _validate_crnt_num = mbi_validator("crnt_num")
+    _validate_prvs_num = mbi_validator("prvs_num")
 
     def to_dict(self) -> dict:
         """Convert to dictionary."""

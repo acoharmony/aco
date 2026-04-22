@@ -132,12 +132,11 @@ class TestTparcInstantiation:
         from datetime import date
         from decimal import Decimal
 
-        # record_type uses NPI pattern (10 digits)
         obj = Tparc(
-            record_type="1234567890",
+            record_type="CLML",
             line_number=1,
             rev_code="0100",
-            rendering_provider_tin="1234567890",
+            rendering_provider_tin="123456789",
             from_date=20240101,
             thru_date=20240131,
             service_units=5,
@@ -159,23 +158,23 @@ class TestTparcInstantiation:
             source_filename="tparc.txt",
             processed_at=date(2024, 1, 15),
         )
-        assert obj.record_type == "1234567890"
+        assert obj.record_type == "CLML"
         assert obj.total_charge_amt == Decimal("1000.00")
         assert obj.place_of_service == 11
 
     @pytest.mark.unit
     def test_to_dict(self):
         """Cover to_dict method lines 169-173."""
-        obj = Tparc(record_type="1234567890", line_number=1)
+        obj = Tparc(record_type="CLML", line_number=1)
         d = obj.to_dict()
         assert isinstance(d, dict)
-        assert d["record_type"] == "1234567890"
+        assert d["record_type"] == "CLML"
         assert d["line_number"] == 1
 
     @pytest.mark.unit
     def test_from_dict(self):
         """Cover from_dict method lines 175-178."""
-        data = {"record_type": "1234567890", "line_number": 2, "hcpcs_code": "99214"}
+        data = {"record_type": "CLML", "line_number": 2, "hcpcs_code": "99214"}
         obj = Tparc.from_dict(data)
-        assert obj.record_type == "1234567890"
+        assert obj.record_type == "CLML"
         assert obj.hcpcs_code == "99214"

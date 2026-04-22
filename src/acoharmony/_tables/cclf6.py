@@ -25,10 +25,8 @@ from acoharmony._registry import (
     with_storage,
 )
 from acoharmony._validators.field_validators import (
-    HICN,
     MBI,
     NPI,
-    hicn_validator,
     mbi_validator,
     npi_validator,
 )
@@ -99,15 +97,15 @@ class Cclf6:
         - Cclf6.lineage_config() -> dict
     """
 
-    cur_clm_uniq_id: str = MBI(
+    cur_clm_uniq_id: str = Field(
         description="Current Claim Unique Identifier - A unique identification number assigned to the claim",
         json_schema_extra={"start_pos": 1, "end_pos": 13, "length": 13},
     )
-    clm_line_num: str = NPI(
+    clm_line_num: str = Field(
         description="Claim Line Number - A sequential number that identifies a specific claim line",
         json_schema_extra={"start_pos": 14, "end_pos": 23, "length": 10},
     )
-    bene_mbi_id: str = HICN(
+    bene_mbi_id: str = MBI(
         description="Medicare Beneficiary Identifier - A Medicare Beneficiary Identifier assigned to a beneficiary",
         json_schema_extra={"start_pos": 24, "end_pos": 34, "length": 11},
     )
@@ -166,7 +164,7 @@ class Cclf6:
         description="Claim Primary Payer Code - Primary payer if not Medicare (blank=Medicare is primary)",
         json_schema_extra={"start_pos": 111, "end_pos": 111, "length": 1},
     )
-    payto_prvdr_npi_num: str | None = Field(
+    payto_prvdr_npi_num: str | None = NPI(
         default=None,
         description="Pay-to Provider NPI Number - NPI of provider billing for the service",
         json_schema_extra={"start_pos": 112, "end_pos": 121, "length": 10},
@@ -176,7 +174,7 @@ class Cclf6:
         description="Ordering Provider NPI Number - NPI of provider ordering the service",
         json_schema_extra={"start_pos": 122, "end_pos": 131, "length": 10},
     )
-    clm_carr_pmt_dnl_cd: str | None = NPI(
+    clm_carr_pmt_dnl_cd: str | None = Field(
         default=None,
         description="Claim Carrier Payment Denial Code - To whom payment made or if denied",
         json_schema_extra={"start_pos": 132, "end_pos": 133, "length": 2},
@@ -221,7 +219,7 @@ class Cclf6:
         description="Claim Disposition Code - Payment actions (01=Debit accepted, 02=Auto adjustment, 03=Cancel accepted)",
         json_schema_extra={"start_pos": 226, "end_pos": 227, "length": 2},
     )
-    clm_blg_prvdr_npi_num: str | None = Field(
+    clm_blg_prvdr_npi_num: str | None = NPI(
         default=None,
         description="Claim Pay-to Provider NPI Number - NPI of provider billing for the service",
         json_schema_extra={"start_pos": 228, "end_pos": 237, "length": 10},
@@ -236,7 +234,6 @@ class Cclf6:
     _validate_bene_mbi_id = mbi_validator("bene_mbi_id")
     _validate_payto_prvdr_npi_num = npi_validator("payto_prvdr_npi_num")
     _validate_ordrg_prvdr_npi_num = npi_validator("ordrg_prvdr_npi_num")
-    _validate_bene_eqtbl_bic_hicn_num = hicn_validator("bene_eqtbl_bic_hicn_num")
     _validate_clm_blg_prvdr_npi_num = npi_validator("clm_blg_prvdr_npi_num")
     _validate_clm_rfrg_prvdr_npi_num = npi_validator("clm_rfrg_prvdr_npi_num")
 

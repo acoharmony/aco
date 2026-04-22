@@ -473,14 +473,14 @@ class TestDeploymentManagerGetComposePath:
             """Helper to search for compose file - mimics _get_compose_path logic."""
             current = tmp_path / "a" / "b"
             while current != current.parent:
-                compose = current / "deploy" / "compose" / "docker-compose.yml"
+                compose = current / "deploy" / "docker-compose.yml"
                 if compose.exists():
                     return compose
                 current = current.parent
-            fallback = tmp_path / "deploy" / "compose" / "docker-compose.yml"
+            fallback = tmp_path / "deploy" / "docker-compose.yml"
             if not fallback.exists():
                 raise FileNotFoundError(
-                    "Could not locate deploy/compose/docker-compose.yml."
+                    "Could not locate deploy/docker-compose.yml."
                 )
             return fallback
 

@@ -123,7 +123,7 @@ database = "/opt/s3/data/workspace/acoharmony.duckdb"
 [profiles.staging.fouricli]
 default_apm_id = "D0259"
 default_year = 2026  # Note: Code dynamically uses current year if not set
-config_path = "deploy/compose/conf/4icli/config.txt"
+config_path = "/usr/local/bin/config.txt"
 binary_path = "/usr/local/bin/4icli"
 
 [profiles.staging.processing]
@@ -188,7 +188,7 @@ timeout = 30
 [profiles.prod.fouricli]
 default_apm_id = "D0259"
 default_year = 2026  # Note: Code dynamically uses current year if not set
-config_path = "deploy/compose/conf/4icli/config.txt"
+config_path = "/usr/local/bin/config.txt"
 binary_path = "/usr/local/bin/4icli"
 
 [profiles.prod.processing]

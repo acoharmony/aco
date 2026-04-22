@@ -95,22 +95,22 @@ class DeploymentManager:
                 FileNotFoundError
                     If docker-compose.yml cannot be found
         """
-        # Try to locate deploy/compose/docker-compose.yml
+        # Try to locate deploy/docker-compose.yml
         # Start from package root and go up
         current = Path(__file__).parent
         while current != current.parent:
-            compose_file = current / "deploy" / "compose" / "docker-compose.yml"
+            compose_file = current / "deploy" / "docker-compose.yml"
             if compose_file.exists():
                 return compose_file
             current = current.parent
 
         # Fallback: check if we're in the project already
-        fallback = Path.cwd() / "deploy" / "compose" / "docker-compose.yml"
+        fallback = Path.cwd() / "deploy" / "docker-compose.yml"
         if fallback.exists():
             return fallback
 
         raise FileNotFoundError(
-            "Could not locate deploy/compose/docker-compose.yml. "
+            "Could not locate deploy/docker-compose.yml. "
             "Make sure you're running from the project root or the file exists."
         )
 

@@ -68,26 +68,60 @@ class Mailed:
         - Mailed.lineage_config() -> dict
     """
 
-    aco_id: str = MBI(description="ACO identifier")
-    campaign_name: str = Field(
-        description='Campaign name and language (e.g., "2024 Q2 ACO Voluntary Alignment Campaign (EN)")'
+    aco_id: str = Field(
+        description="ACO identifier",
+        json_schema_extra={"source_name": "ACO ID"},
     )
-    letter_id: str = Field(description="Unique letter identifier (UUID)")
+    campaign_name: str = Field(
+        description='Campaign name and language (e.g., "2024 Q2 ACO Voluntary Alignment Campaign (EN)")',
+        json_schema_extra={"source_name": "Campaign Name"},
+    )
+    letter_id: str = Field(
+        description="Unique letter identifier (UUID)",
+        json_schema_extra={"source_name": "Letter ID"},
+    )
     mbi: str = Field(
         description="Medicare Beneficiary Identifier",
+        json_schema_extra={"source_name": "MBI"},
     )
-    network_id: str = Field(description="Network identifier (UUID)")
-    network_name: str = Field(description="Network/ACO name")
-    patient_id: str = Field(description="Patient identifier (UUID)")
-    patient_name: str = Field(description="Patient full name")
-    practice_name: str = Field(description="Medical practice name")
+    network_id: str = Field(
+        description="Network identifier (UUID)",
+        json_schema_extra={"source_name": "Network ID"},
+    )
+    network_name: str = Field(
+        description="Network/ACO name",
+        json_schema_extra={"source_name": "Network Name"},
+    )
+    patient_id: str = Field(
+        description="Patient identifier (UUID)",
+        json_schema_extra={"source_name": "Patient ID"},
+    )
+    external_patient_id: str | None = Field(
+        default=None,
+        description="External patient identifier (source system)",
+        json_schema_extra={"source_name": "External Patient ID"},
+    )
+    patient_name: str = Field(
+        description="Patient full name",
+        json_schema_extra={"source_name": "Patient Name"},
+    )
+    practice_name: str = Field(
+        description="Medical practice name",
+        json_schema_extra={"source_name": "Practice Name"},
+    )
     send_datetime: date | None = Field(
         description='Letter send timestamp (formatted as "Month DD, YYYY, H:MM AM/PM")',
-        json_schema_extra={"date_format": ["%B %d, %Y, %I:%M %p", "%Y-%m-%d"]},
+        json_schema_extra={
+            "source_name": "Send Datetime",
+            "date_format": ["%B %d, %Y, %I:%M %p", "%Y-%m-%d"],
+        },
     )
     send_date: date = Field(description="Parsed send date")
     send_timestamp: datetime = Field(description="Parsed send timestamp")
-    status: str = Field(description="Delivery status (Delivered, In Transit, etc.)")
+    status: str = Field(
+        description="Delivery status (Delivered, In Transit, etc.)",
+        json_schema_extra={"source_name": "Status"},
+    )
 
     # Field Validators (from centralized _validators module)
     _validate_mbi = mbi_validator("mbi")

@@ -81,23 +81,23 @@ class Palmr:
         - Palmr.lineage_config() -> dict
     """
 
-    aco_id: str = MBI(alias="ACO_ID", description="ACO Identifier")
-    bene_mbi: str = NPI(
+    aco_id: str = Field(alias="ACO_ID", description="ACO Identifier")
+    bene_mbi: str = MBI(
         alias="MBI_ID",
         description="Medicare Beneficiary Identifier",
     )
-    algn_type_clm: str | None = TIN(
+    algn_type_clm: str | None = Field(
         alias="ALGN_TYPE_CLM", default=None, description="Alignment Type - Claims Based"
     )
     algn_type_va: str | None = Field(
         alias="ALGN_TYPE_VA", default=None, description="Alignment Type - Voluntary Alignment"
     )
-    prvdr_tin__clm_or_va_: str | None = Field(
+    prvdr_tin__clm_or_va_: str | None = TIN(
         alias="PRVDR_TIN__CLM_OR_VA_",
         default=None,
         description="Provider TIN (Claims or Voluntary)",
     )
-    prvdr_npi__clm_or_va_: str | None = Field(
+    prvdr_npi__clm_or_va_: str | None = NPI(
         alias="PRVDR_NPI__CLM_OR_VA_",
         default=None,
         description="Provider NPI (Claims or Voluntary)",

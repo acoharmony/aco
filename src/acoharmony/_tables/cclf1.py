@@ -25,12 +25,9 @@ from acoharmony._registry import (
     with_storage,
 )
 from acoharmony._validators.field_validators import (
-    DRG,
-    HICN,
     MBI,
     NPI,
     drg_validator,
-    hicn_validator,
     mbi_validator,
     npi_validator,
 )
@@ -101,25 +98,25 @@ class Cclf1:
         - Cclf1.lineage_config() -> dict
     """
 
-    cur_clm_uniq_id: str = MBI(
+    cur_clm_uniq_id: str = Field(
         description="Current Claim Unique Identifier - A unique identification number assigned to the claim",
         json_schema_extra={"start_pos": 1, "end_pos": 13, "length": 13},
     )
-    prvdr_oscar_num: str | None = NPI(
+    prvdr_oscar_num: str | None = Field(
         default=None,
         description="Provider OSCAR Number - Medicare/Medicaid identification number (CCN)",
         json_schema_extra={"start_pos": 14, "end_pos": 19, "length": 6},
     )
-    bene_mbi_id: str = HICN(
+    bene_mbi_id: str = MBI(
         description="Medicare Beneficiary Identifier - A Medicare Beneficiary Identifier assigned to a beneficiary",
         json_schema_extra={"start_pos": 20, "end_pos": 30, "length": 11},
     )
-    bene_hic_num: str | None = NPI(
+    bene_hic_num: str | None = Field(
         default=None,
         description="Beneficiary HIC Number - Legacy Beneficiary HICN field (deprecated Jan 2020)",
         json_schema_extra={"start_pos": 31, "end_pos": 41, "length": 11},
     )
-    clm_type_cd: str | None = DRG(
+    clm_type_cd: str | None = Field(
         default=None,
         description="Claim Type Code - Type of claim (10=HHA, 20=SNF, 30=Swing bed SNF, 40=Outpatient, 50=Hospice, 60=Inpatient, 61=Inpatient Full-Encounter)",
         json_schema_extra={"start_pos": 42, "end_pos": 43, "length": 2},
@@ -332,7 +329,6 @@ class Cclf1:
     _validate_oprtg_prvdr_npi_num = npi_validator("oprtg_prvdr_npi_num")
     _validate_atndg_prvdr_npi_num = npi_validator("atndg_prvdr_npi_num")
     _validate_othr_prvdr_npi_num = npi_validator("othr_prvdr_npi_num")
-    _validate_bene_eqtbl_bic_hicn_num = hicn_validator("bene_eqtbl_bic_hicn_num")
     _validate_clm_blg_prvdr_npi_num = npi_validator("clm_blg_prvdr_npi_num")
     _validate_clm_oprtg_prvdr_npi_num = npi_validator("clm_oprtg_prvdr_npi_num")
     _validate_clm_atndg_prvdr_npi_num = npi_validator("clm_atndg_prvdr_npi_num")

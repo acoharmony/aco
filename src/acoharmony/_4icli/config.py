@@ -195,34 +195,6 @@ class FourICLIConfig:
         if self.enable_logging:
             self.log_dir.mkdir(parents=True, exist_ok=True)
 
-    def sync_config_to_deployment(self) -> None:
-        """
-        Sync config.txt from profile's config_path to deploy/compose/conf/4icli/
-
-                This ensures the Docker container has the latest credentials from the
-                profile-specified location (e.g., /usr/local/bin/config.txt for local/dev).
-        """
-        if not hasattr(self, "_profile_config_path") or not self._profile_config_path:
-            return  # No profile config path specified
-
-        source_config = self._profile_config_path
-        if not source_config.exists():
-            return  # Source doesn't exist, skip sync
-
-        # Target is always deploy/compose/conf/4icli/config.txt
-        project_root = Path(__file__).parent.parent.parent.parent
-        target_config = project_root / "deploy" / "compose" / "conf" / "4icli" / "config.txt"
-        target_config.parent.mkdir(parents=True, exist_ok=True)
-
-        # Only copy if source is newer or target doesn't exist
-        if (
-            not target_config.exists()
-            or source_config.stat().st_mtime > target_config.stat().st_mtime
-        ):
-            import shutil
-
-            shutil.copy2(source_config, target_config)
-
     def ensure_config_file(self) -> Path:
         """
         Ensure config.txt exists and is accessible.
@@ -230,10 +202,6 @@ class FourICLIConfig:
                 Priority order (profile-aware):
                 1. Profile-specified config_path (from profile YAML)
                 2. Working directory (bronze) - may be symlink
-                3. deploy/compose/conf/4icli/config.txt (fallback)
-
-                For local/dev profiles: Uses /usr/local/bin/config.txt
-                For staging/prod profiles: Uses deploy/compose/conf/4icli/config.txt
 
                 Returns path to config.txt.
 
@@ -243,21 +211,12 @@ class FourICLIConfig:
         # 1. Check profile-specified config path first (profile-aware)
         if hasattr(self, "_profile_config_path") and self._profile_config_path:
             if self._profile_config_path.exists():
-                # Sync to deploy directory for containers
-                self.sync_config_to_deployment()
                 return self._profile_config_path
 
         # 2. Check working directory (bronze) - may be symlink to profile config
         config_file = self.working_dir / "config.txt"
         if config_file.exists():
             return config_file
-
-        # 3. Check deploy/compose/conf/4icli (fallback for containers)
-        project_root = Path(__file__).parent.parent.parent.parent
-        compose_config = project_root / "deploy" / "compose" / "conf" / "4icli" / "config.txt"
-
-        if compose_config.exists():
-            return compose_config
 
         # No config.txt found
         profile_path = (
@@ -267,7 +226,6 @@ class FourICLIConfig:
             f"4icli config.txt not found. Checked:\n"
             f"1. Profile config: {profile_path}\n"
             f"2. Working dir: {config_file}\n"
-            f"3. Deployment: {compose_config}\n"
             f"Run '4icli configure' to create credentials file."
         )
 

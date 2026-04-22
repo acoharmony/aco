@@ -56,7 +56,7 @@ src/acoharmony/_tuva/_depends/repos/
 # Documentation site (Docusaurus) — lives on disk for local dev and is
 # mounted into the docs-compose services, but is not shipped in the wheel
 # and not tracked in git. Anchor to the repo root so this does NOT match
-# deploy/compose/images/docs/ (the Dockerfile for building the docs image).
+# deploy/images/docs/ (the Dockerfile for building the docs image).
 /docs/
 
 

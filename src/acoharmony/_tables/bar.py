@@ -121,10 +121,10 @@ class Bar:
     beneficiary_usps_state_code: str | None = Field(
         alias="Beneficiary_USPS_State_Code",
     )
-    beneficiary_zip_5: str | None = Field(
+    beneficiary_zip_5: str | None = ZIP5(
         alias="Beneficiary_Zip_5",
     )
-    beneficiary_zip_4: str | None = ZIP5(
+    beneficiary_zip_4: str | None = Field(
         alias="Beneficiary_Zip_4",
     )
     beneficiary_state_county_of_residence_ssa: str | None = Field(
@@ -204,7 +204,6 @@ class Bar:
     # Field Validators (from centralized _validators module)
     _validate_beneficiary_mbi_id = mbi_validator("beneficiary_mbi_id")
     _validate_beneficiary_zip_5 = zip5_validator("beneficiary_zip_5")
-    _validate_beneficiary_zip_4 = zip5_validator("beneficiary_zip_4")
 
     def to_dict(self) -> dict:
         """Convert to dictionary."""

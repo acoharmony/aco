@@ -1,8 +1,8 @@
 services:
   marimo:
     build:
-      context: ../../..  # Repo root — required so multi-stage build can COPY src/
-      dockerfile: deploy/compose/images/marimo/Dockerfile
+      context: ../..  # Repo root — required so multi-stage build can COPY src/
+      dockerfile: deploy/images/marimo/Dockerfile
     image: ghcr.io/acoharmony/marimo:latest
     pull_policy: build  # Always build locally unless pulled from GHCR
     container_name: marimo
@@ -30,7 +30,7 @@ services:
       - /home/care/.ssh/config:/home/care/.ssh/config:ro  # SSH config
       - /home/care/.gnupg:/home/care/.gnupg:rw  # GPG keys for commit signing
       # HarmonyCares branding customization (injected at startup by entrypoint.sh)
-      - /home/care/acoharmony/deploy/conf/marimo/custom:/opt/marimo-custom:ro
+      - /home/care/acoharmony/deploy/images/marimo/custom:/opt/marimo-custom:ro
     env_file:
       - ../.env
     environment:

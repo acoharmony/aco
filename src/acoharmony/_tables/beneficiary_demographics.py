@@ -60,7 +60,7 @@ class BeneficiaryDemographics:
     bene_mbi_id: str = MBI(
         description="Medicare Beneficiary Identifier",
     )
-    bene_fips_state_cd: str | None = MBI(default=None, description="FIPS state code")
+    bene_fips_state_cd: str | None = Field(default=None, description="FIPS state code")
     bene_fips_cnty_cd: str | None = Field(default=None, description="FIPS county code")
     bene_zip_cd: str | None = ZIP5(default=None, description="ZIP code")
     bene_dob: date | None = Field(default=None, description="Date of birth")

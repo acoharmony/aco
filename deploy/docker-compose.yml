@@ -1,3 +1,5 @@
+name: acoharmony
+
 include:
   - ./services/networks.yml
   - ./services/marimo.yml

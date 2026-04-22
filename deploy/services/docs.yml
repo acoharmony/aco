@@ -1,8 +1,8 @@
 services:
   docs:
     build:
-      context: ../../..  # Repo root (from services/ dir): /home/care/acoharmony
-      dockerfile: deploy/compose/images/docs/Dockerfile
+      context: ../..  # Repo root (from services/ dir): /home/care/acoharmony
+      dockerfile: deploy/images/docs/Dockerfile
     image: ghcr.io/acoharmony/docusaurus:latest
     pull_policy: build  # Always build locally
     container_name: docs
@@ -36,8 +36,8 @@ services:
 
   docs-builder:
     build:
-      context: ../../..  # Repo root (from services/ dir): /home/care/acoharmony
-      dockerfile: deploy/compose/images/docs/Dockerfile
+      context: ../..  # Repo root (from services/ dir): /home/care/acoharmony
+      dockerfile: deploy/images/docs/Dockerfile
     image: ghcr.io/acoharmony/docusaurus:latest
     pull_policy: build  # Always build locally
     container_name: docs-builder

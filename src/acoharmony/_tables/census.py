@@ -73,7 +73,7 @@ class Census:
         - Census.lineage_config() -> dict
     """
 
-    hcmpi: str = NPI(description="HarmonyCares Master Patient Index identifier")
+    hcmpi: str = Field(description="HarmonyCares Master Patient Index identifier")
     monthyear: date = Field(description="Census month and year")
     first_status: date | None = Field(default=None, description="Date of first status")
     inactivation_dt: date | None = Field(default=None, description="Date of inactivation")
@@ -102,10 +102,10 @@ class Census:
     lc_last_updated_dttm: date | None = Field(
         default=None, description="Lifecycle last updated timestamp"
     )
-    primary_provider_npi_current: str | None = Field(
+    primary_provider_npi_current: str | None = NPI(
         default=None, description="Current primary provider NPI"
     )
-    primary_provider_id: str | None = NPI(default=None, description="Primary provider identifier")
+    primary_provider_id: str | None = Field(default=None, description="Primary provider identifier")
     primary_provider_npi: str | None = NPI(default=None, description="Primary provider NPI")
     pri_prov_eff_dt: date | None = Field(default=None, description="Primary provider effective date")
     pri_prov_term_dt: date | None = Field(

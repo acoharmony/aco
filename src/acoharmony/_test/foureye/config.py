@@ -309,27 +309,6 @@ class TestFourICLIConfigEdgeCases:
         assert mock_config.log_dir.exists()
 
     @pytest.mark.unit
-    def test_sync_config_to_deployment_no_profile_path(self, mock_config: FourICLIConfig) -> None:
-        """sync_config_to_deployment does nothing when no profile path."""
-        # Remove _profile_config_path if it exists
-        if hasattr(mock_config, '_profile_config_path'):
-            delattr(mock_config, '_profile_config_path')
-
-        # Should not raise
-        mock_config.sync_config_to_deployment()
-
-    @pytest.mark.unit
-    def test_sync_config_to_deployment_nonexistent_source(
-        self, mock_config: FourICLIConfig, tmp_path: Path
-    ) -> None:
-        """sync_config_to_deployment does nothing when source doesn't exist."""
-        # Set profile path to nonexistent file
-        mock_config._profile_config_path = tmp_path / "nonexistent_config.txt"
-
-        # Should not raise
-        mock_config.sync_config_to_deployment()
-
-    @pytest.mark.unit
     def test_ensure_config_file_returns_existing_compose_config(self, tmp_path) -> None:
         """ensure_config_file returns config.txt from working dir."""
         config = FourICLIConfig.from_profile("dev")
@@ -347,42 +326,14 @@ class TestFourICLIConfigEdgeCases:
 
 class TestConfig:
     @pytest.mark.unit
-    def test_sync_config_to_deployment_no_profile_path(self, tmp_path):
-        cfg = _make_config(tmp_path)
-        # No _profile_config_path
-        cfg.sync_config_to_deployment()  # should be a no-op
-
-    @pytest.mark.unit
-    def test_sync_config_to_deployment_source_not_exists(self, tmp_path):
-        cfg = _make_config(tmp_path)
-        cfg._profile_config_path = tmp_path / "nonexistent" / "config.txt"
-        cfg.sync_config_to_deployment()  # should be a no-op
-
-    @pytest.mark.unit
-    def test_sync_config_to_deployment_copies(self, tmp_path):
-        cfg = _make_config(tmp_path)
-        source = tmp_path / "source_config.txt"
-        source.write_text("credentials")
-        cfg._profile_config_path = source
-
-        # The method uses Path(__file__) to find project root - just let it run
-        # and accept that in test env the target path is wherever __file__ resolves
-        import shutil as _shutil
-        with patch.object(_shutil, "copy2"):
-            cfg.sync_config_to_deployment()
-            # It should attempt to copy since source exists and target likely doesn't
-            # If target already exists and is newer, no copy happens - either way is fine
-
-    @pytest.mark.unit
     def test_ensure_config_file_profile_path(self, tmp_path):
         cfg = _make_config(tmp_path)
         config_txt = tmp_path / "profile_config.txt"
         config_txt.write_text("creds")
         cfg._profile_config_path = config_txt
 
-        with patch.object(cfg, "sync_config_to_deployment"):
-            result = cfg.ensure_config_file()
-            assert result == config_txt
+        result = cfg.ensure_config_file()
+        assert result == config_txt
 
     @pytest.mark.unit
     def test_ensure_config_file_working_dir(self, tmp_path):
@@ -396,26 +347,10 @@ class TestConfig:
     def test_ensure_config_file_not_found(self, tmp_path):
         cfg = _make_config(tmp_path)
         cfg._profile_config_path = tmp_path / "nope.txt"
-        # Remove working dir config
         (cfg.working_dir / "config.txt").unlink()
 
-        # Also need to ensure the compose fallback doesn't exist
-        # The method checks Path(__file__).parent.parent.parent.parent / "deploy/compose/conf/4icli/config.txt"
-        # If that exists in the real repo, it won't raise. Mock Path.exists for compose path.
-        original_exists = Path.exists
-
-        def patched_exists(self_path):
-            path_str = str(self_path)
-            # Mock all config.txt paths to not exist
-            if "config.txt" in path_str:
-                # Check if it's the deployment path, working dir, or compose path
-                if any(x in path_str for x in ["deploy", "deployment", str(cfg.working_dir)]):
-                    return False
-            return original_exists(self_path)
-
-        with patch.object(Path, "exists", patched_exists):
-            with pytest.raises(FileNotFoundError, match="config.txt not found"):
-                cfg.ensure_config_file()
+        with pytest.raises(FileNotFoundError, match="config.txt not found"):
+            cfg.ensure_config_file()
 
     @pytest.mark.unit
     def test_ensure_storage_directories(self, tmp_path):
@@ -583,36 +518,12 @@ class TestConfigGetCurrentYear:
         assert 2020 <= year <= 2100
 
     @pytest.mark.unit
-    def test_sync_config_to_deployment_copies_when_newer(self, make_config, tmp_path):
-        """sync_config_to_deployment copies source when it is newer than target."""
-        source = tmp_path / "source_config.txt"
-        source.write_text("new credentials")
-        make_config._profile_config_path = source
-
-        # Create a target that already exists but is older
-        project_root = Path(__file__).parent.parent
-        target = project_root / "deployment" / "compose" / "conf" / "4icli" / "config.txt"
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text("old")
-
-        # Make source modification time newer - mock stat
-        with patch("shutil.copy2"):
-            make_config.sync_config_to_deployment()
-            # Whether copy is called depends on timestamps; just verify no crash
-
-    @pytest.mark.unit
-    def test_sync_config_to_deployment_with_none_profile_path(self, make_config):
-        make_config._profile_config_path = None
-        make_config.sync_config_to_deployment()  # Should do nothing
-
-    @pytest.mark.unit
     def test_ensure_config_file_profile_path_exists(self, make_config, tmp_path):
         profile_config = tmp_path / "profile_config.txt"
         profile_config.write_text("creds")
         make_config._profile_config_path = profile_config
 
-        with patch.object(make_config, "sync_config_to_deployment"):
-            result = make_config.ensure_config_file()
+        result = make_config.ensure_config_file()
         assert result == profile_config
 
 
@@ -641,68 +552,3 @@ class TestFourICLIConfig:
         assert config.default_year == 2025
 
 
-class TestFourICLIConfigCoverageGaps:
-    """Targeted tests for the last branch-coverage gaps in _4icli/config.py."""
-
-    @pytest.mark.unit
-    def test_sync_config_skips_copy_when_target_is_newer(self, tmp_path, monkeypatch) -> None:
-        """Branch 233->exit: target exists and source is not newer → skip copy."""
-        import os
-        import shutil
-
-        from acoharmony._4icli import config as config_module
-
-        cfg = _make_config(tmp_path)
-        source = tmp_path / "source_config.txt"
-        source.write_text("source-credentials")
-        cfg._profile_config_path = source
-
-        # Sync computes:
-        #   project_root = Path(__file__).parent.parent.parent.parent
-        # The real file is at src/acoharmony/_4icli/config.py (4 ancestors
-        # up == repo root). We place a fake __file__ 4 ancestors deep under
-        # tmp_path so the resolved project_root lands under our tmp dir.
-        fake_root = tmp_path / "fake_root"
-        fake_module_file = fake_root / "src" / "acoharmony" / "_4icli" / "config.py"
-        fake_module_file.parent.mkdir(parents=True)
-        fake_module_file.touch()
-        monkeypatch.setattr(config_module, "__file__", str(fake_module_file))
-
-        target = fake_root / "deploy" / "compose" / "conf" / "4icli" / "config.txt"
-        target.parent.mkdir(parents=True)
-        target.write_text("existing-target")
-        # Backdate the source so `source.st_mtime < target.st_mtime`.
-        old = target.stat().st_mtime - 10_000
-        os.utime(source, (old, old))
-
-        with patch.object(shutil, "copy2") as mock_copy:
-            cfg.sync_config_to_deployment()
-            mock_copy.assert_not_called()
-
-        assert target.read_text() == "existing-target"
-
-    @pytest.mark.unit
-    def test_ensure_config_file_returns_compose_fallback(self, tmp_path, monkeypatch) -> None:
-        """Line 275: fall through to deploy/compose/conf/4icli/config.txt and return it."""
-        from acoharmony._4icli import config as config_module
-
-        cfg = _make_config(tmp_path)
-        # No profile config path → step 1 skipped.
-        cfg._profile_config_path = None
-        # Working dir has no config.txt → step 2 skipped.
-        (cfg.working_dir / "config.txt").unlink(missing_ok=True)
-
-        # Point the module's __file__ 4 ancestors deep under tmp_path so
-        # `Path(__file__).parent.parent.parent.parent` lands on our fake root.
-        fake_root = tmp_path / "fake_root"
-        fake_module_file = fake_root / "src" / "acoharmony" / "_4icli" / "config.py"
-        fake_module_file.parent.mkdir(parents=True)
-        fake_module_file.touch()
-        monkeypatch.setattr(config_module, "__file__", str(fake_module_file))
-
-        compose_config = fake_root / "deploy" / "compose" / "conf" / "4icli" / "config.txt"
-        compose_config.parent.mkdir(parents=True)
-        compose_config.write_text("compose-creds")
-
-        result = cfg.ensure_config_file()
-        assert result == compose_config
