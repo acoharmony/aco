@@ -1212,7 +1212,8 @@ class TestBar:
     """Test Bar - excel parser with aliases and MBI/ZIP validators.
 
     Bar uses underscored aliases for kwargs (Beneficiary_MBI_ID) and
-    Python attributes use field names (beneficiary_mbi_id).
+    short Python attributes matching the legacy silver column names
+    (bene_mbi, bene_zip_5, bene_date_of_birth).
     """
 
     # Required kwargs for Bar (many required fields accept None for str|None types)
@@ -1234,19 +1235,19 @@ class TestBar:
     @pytest.mark.unit
     def test_valid_instance(self):
         obj = Bar(**self.BAR_REQUIRED)
-        assert obj.beneficiary_mbi_id == VALID_MBI
+        assert obj.bene_mbi == VALID_MBI
 
     @pytest.mark.unit
     def test_zip_validators(self):
         kwargs = {**self.BAR_REQUIRED, 'Beneficiary_Zip_5': VALID_ZIP5, 'Beneficiary_Zip_4': VALID_ZIP5}
         obj = Bar(**kwargs)
-        assert obj.beneficiary_zip_5 == VALID_ZIP5
+        assert obj.bene_zip_5 == VALID_ZIP5
 
     @pytest.mark.unit
     def test_date_fields(self):
         kwargs = {**self.BAR_REQUIRED, 'Beneficiary_Date_of_Birth': date(1950, 5, 10)}
         obj = Bar(**kwargs)
-        assert obj.beneficiary_date_of_birth == date(1950, 5, 10)
+        assert obj.bene_date_of_birth == date(1950, 5, 10)
 
     @pytest.mark.unit
     def test_parser_config(self):
