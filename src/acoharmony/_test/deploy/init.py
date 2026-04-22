@@ -497,7 +497,7 @@ class TestDeploymentManagerGetComposePath:
 
     @pytest.mark.unit
     def test_finds_compose_in_ancestors(self, tmp_path: Path) -> None:
-        compose_dir = tmp_path / "deploy" / "compose"
+        compose_dir = tmp_path / "deploy"
         compose_dir.mkdir(parents=True)
         compose_file = compose_dir / "docker-compose.yml"
         compose_file.write_text("version: '3'\n")
@@ -518,7 +518,7 @@ class TestDeploymentManagerGetComposePath:
 
     @pytest.mark.unit
     def test_fallback_cwd(self, tmp_path: Path) -> None:
-        compose_dir = tmp_path / "deploy" / "compose"
+        compose_dir = tmp_path / "deploy"
         compose_dir.mkdir(parents=True)
         compose_file = compose_dir / "docker-compose.yml"
         compose_file.write_text("version: '3'\n")

@@ -1278,7 +1278,7 @@ class TestNotebookGenerator:
             with patch("acoharmony._notes.generator.Catalog", return_value=mock_catalog):
                 from acoharmony._notes.generator import NotebookGenerator
 
-                NotebookGenerator(output_dir=Path("/tmp/out"))
+                NotebookGenerator(output_dir=tmp_path / "out")
         sb_cls.assert_called_once()
 
     @pytest.mark.unit
