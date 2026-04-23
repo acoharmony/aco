@@ -65,16 +65,16 @@ def execute(executor: Any) -> pl.LazyFrame:
 
     performance_year = getattr(executor, "performance_year", 2026)
 
-    # Our determination: one row per (mbi, check_date). Collapse to the
-    # final-of-year snapshot (eligible_as_of_check_date at Oct 1) since
-    # BAR is stamped at a point in time.
+    # Our determination is multi-PY. For the BAR comparison we take the
+    # row at the latest check date within the target PY — its
+    # ``eligible_sticky_across_pys`` column already folds in any prior-PY
+    # eligibility per the cross-PY sticky alignment rule (PA Section
+    # IV.B.3, line 3794: "remain aligned to the ACO ... even if the
+    # Beneficiary subsequently ceases to meet the criteria").
     ours = pl.scan_parquet(gold_path / "high_needs_eligibility.parquet").filter(
         pl.col("performance_year") == performance_year
     )
 
-    # Take the latest check_date per MBI — eligibility by Oct 1 is the
-    # definitive PY signal since sticky alignment means later checks can
-    # only add beneficiaries, not remove them.
     per_mbi_ours = (
         ours.sort(["mbi", "check_date"])
         .group_by("mbi")
@@ -85,7 +85,22 @@ def execute(executor: Any) -> pl.LazyFrame:
             pl.col("criterion_c_met").last().alias("our_criterion_c"),
             pl.col("criterion_d_met").last().alias("our_criterion_d"),
             pl.col("criterion_e_met").last().alias("our_criterion_e"),
-            pl.col("eligible_as_of_check_date").last().alias("our_eligible"),
+            # ``eligible_sticky_across_pys`` is True once the beneficiary
+            # was eligible at any earlier check in any earlier (or the
+            # same) PY — the right cross-PY signal to compare against
+            # BAR's cumulative claims_based_flag.
+            pl.col("eligible_sticky_across_pys").last().alias("our_eligible"),
+            # Keep ``eligible_as_of_check_date`` around too, so a caller
+            # that wants the strict within-this-PY view can see it.
+            pl.col("eligible_as_of_check_date")
+            .last()
+            .alias("our_eligible_this_py_only"),
+            pl.col("first_ever_eligible_py")
+            .last()
+            .alias("our_first_ever_eligible_py"),
+            pl.col("first_ever_eligible_check_date")
+            .last()
+            .alias("our_first_ever_eligible_check_date"),
         )
     )
 

@@ -50,8 +50,8 @@ def seeded(tmp_path: Path):
 
     # Our determination: AGREE — MBI X meets criterion (a) per our calc
     # and BAR agrees.  DISAGREE — MBI Y meets (b) per us, BAR says no.
+    # Multi-PY shape: rows include the cross-PY sticky-alignment columns.
     _write_ours(gold, [
-        # MBI X — our side says yes to (a), no to the rest
         {
             "mbi": "X",
             "check_date": date(2026, 1, 1),
@@ -65,8 +65,10 @@ def seeded(tmp_path: Path):
             "previously_eligible": False,
             "eligible_as_of_check_date": True,
             "first_eligible_check_date": date(2026, 1, 1),
+            "eligible_sticky_across_pys": True,
+            "first_ever_eligible_py": 2026,
+            "first_ever_eligible_check_date": date(2026, 1, 1),
         },
-        # MBI Y — our side says yes to (b), no to the rest
         {
             "mbi": "Y",
             "check_date": date(2026, 10, 1),
@@ -80,6 +82,9 @@ def seeded(tmp_path: Path):
             "previously_eligible": False,
             "eligible_as_of_check_date": True,
             "first_eligible_check_date": date(2026, 10, 1),
+            "eligible_sticky_across_pys": True,
+            "first_ever_eligible_py": 2026,
+            "first_ever_eligible_check_date": date(2026, 10, 1),
         },
     ])
 
@@ -173,6 +178,9 @@ class TestExecute:
                 "previously_eligible": False,
                 "eligible_as_of_check_date": True,
                 "first_eligible_check_date": date(2026, 1, 1),
+                "eligible_sticky_across_pys": True,
+                "first_ever_eligible_py": 2026,
+                "first_ever_eligible_check_date": date(2026, 1, 1),
             },
         ]).write_parquet(gold / "high_needs_eligibility.parquet")
 
