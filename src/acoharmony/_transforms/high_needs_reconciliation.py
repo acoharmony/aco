@@ -112,16 +112,20 @@ def execute(executor: Any) -> pl.LazyFrame:
     )
 
     # Cast BAR flags to boolean so comparisons are consistent. BAR stores
-    # flags as Y/N strings on some feeds and booleans on others.
+    # flags as Y/N strings on some feeds and booleans on others. We can't
+    # ``cast(pl.Boolean)`` from an arbitrary Utf8 column (polars refuses),
+    # so we stringify first and then whitelist the known truthy/falsy
+    # encodings. Unknown values fall through to null, which compares
+    # unequal to both True and False.
     def _to_bool(col: str) -> pl.Expr:
-        v = pl.col(col)
-        # Already boolean or null — keep as is
+        s = pl.col(col).cast(pl.String, strict=False).str.to_lowercase()
         return (
-            pl.when(v.cast(pl.String, strict=False).str.to_lowercase().is_in(["y", "true", "1"]))
+            pl.when(s.is_in(["true", "y", "1"]))
             .then(pl.lit(True))
-            .when(v.cast(pl.String, strict=False).str.to_lowercase().is_in(["n", "false", "0"]))
+            .when(s.is_in(["false", "n", "0"]))
             .then(pl.lit(False))
-            .otherwise(v.cast(pl.Boolean, strict=False))
+            .otherwise(pl.lit(None))
+            .cast(pl.Boolean)
             .alias(col)
         )
 
