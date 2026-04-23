@@ -17,6 +17,53 @@ import pytest
 import acoharmony
 
 
+def _build_identity_timeline_mock(prvs, crnt, hcmpi=None):
+    """Build a minimal identity_timeline-shape DataFrame from legacy (prvs, crnt, hcmpi) lists.
+
+    Each (p, c) pair becomes a cclf9_remap row for p and a cclf8_self leaf for c;
+    when p == c, only a single cclf8_self row is emitted.
+    """
+    import polars as pl
+    mbis = []
+    maps = []
+    obs = []
+    hops = []
+    chains = []
+    hcmpis = []
+    for i, (p, c) in enumerate(zip(prvs, crnt)):
+        h = hcmpi[i] if hcmpi is not None else None
+        chain = f"chain_{i}"
+        if p == c:
+            mbis.append(p); maps.append(None); obs.append("cclf8_self"); hops.append(0); chains.append(chain); hcmpis.append(h)
+        else:
+            mbis.append(p); maps.append(c); obs.append("cclf9_remap"); hops.append(1); chains.append(chain); hcmpis.append(h)
+            mbis.append(c); maps.append(None); obs.append("cclf8_self"); hops.append(0); chains.append(chain); hcmpis.append(h)
+    return pl.DataFrame(
+        {
+            "mbi": mbis,
+            "maps_to_mbi": maps,
+            "effective_date": [None] * len(mbis),
+            "obsolete_date": [None] * len(mbis),
+            "file_date": [None] * len(mbis),
+            "observation_type": obs,
+            "source_file": ["t"] * len(mbis),
+            "hcmpi": hcmpis,
+            "chain_id": chains,
+            "hop_index": hops,
+            "is_current_as_of_file_date": [True] * len(mbis),
+        },
+        schema={
+            "mbi": pl.String, "maps_to_mbi": pl.String,
+            "effective_date": pl.Date, "obsolete_date": pl.Date, "file_date": pl.Date,
+            "observation_type": pl.String, "source_file": pl.String, "hcmpi": pl.String,
+            "chain_id": pl.String, "hop_index": pl.Int64,
+            "is_current_as_of_file_date": pl.Boolean,
+        },
+    )
+
+
+
+
 class TestVoluntaryAlignmentTransform:
     """Tests for Voluntary Alignment transform."""
 
@@ -343,7 +390,7 @@ class TestLoadCrosswalk:
         catalog = MagicMock()
         logger = MagicMock()
 
-        with pytest.raises(ValueError, match="enterprise_crosswalk not found"):
+        with pytest.raises(ValueError, match="identity_timeline not found"):
             _load_crosswalk(catalog, logger)
 
     @patch("acoharmony.config.get_config")
@@ -357,9 +404,7 @@ class TestLoadCrosswalk:
 
         silver = tmp_path / "silver"
         silver.mkdir(parents=True, exist_ok=True)
-        pl.DataFrame({
-            "prvs_num": ["A"], "crnt_num": ["B"],
-        }).write_parquet(silver / "enterprise_crosswalk.parquet")
+        _build_identity_timeline_mock(prvs=["A"], crnt=["B"]).write_parquet(silver / "identity_timeline.parquet")
 
         catalog = MagicMock()
         logger = MagicMock()
@@ -374,11 +419,7 @@ class TestApplyTransformVoluntary:
     def _make_crosswalk_parquet(self, tmp_path):
         silver = tmp_path / "silver"
         silver.mkdir(parents=True, exist_ok=True)
-        pl.DataFrame({
-            "prvs_num": ["MBI1", "MBI2"],
-            "crnt_num": ["MBI1", "MBI2"],
-            "hcmpi": ["H1", "H2"],
-        }).write_parquet(silver / "enterprise_crosswalk.parquet")
+        _build_identity_timeline_mock(prvs=["MBI1", "MBI2"], crnt=["MBI1", "MBI2"], hcmpi=["H1", "H2"]).write_parquet(silver / "identity_timeline.parquet")
         return silver
 
     @patch("acoharmony.config.get_config")
@@ -744,11 +785,7 @@ class TestVoluntaryAlignmentPbvarNotNone:
 
         silver = tmp_path / "silver"
         silver.mkdir(parents=True, exist_ok=True)
-        pl.DataFrame({
-            "prvs_num": ["MBI1", "MBI2"],
-            "crnt_num": ["MBI1", "MBI2"],
-            "hcmpi": ["H1", "H2"],
-        }).write_parquet(silver / "enterprise_crosswalk.parquet")
+        _build_identity_timeline_mock(prvs=["MBI1", "MBI2"], crnt=["MBI1", "MBI2"], hcmpi=["H1", "H2"]).write_parquet(silver / "identity_timeline.parquet")
 
         pbvar_df = pl.DataFrame({
             "bene_mbi": ["MBI1"],
@@ -794,11 +831,7 @@ class TestVoluntaryAlignmentMailedNotNone:
 
         silver = tmp_path / "silver"
         silver.mkdir(parents=True, exist_ok=True)
-        pl.DataFrame({
-            "prvs_num": ["MBI1", "MBI2"],
-            "crnt_num": ["MBI1", "MBI2"],
-            "hcmpi": ["H1", "H2"],
-        }).write_parquet(silver / "enterprise_crosswalk.parquet")
+        _build_identity_timeline_mock(prvs=["MBI1", "MBI2"], crnt=["MBI1", "MBI2"], hcmpi=["H1", "H2"]).write_parquet(silver / "identity_timeline.parquet")
 
         mailed_df = pl.DataFrame({
             "mbi": ["MBI1"],
@@ -845,11 +878,7 @@ class TestVoluntaryAlignmentEmailsNoneUnsubNotNone:
 
         silver = tmp_path / "silver"
         silver.mkdir(parents=True, exist_ok=True)
-        pl.DataFrame({
-            "prvs_num": ["MBI1"],
-            "crnt_num": ["MBI1"],
-            "hcmpi": ["H1"],
-        }).write_parquet(silver / "enterprise_crosswalk.parquet")
+        _build_identity_timeline_mock(prvs=["MBI1"], crnt=["MBI1"], hcmpi=["H1"]).write_parquet(silver / "identity_timeline.parquet")
 
         unsub_df = pl.DataFrame({
             "patient_id": ["PID1"],
@@ -984,11 +1013,7 @@ class TestEmailsNoneUnsubNonePath:
 
         silver = tmp_path / "silver"
         silver.mkdir(parents=True, exist_ok=True)
-        pl.DataFrame({
-            "prvs_num": ["MBI1"],
-            "crnt_num": ["MBI1"],
-            "hcmpi": ["H1"],
-        }).write_parquet(silver / "enterprise_crosswalk.parquet")
+        _build_identity_timeline_mock(prvs=["MBI1"], crnt=["MBI1"], hcmpi=["H1"]).write_parquet(silver / "identity_timeline.parquet")
 
         emails_df = pl.DataFrame({
             "mbi": ["MBI1"],

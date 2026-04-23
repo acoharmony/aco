@@ -220,20 +220,21 @@ def apply_transform(
 
 
 def _load_crosswalk(catalog: Any, logger: Any) -> pl.LazyFrame:
-    """Load enterprise crosswalk from storage."""
+    """Load MBI crosswalk (prvs_num, crnt_num, hcmpi) from identity_timeline."""
     from ..config import get_config
+    from ._identity_timeline import current_mbi_with_hcmpi_lookup_lazy
 
     config = get_config()
     silver_path = config.storage.base_path / config.storage.silver_dir
-    crosswalk_path = silver_path / "enterprise_crosswalk.parquet"
+    timeline_path = silver_path / "identity_timeline.parquet"
 
-    if not crosswalk_path.exists():
+    if not timeline_path.exists():
         raise ValueError(
-            "enterprise_crosswalk not found - required for voluntary_alignment. "
-            "Run 'aco pipeline enterprise_crosswalk' first."
+            "identity_timeline not found - required for voluntary_alignment. "
+            "Run 'aco pipeline identity_timeline' first."
         )
 
-    return pl.scan_parquet(crosswalk_path)
+    return current_mbi_with_hcmpi_lookup_lazy(silver_path)
 
 
 def _build_mbi_map(crosswalk_df: pl.LazyFrame, logger: Any) -> dict[str, str]:

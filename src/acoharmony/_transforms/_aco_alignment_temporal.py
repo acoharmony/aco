@@ -207,17 +207,21 @@ def _collect_required_sources(catalog: Any, logger: Any) -> dict[str, pl.LazyFra
             raise ValueError(f"{source_name} source not found - required for temporal matrix")
         sources[source_name] = source
 
-    # Load enterprise_crosswalk directly from storage (no schema needed)
+    # Load MBI crosswalk from identity_timeline (replaces legacy enterprise_crosswalk).
+    # Dict key is kept as "enterprise_crosswalk" for internal stability; consumers
+    # only read (prvs_num, crnt_num) which the helper provides.
+    from ._identity_timeline import current_mbi_lookup_lazy
+
     config = get_config()
     silver_path = config.storage.base_path / config.storage.silver_dir
-    crosswalk_path = silver_path / "enterprise_crosswalk.parquet"
+    timeline_path = silver_path / "identity_timeline.parquet"
 
-    if not crosswalk_path.exists():
-        raise ValueError("enterprise_crosswalk not found - required for temporal matrix. Run 'aco pipeline enterprise_crosswalk' first.")
+    if not timeline_path.exists():
+        raise ValueError("identity_timeline not found - required for temporal matrix. Run 'aco pipeline identity_timeline' first.")
 
-    sources["enterprise_crosswalk"] = pl.scan_parquet(crosswalk_path)
+    sources["enterprise_crosswalk"] = current_mbi_lookup_lazy(silver_path)
 
-    logger.info(f"Collected {len(sources)} required sources (enterprise_crosswalk from storage)")
+    logger.info(f"Collected {len(sources)} required sources (MBI crosswalk from identity_timeline)")
     return sources
 
 

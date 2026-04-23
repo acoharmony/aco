@@ -32,7 +32,8 @@ def execute(executor) -> pl.LazyFrame:
     storage = executor.storage_config
     silver_path = storage.get_path(MedallionLayer.SILVER)
     enrollment = pl.scan_parquet(silver_path / "enrollment.parquet")
-    beneficiary_xref = pl.scan_parquet(silver_path / "int_beneficiary_xref_deduped.parquet")
+    from ._identity_timeline import current_mbi_lookup_lazy
+    beneficiary_xref = current_mbi_lookup_lazy(silver_path)
 
     # Check if we need to convert member months to spans
     # For now, assume False (simple pass-through with crosswalk)

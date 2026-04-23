@@ -18,7 +18,8 @@ def execute(executor) -> pl.LazyFrame:
     storage = executor.storage_config
     silver_path = storage.get_path(MedallionLayer.SILVER)
     stg = pl.scan_parquet(silver_path / "cclf3.parquet")
-    xref = pl.scan_parquet(silver_path / "int_beneficiary_xref_deduped.parquet")
+    from ._identity_timeline import current_mbi_lookup_lazy
+    xref = current_mbi_lookup_lazy(silver_path)
 
     stg = stg.with_columns(
         [

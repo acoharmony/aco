@@ -24,13 +24,18 @@ def apply_cclf_silver_pipeline(
     Apply CCLF silver transformations in dependency order.
 
     Pipeline Order (dependency-aware):
-        Stage 1-2:   Foundation (xref, demographics)
-        Stage 3-6:   ADR (adjustment/cancellation netting for all claim types)
-        Stage 7-9:   Simple Dedups (physician, dme, pharmacy)
-        Stage 10-12: Supporting Tables (diagnosis, procedure, revenue center)
-        Stage 13-14: Pivots (diagnosis_pivot, procedure_pivot)
-        Stage 15:    Complex Dedup (institutional - requires supporting tables)
-        Stage 16:    Enrollment (member-month spans)
+        Stage 1:     Foundation (demographics)
+        Stage 2-5:   ADR (adjustment/cancellation netting for all claim types)
+        Stage 6-8:   Simple Dedups (physician, dme, pharmacy)
+        Stage 9-11:  Supporting Tables (diagnosis, procedure, revenue center)
+        Stage 12-13: Pivots (diagnosis_pivot, procedure_pivot)
+        Stage 14:    Complex Dedup (institutional - requires supporting tables)
+        Stage 15:    Enrollment (member-month spans)
+
+    Prerequisites:
+        `silver/identity_timeline.parquet` must exist (run the
+        `identity_timeline` pipeline first). All claim ADR stages and the
+        demographics dedup read MBI mappings via the identity_timeline helpers.
 
     Args:
         executor: TransformRunner instance with storage_config and catalog access
@@ -42,7 +47,6 @@ def apply_cclf_silver_pipeline(
     """
     from .._transforms import (
         int_beneficiary_demographics_deduped,
-        int_beneficiary_xref_deduped,
         int_diagnosis_deduped,
         int_diagnosis_pivot,
         int_dme_claim_adr,
@@ -63,106 +67,93 @@ def apply_cclf_silver_pipeline(
     silver_path = executor.storage_config.get_path(MedallionLayer.SILVER)
 
     stages = [
-        # Foundation
-        PipelineStage(
-            name="int_beneficiary_xref_deduped",
-            module=int_beneficiary_xref_deduped,
-            group="foundation",
-            order=1,
-        ),
+        # Foundation — demographics dedup reads MBI mappings from identity_timeline.
         PipelineStage(
             name="int_beneficiary_demographics_deduped",
             module=int_beneficiary_demographics_deduped,
             group="foundation",
-            order=2,
-            depends_on=["int_beneficiary_xref_deduped"],
+            order=1,
         ),
-        # All ADR stages (adjustment/cancellation netting)
+        # All ADR stages (adjustment/cancellation netting) read identity_timeline.
         PipelineStage(
             name="int_physician_claim_adr",
             module=int_physician_claim_adr,
             group="adr",
-            order=3,
-            depends_on=["int_beneficiary_xref_deduped"],
+            order=2,
         ),
         PipelineStage(
             name="int_dme_claim_adr",
             module=int_dme_claim_adr,
             group="adr",
-            order=4,
-            depends_on=["int_beneficiary_xref_deduped"],
+            order=3,
         ),
         PipelineStage(
             name="int_institutional_claim_adr",
             module=int_institutional_claim_adr,
             group="adr",
-            order=5,
-            depends_on=["int_beneficiary_xref_deduped"],
+            order=4,
         ),
         PipelineStage(
             name="int_pharmacy_claim_adr",
             module=int_pharmacy_claim_adr,
             group="adr",
-            order=6,
-            depends_on=["int_beneficiary_xref_deduped"],
+            order=5,
         ),
         # Simple claim dedups (no supporting tables needed)
         PipelineStage(
             name="int_physician_claim_deduped",
             module=int_physician_claim_deduped,
             group="dedup_simple",
-            order=7,
+            order=6,
             depends_on=["int_physician_claim_adr"],
         ),
         PipelineStage(
             name="int_dme_claim_deduped",
             module=int_dme_claim_deduped,
             group="dedup_simple",
-            order=8,
+            order=7,
             depends_on=["int_dme_claim_adr"],
         ),
         PipelineStage(
             name="int_pharmacy_claim_deduped",
             module=int_pharmacy_claim_deduped,
             group="dedup_simple",
-            order=9,
+            order=8,
             depends_on=["int_pharmacy_claim_adr"],
         ),
-        # Supporting table dedups (diagnosis, procedure, revenue center)
+        # Supporting table dedups (diagnosis, procedure, revenue center) —
+        # each reads identity_timeline for MBI mapping.
         PipelineStage(
             name="int_diagnosis_deduped",
             module=int_diagnosis_deduped,
             group="supporting",
-            order=10,
-            depends_on=["int_beneficiary_xref_deduped"],
+            order=9,
         ),
         PipelineStage(
             name="int_procedure_deduped",
             module=int_procedure_deduped,
             group="supporting",
-            order=11,
-            depends_on=["int_beneficiary_xref_deduped"],
+            order=10,
         ),
         PipelineStage(
             name="int_revenue_center_deduped",
             module=int_revenue_center_deduped,
             group="supporting",
-            order=12,
-            depends_on=["int_beneficiary_xref_deduped"],
+            order=11,
         ),
         # Pivots (transform supporting tables to wide format)
         PipelineStage(
             name="int_diagnosis_pivot",
             module=int_diagnosis_pivot,
             group="pivot",
-            order=13,
+            order=12,
             depends_on=["int_diagnosis_deduped"],
         ),
         PipelineStage(
             name="int_procedure_pivot",
             module=int_procedure_pivot,
             group="pivot",
-            order=14,
+            order=13,
             depends_on=["int_procedure_deduped"],
         ),
         # Complex dedup (requires supporting tables + pivots)
@@ -170,7 +161,7 @@ def apply_cclf_silver_pipeline(
             name="int_institutional_claim_deduped",
             module=int_institutional_claim_deduped,
             group="dedup_complex",
-            order=15,
+            order=14,
             depends_on=[
                 "int_institutional_claim_adr",
                 "int_revenue_center_deduped",
@@ -183,8 +174,7 @@ def apply_cclf_silver_pipeline(
             name="int_enrollment",
             module=int_enrollment,
             group="enrollment",
-            order=16,
-            depends_on=["int_beneficiary_xref_deduped"],
+            order=15,
         ),
     ]
 

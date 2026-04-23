@@ -37,7 +37,9 @@ Note:
 from . import (  # noqa: F401 (imported for registration side effects)
     _bnex,
     _crosswalk,
-    _enterprise_xwalk,
+    _identity_timeline,
+    _identity_timeline_gold,
+    _identity_timeline_metrics,
     _quality_acr,
     _quality_cardiovascular,
     _quality_diabetes,
@@ -80,7 +82,9 @@ __all__ = [
     # Transform modules (imported for side effects)
     "_bnex",
     "_crosswalk",
-    "_enterprise_xwalk",
+    "_identity_timeline",
+    "_identity_timeline_gold",
+    "_identity_timeline_metrics",
     "_quality_acr",
     "_quality_uamcc",
     "_quality_cardiovascular",

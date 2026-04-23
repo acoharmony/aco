@@ -38,7 +38,8 @@ def execute(executor) -> pl.LazyFrame:
     storage = executor.storage_config
     silver_path = storage.get_path(MedallionLayer.SILVER)
     claims = pl.scan_parquet(silver_path / "cclf1.parquet")
-    xref = pl.scan_parquet(silver_path / "int_beneficiary_xref_deduped.parquet")
+    from ._identity_timeline import current_mbi_lookup_lazy
+    xref = current_mbi_lookup_lazy(silver_path)
     claims = claims.with_columns(
         [
             pl.lit(None).cast(pl.Utf8).alias("bene_hic_num"),

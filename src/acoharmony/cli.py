@@ -1564,14 +1564,14 @@ notes:
                     else pl.DataFrame()
                 )
                 xwalk = (
-                    pl.read_parquet(data_dir / "enterprise_crosswalk.parquet")
-                    if (data_dir / "enterprise_crosswalk.parquet").exists()
+                    pl.read_parquet(data_dir / "identity_timeline.parquet")
+                    if (data_dir / "identity_timeline.parquet").exists()
                     else pl.DataFrame()
                 )
 
                 print(f"  Participant List: {participant_list.height:,} records")
                 print(f"  BAR: {bar.height:,} records")
-                print(f"  Enterprise Crosswalk: {xwalk.height:,} records\n")
+                print(f"  Identity Timeline: {xwalk.height:,} records\n")
 
                 print("\n[OK] SVA validation complete")
                 print("For full validation logic, use the _transforms module")

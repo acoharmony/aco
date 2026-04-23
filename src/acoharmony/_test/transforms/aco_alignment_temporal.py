@@ -572,7 +572,7 @@ class TestCollectRequiredSources:
 
         logger = MagicMock()
 
-        with pytest.raises(ValueError, match="enterprise_crosswalk not found"):
+        with pytest.raises(ValueError, match="identity_timeline not found"):
             _collect_required_sources(catalog, logger)
 
 
@@ -862,9 +862,29 @@ class TestCollectRequiredSourcesSuccess:
         silver = tmp_path / "silver"
         silver.mkdir(parents=True, exist_ok=True)
         # Write crosswalk parquet
-        pl.DataFrame({"prvs_num": ["A"], "crnt_num": ["B"]}).write_parquet(
-            silver / "enterprise_crosswalk.parquet"
-        )
+        # identity_timeline mock: A remaps to B
+        pl.DataFrame(
+            {
+                "mbi": ["A", "B"],
+                "maps_to_mbi": ["B", None],
+                "effective_date": [None, None],
+                "obsolete_date": [None, None],
+                "file_date": [None, None],
+                "observation_type": ["cclf9_remap", "cclf8_self"],
+                "source_file": ["t", "t"],
+                "hcmpi": [None, None],
+                "chain_id": ["c", "c"],
+                "hop_index": [1, 0],
+                "is_current_as_of_file_date": [True, True],
+            },
+            schema={
+                "mbi": pl.String, "maps_to_mbi": pl.String,
+                "effective_date": pl.Date, "obsolete_date": pl.Date, "file_date": pl.Date,
+                "observation_type": pl.String, "source_file": pl.String, "hcmpi": pl.String,
+                "chain_id": pl.String, "hop_index": pl.Int64,
+                "is_current_as_of_file_date": pl.Boolean,
+            },
+        ).write_parquet(silver / "identity_timeline.parquet")
 
         catalog = MagicMock()
         catalog.scan_table.return_value = pl.DataFrame({"col": ["val"]}).lazy()
