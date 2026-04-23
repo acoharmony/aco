@@ -59,6 +59,13 @@ def apply_bronze_all_pipeline(
         BronzeStage("shadow_bundle_reach", "reach", 18, "REACH Shadow Bundle", optional=True),
         BronzeStage("reach_calendar", "reach", 19, "ACO REACH Calendar", optional=True),
         BronzeStage(
+            "reach_appendix_tables",
+            "reach",
+            20,
+            "REACH Financial Operating Guide Appendix Tables (B.6.1/B.6.2/B.6.3)",
+            optional=True,
+        ),
+        BronzeStage(
             "annual_quality_report",
             "reports_quality",
             21,

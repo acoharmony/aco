@@ -78,6 +78,7 @@ from acoharmony._tables import (
     QuarterlyBeneficiaryLevelQualityReport,
     QuarterlyQualityReport,
     Rap,
+    ReachAppendixTables,
     ReachBnmr,
     ReachCalendar,
     Recon,
@@ -92,7 +93,7 @@ from acoharmony._tables import (
     ZipToCounty,
 )
 
-ALL_TABLE_CLASSES = [AcoAlignment, AcoFinancialGuaranteeAmount, Alr, AlternativePaymentArrangementReport, AnnualBeneficiaryLevelQualityReport, AnnualQualityReport, Bar, BeneficiaryDataSharingExclusionFile, BeneficiaryDemographics, BeneficiaryHedrTransparencyFiles, BeneficiaryXref, Cclf0, Cclf1, Cclf2, Cclf3, Cclf4, Cclf5, Cclf6, Cclf7, Cclf8, Cclf9, CclfManagementReport, Cclfa, Cclfb, ConsolidatedAlignment, Eligibility, EmailUnsubscribes, Emails, Engagement, Enrollment, EstimatedCisepChangeThresholdReport, FfsFirstDates, HcmpiMaster, HdaiReach, IdentityTimeline, LastFfsService, Mailed, MbiCrosswalk, Mexpr, NeedsSignature, OfficeZip, Palmr, ParticipantList, Pbvar, PecosTerminationsMonthlyReport, Plaru, PreliminaryAlignmentEstimate, PreliminaryAlternativePaymentArrangementReport156, PreliminaryBenchmarkReportForDc, PreliminaryBenchmarkReportUnredacted, ProspectivePlusOpportunityReport, Pyred, QuarterlyBeneficiaryLevelQualityReport, QuarterlyQualityReport, Rap, ReachBnmr, ReachCalendar, Recon, RiskAdjustmentData, Sbnabp, Sbqr, ShadowBundleReach, Sva, SvaSubmissions, Tparc, VoluntaryAlignment, ZipToCounty]
+ALL_TABLE_CLASSES = [AcoAlignment, AcoFinancialGuaranteeAmount, Alr, AlternativePaymentArrangementReport, AnnualBeneficiaryLevelQualityReport, AnnualQualityReport, Bar, BeneficiaryDataSharingExclusionFile, BeneficiaryDemographics, BeneficiaryHedrTransparencyFiles, BeneficiaryXref, Cclf0, Cclf1, Cclf2, Cclf3, Cclf4, Cclf5, Cclf6, Cclf7, Cclf8, Cclf9, CclfManagementReport, Cclfa, Cclfb, ConsolidatedAlignment, Eligibility, EmailUnsubscribes, Emails, Engagement, Enrollment, EstimatedCisepChangeThresholdReport, FfsFirstDates, HcmpiMaster, HdaiReach, IdentityTimeline, LastFfsService, Mailed, MbiCrosswalk, Mexpr, NeedsSignature, OfficeZip, Palmr, ParticipantList, Pbvar, PecosTerminationsMonthlyReport, Plaru, PreliminaryAlignmentEstimate, PreliminaryAlternativePaymentArrangementReport156, PreliminaryBenchmarkReportForDc, PreliminaryBenchmarkReportUnredacted, ProspectivePlusOpportunityReport, Pyred, QuarterlyBeneficiaryLevelQualityReport, QuarterlyQualityReport, Rap, ReachAppendixTables, ReachBnmr, ReachCalendar, Recon, RiskAdjustmentData, Sbnabp, Sbqr, ShadowBundleReach, Sva, SvaSubmissions, Tparc, VoluntaryAlignment, ZipToCounty]
 
 # Models with misaligned Pydantic metadata (pattern constraints leaked from
 # adjacent fields) that make direct instantiation impossible -- the pattern and
