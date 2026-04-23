@@ -80,11 +80,15 @@ _STEM_RULES: list[tuple[str, str]] = [
     (r"financial\s+guarantee", "aco_financial_guarantee_amount"),
     (r"estimated\s+ci/?sep\s+change\s+threshold", "estimated_cisep_change_threshold_report"),
 
-    # Shadow Bundles (all SBM* files share ftc 243 — treat the family as one
-    # canonical schema for the purpose of delivery matching).
-    (r"shadow\s+bundles?\s+monthly", "sbmdm"),
+    # Shadow Bundles: CMS delivers one zip per month containing all SBM*
+    # CSVs, stamped with ``SBMON`` in the filename — that archive matches
+    # the ``shadow_bundle_reach`` catch-all pattern. Calendar descriptions
+    # refer to this zip as "Shadow Bundles Monthly Files" / "Monthly Files
+    # (CYxxxx-CYyyyy)", so both resolve to the same aggregate schema for
+    # the purpose of delivery matching.
+    (r"shadow\s+bundles?\s+monthly", "shadow_bundle_reach"),
     (r"shadow\s+bundles?\s+quarterly|sbqr", "sbqr"),
-    (r"monthly\s+files\s*\(", "sbmdm"),
+    (r"monthly\s+files\s*\(", "shadow_bundle_reach"),
     (r"quarterly\s+report\s*\(", "sbqr"),
 ]
 
@@ -187,20 +191,26 @@ def build_calendar_reports_lf(
         df["description"].to_list(), df["category"].to_list(), df["start_date"].to_list()
     ):
         name, period, py = classify_calendar_description(desc, cat)
-        if name and not period:
-            # Fall back to start_date: quarterly schemas use the calendar quarter,
-            # monthly ones use the calendar month.
-            quarterly = name in {
-                "reach_bnmr",
-                "quarterly_quality_report",
-                "quarterly_beneficiary_level_quality_report",
-                "alternative_payment_arrangement_report",
-                "risk_adjustment_data",
-                "preliminary_benchmark_report_unredacted",
-                "sbqr",
-                "prospective_plus_opportunity_report",
-            }
-            period = _period_from_date(sd, quarterly=quarterly)
+        if name is not None:
+            # Annual schemas: structurally one-per-PY, period must be "A".
+            if name in _ANNUAL_SCHEMAS:
+                period = "A"
+            # For monthly and quarterly schemas, the description is the
+            # authoritative period source (a calendar row captioned
+            # "February Monthly Files (CY2024-CY2025)" is the February
+            # report even though CMS schedules its drop for end-of-March).
+            # Only fall back to start_date when the description was silent.
+            elif not period and name in _QUARTERLY_SCHEMAS:
+                period = _period_from_date(sd, quarterly=True)
+            elif not period and name in _MONTHLY_SCHEMAS:
+                period = _period_from_date(sd, quarterly=False)
+            # PAER is the one monthly schema whose descriptions aren't
+            # consistent about the month ("Round 1 of 2", "#1", "PY2025
+            # Round 2") — the classifier's generic annual fallback would
+            # resolve some of them to "A". Force use of start_date month
+            # instead, since PAER ships Nov + Dec each PY.
+            if name == "preliminary_alignment_estimate":
+                period = _period_from_date(sd, quarterly=False)
         schema_names.append(name)
         periods.append(period)
         pys.append(py)
@@ -259,8 +269,60 @@ def _filename_date(filename: str) -> date | None:
     return None
 
 
+# Schemas CMS publishes once per performance year — the calendar classifier
+# resolves their descriptions to ``period="A"`` (annual). Delivery filenames
+# don't carry a period token, so we bucket them here to keep join keys aligned.
+_ANNUAL_SCHEMAS = frozenset(
+    {
+        "aco_financial_guarantee_amount",
+        "annual_quality_report",
+        "annual_beneficiary_level_quality_report",
+        "beneficiary_hedr_transparency_files",
+        "plaru",
+        "estimated_cisep_change_threshold_report",
+        "preliminary_benchmark_report_unredacted",
+    }
+)
+
+# Schemas CMS publishes quarterly without encoding ``.Q#.`` in the filename —
+# we synthesise the quarter from the delivery date.
+_QUARTERLY_SCHEMAS = frozenset(
+    {
+        "reach_bnmr",
+        "quarterly_quality_report",
+        "quarterly_beneficiary_level_quality_report",
+        "alternative_payment_arrangement_report",
+        "risk_adjustment_data",
+        "preliminary_benchmark_report_for_dc",
+        "prospective_plus_opportunity_report",
+        "sbqr",
+        "palmr",
+        "pbvar",
+    }
+)
+
+# Schemas CMS publishes monthly — period is the month of the delivery date.
+_MONTHLY_SCHEMAS = frozenset(
+    {
+        "mexpr",
+        "tparc",
+        "sbmdm",
+        "shadow_bundle_reach",  # SBMON zip archive is monthly
+        "cclf_management_report",
+        "pecos_terminations_monthly_report",
+        "preliminary_alignment_estimate",  # two per PY; treat each as its own month
+    }
+)
+
+
 def _filename_period(filename: str, schema_name: str | None) -> str | None:
-    """Parse the period marker out of a delivered filename."""
+    """Parse the period marker out of a delivered filename.
+
+    Falls back to the schema's expected cadence (annual / quarterly / monthly)
+    when the filename doesn't encode one explicitly. Without the cadence
+    fallback, annual and some quarterly deliveries would land with
+    ``period=None`` and drop out of the join entirely.
+    """
     if not filename:
         return None
 
@@ -280,20 +342,19 @@ def _filename_period(filename: str, schema_name: str | None) -> str | None:
         if d:
             return f"M{d.month:02d}"
 
-    # Quarterly pattern baked into filenames like ``.Q2.``, handled above. If
-    # schema is known-quarterly and we still don't have one, infer from the
-    # delivery date.
-    if schema_name in {"reach_bnmr", "quarterly_quality_report", "alternative_payment_arrangement_report"}:
+    if schema_name in _QUARTERLY_SCHEMAS:
         d = _filename_date(filename)
         if d:
-            q = (d.month - 1) // 3 + 1
-            return f"Q{q}"
+            q_num = (d.month - 1) // 3 + 1
+            return f"Q{q_num}"
 
-    # Last resort for monthlies: use delivery-date month.
-    if schema_name in {"mexpr", "tparc", "palmr", "sbmdm"}:
+    if schema_name in _MONTHLY_SCHEMAS:
         d = _filename_date(filename)
         if d:
             return f"M{d.month:02d}"
+
+    if schema_name in _ANNUAL_SCHEMAS:
+        return "A"
 
     return None
 
@@ -386,12 +447,15 @@ def build_deliveries_lf(
         if remote_created_dt is not None:
             actual = remote_created_dt.astimezone(timezone.utc).date()
             source = "remote_created"
+        elif fname_date is not None:
+            # The CMS D{YYMMDD} stamp baked into the filename is the real
+            # delivery date — far more accurate than our local download
+            # timestamp, which only tells us when *we* pulled the file.
+            actual = fname_date
+            source = "filename"
         elif downloaded_dt is not None:
             actual = downloaded_dt.date()
             source = "downloaded"
-        elif fname_date is not None:
-            actual = fname_date
-            source = "filename"
         else:
             actual = None
             source = "unknown"

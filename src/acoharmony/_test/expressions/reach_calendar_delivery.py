@@ -124,7 +124,12 @@ class TestClassifyCalendarDescription:
         schema, period, _ = classify_calendar_description(
             "Shadow Bundles Monthly Files - August"
         )
-        assert schema == "sbmdm"
+        # The "Shadow Bundles Monthly" description describes the delivered
+        # zip archive (``.SBMON.*.zip``), which the schema registry pattern
+        # matches to ``shadow_bundle_reach`` — not the individual SBM*
+        # members (sbmdm, sbmhh, …). Use the archive schema so the calendar
+        # key matches the delivery key.
+        assert schema == "shadow_bundle_reach"
         assert period == "M08"
 
     @pytest.mark.unit
@@ -132,7 +137,7 @@ class TestClassifyCalendarDescription:
         schema, _, _ = classify_calendar_description(
             "August Monthly Files (CY2024-CY2025)"
         )
-        assert schema == "sbmdm"
+        assert schema == "shadow_bundle_reach"
 
     @pytest.mark.unit
     def test_sbqr_parenthesized_quarterly(self):
@@ -342,6 +347,123 @@ class TestBuildCalendarReportsLf:
         assert bnmr_no_period["period"].item() == "Q3"
 
 
+@pytest.fixture
+def cadence_calendar_parquet(tmp_path: Path) -> Path:
+    """Calendar parquet covering the tricky cadence cases: PAER description
+    inconsistency, shadow-bundle month vs schedule-drop month, annual
+    schemas."""
+    rows = [
+        # PAER with PY token but no month token — should NOT land as "A";
+        # should take start_date month (November = M11).
+        {
+            "type": "Report",
+            "description": "Release of PY2025 Preliminary Alignment Estimate Report, Round 1 of 2",
+            "category": "Alignment",
+            "start_date": date(2024, 11, 18),
+            "file_date": "2026-04-01",
+            "py": 2025,
+        },
+        # PAER with explicit month name.
+        {
+            "type": "Report",
+            "description": "Provisional Alignment Estimate Report (PAER) #2 - December",
+            "category": "Alignment",
+            "start_date": date(2023, 12, 11),
+            "file_date": "2026-04-01",
+            "py": 2024,
+        },
+        # Shadow bundle: description says February, start_date is end of
+        # March (CMS schedules delivery at end of next month). Period must
+        # track the description's "February", not March.
+        {
+            "type": "Report",
+            "description": "February Monthly Files (CY2024-CY2025)",
+            "category": "Shadow Bundles",
+            "start_date": date(2025, 3, 31),
+            "file_date": "2026-04-01",
+            "py": 2025,
+        },
+        # Annual schema with PY token — must land "A".
+        {
+            "type": "Report",
+            "description": "PY2024 Financial Guarantee Amounts to Be Shared with ACOs Via 4i",
+            "category": "Compliance",
+            "start_date": date(2024, 2, 21),
+            "file_date": "2026-04-01",
+            "py": 2024,
+        },
+        # Monthly schema (tparc) described as "July" — period = M07.
+        {
+            "type": "Report",
+            "description": "July Provider Specific Payment Reduction Report",
+            "category": "Finance",
+            "start_date": date(2024, 7, 31),
+            "file_date": "2026-04-01",
+            "py": 2024,
+        },
+    ]
+    df = pl.DataFrame(rows)
+    path = tmp_path / "reach_calendar_cadence.parquet"
+    df.write_parquet(path)
+    return path
+
+
+class TestBuildCalendarReportsLfCadence:
+    """Regression coverage for schema-cadence classification corner cases."""
+
+    @pytest.mark.unit
+    def test_paer_with_py_token_still_uses_start_date_month(
+        self, cadence_calendar_parquet
+    ):
+        df = build_calendar_reports_lf(cadence_calendar_parquet).collect()
+        paer_round1 = df.filter(
+            pl.col("description").str.contains("Round 1 of 2")
+        )
+        # Would be "A" under generic classifier; PAER override forces M11.
+        assert paer_round1["period"].item() == "M11"
+
+    @pytest.mark.unit
+    def test_paer_with_explicit_month_still_uses_start_date_month(
+        self, cadence_calendar_parquet
+    ):
+        df = build_calendar_reports_lf(cadence_calendar_parquet).collect()
+        paer_dec = df.filter(pl.col("description").str.contains(r"#2"))
+        # start_date is 2023-12-11 → M12. Also matches "December" token —
+        # confirming PAER override and description-derived period agree
+        # when both are present.
+        assert paer_dec["period"].item() == "M12"
+
+    @pytest.mark.unit
+    def test_shadow_bundle_description_month_wins_over_start_date(
+        self, cadence_calendar_parquet
+    ):
+        """CMS schedules shadow-bundle drops in the month *after* the
+        coverage month. The description's month token is the right bucket —
+        the start_date month is when the drop is scheduled, not what
+        period the data covers."""
+        df = build_calendar_reports_lf(cadence_calendar_parquet).collect()
+        feb_files = df.filter(pl.col("description").str.contains("February"))
+        # Description says February; start_date is March 31. Period must
+        # be M02, not M03.
+        assert feb_files["period"].item() == "M02"
+
+    @pytest.mark.unit
+    def test_annual_schema_always_A_even_with_month_like_text(
+        self, cadence_calendar_parquet
+    ):
+        df = build_calendar_reports_lf(cadence_calendar_parquet).collect()
+        fgl = df.filter(pl.col("schema_name") == "aco_financial_guarantee_amount")
+        assert fgl["period"].item() == "A"
+
+    @pytest.mark.unit
+    def test_monthly_schema_with_explicit_month_token(
+        self, cadence_calendar_parquet
+    ):
+        df = build_calendar_reports_lf(cadence_calendar_parquet).collect()
+        tparc_jul = df.filter(pl.col("schema_name") == "tparc")
+        assert tparc_jul["period"].item() == "M07"
+
+
 # ----------------------------------------------------------------------------
 # _period_from_date / _filename_date / _filename_period / _filename_py
 # ----------------------------------------------------------------------------
@@ -463,6 +585,73 @@ class TestInternalHelpers:
         assert _filename_period("some_random_file.xlsx", "unknown_schema") is None
 
     @pytest.mark.unit
+    def test_filename_period_annual_schema_returns_A(self):
+        """Annual PY-wide schemas land with period='A' to match the calendar
+        classifier's annual bucket — no date extraction needed."""
+        assert (
+            _filename_period(
+                "D0259.FGL.PY2024.D240221.T1200000.pdf",
+                "aco_financial_guarantee_amount",
+            )
+            == "A"
+        )
+        assert (
+            _filename_period(
+                "REACH.D0259.PLARU.PY2024.D231210.T1200000.xlsx", "plaru"
+            )
+            == "A"
+        )
+        assert (
+            _filename_period(
+                "D0259.BLAQR.PY2024.D241231.T0811250.zip",
+                "annual_beneficiary_level_quality_report",
+            )
+            == "A"
+        )
+
+    @pytest.mark.unit
+    def test_filename_period_quarterly_schema_without_Q_token(self):
+        """Schemas like palmr/pbvar ship quarterly without an explicit
+        ``.Q#.`` token — the cadence fallback derives Q from the D-stamp."""
+        # palmr delivered in April → Q2.
+        assert (
+            _filename_period("P.D0259.PALMR.D240424.T1135150.csv", "palmr") == "Q2"
+        )
+        # pbvar delivered in October → Q4.
+        assert (
+            _filename_period("P.D0259.PBVAR.D231018.T0112000.xlsx", "pbvar") == "Q4"
+        )
+
+    @pytest.mark.unit
+    def test_filename_period_monthly_cadence_covers_cclf_mgmt_and_paer(self):
+        """cclf_management_report and preliminary_alignment_estimate are
+        monthly schemas — period should be M## from the D-stamp month."""
+        assert (
+            _filename_period(
+                "P.D0259.MCMXP.RP.D251006.T0200015.xlsx", "cclf_management_report"
+            )
+            == "M10"
+        )
+        assert (
+            _filename_period(
+                "REACH.D0259.PAER.PY2024.D231107.T1113370.xlsx",
+                "preliminary_alignment_estimate",
+            )
+            == "M11"
+        )
+
+    @pytest.mark.unit
+    def test_filename_period_annual_schema_without_dstamp_still_returns_A(self):
+        """Annual bucket doesn't require a parseable delivery date — the
+        bucket is the schema-level fallback, and the date comes from the
+        hierarchy (remote / filename / download). Confirms the A fallback
+        fires purely on the schema name."""
+        assert (
+            _filename_period("no-date-here.pdf", "aco_financial_guarantee_amount")
+            == "A"
+        )
+
+    @pytest.mark.unit
     def test_filename_py_pyred_two_digit(self):
         assert _filename_py("P.D0259.PYRED25.RP.D250221.T1.xlsx") == 2025
 
@@ -577,34 +766,40 @@ def state_patterns():
 
 @pytest.fixture
 def state_file(tmp_path: Path) -> Path:
-    """4icli-shaped state JSON exercising every actual_delivery_source branch."""
+    """4icli-shaped state JSON exercising every actual_delivery_source branch.
+
+    Hierarchy is: remote_metadata.created → filename D-stamp → download_timestamp → unknown.
+    """
     state = {
-        # Has remote_metadata.created → primary source.
+        # Has remote_metadata.created → primary source. Filename has a later
+        # D-stamp to prove the remote timestamp really does win over it.
         "remote-primary.xlsx": {
-            "filename": "REACH.D0259.BNMR.PY2025.D250513.T1428470.xlsx",
+            "filename": "REACH.D0259.BNMR.PY2025.D250601.T1428470.xlsx",
             "file_type_code": 215,
             "category": "Reports",
             "remote_metadata": {"created": "2025-05-13T10:15:00.000Z"},
-            "download_timestamp": "2025-06-01T00:00:00",
+            "download_timestamp": "2025-06-15T00:00:00",
         },
-        # No remote_metadata → download_timestamp takes over.
-        "download-secondary.xlsx": {
-            "filename": "P.D0259.ALGC24.RP.D240315.T1100000.xlsx",
-            "file_type_code": 159,
-            "category": "Beneficiary List",
-            "remote_metadata": None,
-            "download_timestamp": "2024-03-20T00:00:00",
-        },
-        # No remote_metadata and no download_timestamp → filename date only.
-        "filename-tertiary.txt": {
+        # No remote_metadata, but filename has a D-stamp → filename secondary.
+        "filename-secondary.txt": {
             "filename": "P.D0259.TPARC.RP.D240601.T2209017.txt",
             "file_type_code": 157,
             "category": "Reports",
             "remote_metadata": {},
+            "download_timestamp": "2025-10-07T00:00:00",  # much later than filename
+        },
+        # No remote_metadata and filename has no parseable date → download
+        # timestamp is the only signal we have about when the file arrived.
+        "download-tertiary.xlsx": {
+            "filename": "mystery-no-d-stamp.xlsx",
+            "file_type_code": 998,
+            "category": "Reports",
+            "remote_metadata": None,
+            "download_timestamp": "2024-03-20T00:00:00",
         },
         # Nothing resolvable anywhere → actual source = 'unknown'.
         "all-null.xlsx": {
-            "filename": "mystery-no-dates.xlsx",
+            "filename": "nothing-at-all.xlsx",
             "file_type_code": 998,
             "category": "Reports",
             "remote_metadata": None,
@@ -628,27 +823,36 @@ class TestBuildDeliveriesLf:
     def test_remote_created_wins_when_present(self, state_file, state_patterns):
         df = build_deliveries_lf(state_file, patterns=state_patterns).collect()
         row = df.filter(pl.col("schema_name") == "reach_bnmr").row(0, named=True)
+        # Remote says May 13; filename says June 1 — remote must win.
         assert row["actual_delivery_source"] == "remote_created"
         assert row["actual_delivery_date"] == date(2025, 5, 13)
 
     @pytest.mark.unit
-    def test_download_timestamp_is_secondary(self, state_file, state_patterns):
-        df = build_deliveries_lf(state_file, patterns=state_patterns).collect()
-        row = df.filter(pl.col("schema_name") == "bar").row(0, named=True)
-        assert row["actual_delivery_source"] == "downloaded"
-        assert row["actual_delivery_date"] == date(2024, 3, 20)
-
-    @pytest.mark.unit
-    def test_filename_date_is_tertiary(self, state_file, state_patterns):
+    def test_filename_date_is_secondary(self, state_file, state_patterns):
         df = build_deliveries_lf(state_file, patterns=state_patterns).collect()
         row = df.filter(pl.col("schema_name") == "tparc").row(0, named=True)
+        # Filename says June 1; download_timestamp is Oct 7 — filename wins,
+        # because the CMS D-stamp is closer to "when CMS made it available"
+        # than the date we pulled it.
         assert row["actual_delivery_source"] == "filename"
         assert row["actual_delivery_date"] == date(2024, 6, 1)
 
     @pytest.mark.unit
+    def test_download_timestamp_is_tertiary(self, state_file, state_patterns):
+        df = build_deliveries_lf(state_file, patterns=state_patterns).collect()
+        row = df.filter(pl.col("filename") == "mystery-no-d-stamp.xlsx").row(
+            0, named=True
+        )
+        # No remote, filename has no D-stamp — fall back to download timestamp.
+        assert row["actual_delivery_source"] == "downloaded"
+        assert row["actual_delivery_date"] == date(2024, 3, 20)
+
+    @pytest.mark.unit
     def test_unknown_source_when_everything_missing(self, state_file, state_patterns):
         df = build_deliveries_lf(state_file, patterns=state_patterns).collect()
-        row = df.filter(pl.col("schema_name") == "mystery").row(0, named=True)
+        row = df.filter(pl.col("filename") == "nothing-at-all.xlsx").row(
+            0, named=True
+        )
         assert row["actual_delivery_source"] == "unknown"
         assert row["actual_delivery_date"] is None
 
@@ -669,7 +873,7 @@ class TestBuildDeliveriesLf:
         )
         df = build_deliveries_lf(state_file).collect()
         bnmr_row = df.filter(
-            pl.col("filename") == "REACH.D0259.BNMR.PY2025.D250513.T1428470.xlsx"
+            pl.col("filename") == "REACH.D0259.BNMR.PY2025.D250601.T1428470.xlsx"
         ).row(0, named=True)
         assert bnmr_row["schema_name"] == "reach_bnmr_from_registry"
 
