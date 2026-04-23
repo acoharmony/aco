@@ -91,10 +91,13 @@ def build_unplanned_admission_filter(
     """
     claim_type_str = pl.col(claim_type_col).cast(pl.String, strict=False)
     admsn_type_str = pl.col(admission_type_col).cast(pl.String, strict=False)
-    return (
-        (claim_type_str == INPATIENT_CLAIM_TYPE_CODE)
-        & (admsn_type_str != ELECTIVE_ADMISSION_TYPE_CODE)
-    )
+    # Null admission type counts as unplanned — FOG footnote 5 says
+    # ``is not 3``, and a null value is not the string "3". In Polars
+    # ``null != "3"`` evaluates to null (three-valued logic), so we
+    # make the filter truthy-on-null explicitly via fill_null with a
+    # sentinel that is not "3".
+    not_elective = admsn_type_str.fill_null("__null__") != ELECTIVE_ADMISSION_TYPE_CODE
+    return (claim_type_str == INPATIENT_CLAIM_TYPE_CODE) & not_elective
 
 
 def build_unplanned_admission_count_expr(
