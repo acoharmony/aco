@@ -132,8 +132,11 @@ def build_criterion_a_qualifying_claims(
     ).select(
         pl.col(mbi_col),
         admission_date.alias("admission_date"),
-        pl.col(principal_dx_col).alias("_principal_dx"),
-        pl.col(admitting_dx_col).alias("_admitting_dx"),
+        # Cast dx columns to String explicitly so a frame where every
+        # row has a null principal or admitting dx (pl.Null inferred
+        # dtype) still joins against the String-typed codes frame.
+        pl.col(principal_dx_col).cast(pl.String, strict=False).alias("_principal_dx"),
+        pl.col(admitting_dx_col).cast(pl.String, strict=False).alias("_admitting_dx"),
     )
 
     # A claim qualifies if EITHER the principal OR the admitting
