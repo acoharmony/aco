@@ -317,6 +317,57 @@ CMMI_CONCURRENT_2023: dict[str, dict[str, float]] = {
 
 
 # =============================================================================
+# PY2025 calibration
+# =============================================================================
+#
+# Source: ``acoreach-kcccy2025riskadjustmentpaper_10_3_24.pdf``, Appendix B
+# Table B-1 (PDF pages 41-43, doc pages 40-42 in the PY2025 Risk Adjustment
+# Rev. 1.1 published 2024-10-03).
+#
+# A segment-by-segment numeric diff between PY2023 and PY2025 Table B-1
+# (performed at transcription time via the same parser) showed **zero
+# value changes across all 128 coefficients**. The only differences are
+# cosmetic: en-dash vs hyphen in the post-kidney-transplant row labels
+# ("Age <65 and 4–9 months post-graft" vs "Age <65 and 4-9 months post-graft").
+#
+# We alias the PY2025 coefficient map to the PY2023 dicts to avoid
+# duplicating identical values and to make it obvious in a future diff
+# when CMMI actually revises the calibration.
+# =============================================================================
+
+CMMI_CONCURRENT_2025_AGE_SEX = CMMI_CONCURRENT_2023_AGE_SEX
+CMMI_CONCURRENT_2025_HCC = CMMI_CONCURRENT_2023_HCC
+CMMI_CONCURRENT_2025_POST_KIDNEY_TRANSPLANT = CMMI_CONCURRENT_2023_POST_KIDNEY_TRANSPLANT
+CMMI_CONCURRENT_2025_PAYMENT_HCC_COUNT = CMMI_CONCURRENT_2023_PAYMENT_HCC_COUNT
+CMMI_CONCURRENT_2025_HCC_AGE_LT_65_INTERACTION = CMMI_CONCURRENT_2023_HCC_AGE_LT_65_INTERACTION
+
+CMMI_CONCURRENT_2025: dict[str, dict[str, float]] = CMMI_CONCURRENT_2023
+
+
+# =============================================================================
+# PY → calibration map. Used by callers that need to pick a calibration
+# year when scoring. Currently every PY we care about uses the 2023
+# calibration; add new entries when CMMI publishes a revision.
+# =============================================================================
+
+CALIBRATION_BY_PY: dict[int, dict[str, dict[str, float]]] = {
+    2023: CMMI_CONCURRENT_2023,
+    2024: CMMI_CONCURRENT_2023,  # PY2024 Risk Adjustment Rev. confirmed same values
+    2025: CMMI_CONCURRENT_2025,  # alias of 2023 — verified identical Oct 2024
+    2026: CMMI_CONCURRENT_2023,  # PY2026 not yet published; assume stable
+}
+
+
+def calibration_for_py(performance_year: int) -> dict[str, dict[str, float]]:
+    """
+    Return the CMMI-HCC Concurrent coefficient set applicable for a
+    given performance year. Falls back to the most recent known
+    calibration (2023) for PYs outside the map.
+    """
+    return CALIBRATION_BY_PY.get(performance_year, CMMI_CONCURRENT_2023)
+
+
+# =============================================================================
 # HCC Hierarchy Rules — from Appendix A, Table A-1 of the same document.
 # "If the disease group is listed in this column, then drop the HCC(s) listed
 #  in this column" — the dominant HCC eliminates the subordinate ones from
