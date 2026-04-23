@@ -64,6 +64,10 @@ from acoharmony._expressions._hcc_cms_prospective import (
     score_beneficiary_under_model,
 )
 from acoharmony._expressions._hcc_cohort import classify_cohort
+from acoharmony._expressions._hcc_dx_to_hcc import (
+    BeneficiaryDxInput,
+    map_dx_to_cmmi_hccs,
+)
 
 
 def _compute_age(birth_date: date | None, as_of: date) -> int:
@@ -96,6 +100,11 @@ def execute(executor: Any) -> pl.LazyFrame:
     score_as_of = date(performance_year, 12, 31)
 
     # 1. Load eligibility and determine cohort per beneficiary.
+    # Note: ``medicare_status_code`` is NOT the CREC — it uses a
+    # different coding system (10/11/21/31/...) from the OREC/CREC
+    # 0/1/2/3 scheme. hccinfhir treats a missing CREC as "same as OREC"
+    # which is the correct default when we don't have an independent
+    # current-entitlement signal.
     eligibility = pl.scan_parquet(gold_path / "eligibility.parquet").select(
         pl.col("member_id").alias("mbi"),
         pl.col("birth_date").cast(pl.Date, strict=False),
@@ -103,22 +112,21 @@ def execute(executor: Any) -> pl.LazyFrame:
         pl.col("original_reason_entitlement_code")
         .cast(pl.String, strict=False)
         .alias("orec"),
-        pl.col("medicare_status_code")
-        .cast(pl.String, strict=False)
-        .alias("crec"),
         pl.col("dual_status_code").cast(pl.String, strict=False).alias("dual"),
     ).unique(subset=["mbi"])
 
     elig_rows = eligibility.collect()
 
-    # 2. Load diagnosis list per beneficiary (claim-level → MBI aggregate).
-    diagnosis_path = silver_path / "diagnosis.parquet"
-    if diagnosis_path.exists():
+    # 2. Load diagnosis list per beneficiary — long-form dedupe carries
+    # one row per (claim, diagnosis) with mbi + diagnosis code columns.
+    # See silver/int_diagnosis_deduped.
+    dx_path = silver_path / "int_diagnosis_deduped.parquet"
+    if dx_path.exists():
         dx_per_mbi = (
-            pl.scan_parquet(diagnosis_path)
+            pl.scan_parquet(dx_path)
             .select(
-                pl.col("bene_mbi_id").alias("mbi"),
-                pl.col("dgns_cd").cast(pl.String).alias("dgns_cd"),
+                pl.col("current_bene_mbi_id").alias("mbi"),
+                pl.col("clm_dgns_cd").cast(pl.String).alias("dgns_cd"),
             )
             .drop_nulls()
             .group_by("mbi")
@@ -138,12 +146,17 @@ def execute(executor: Any) -> pl.LazyFrame:
     for row in elig_rows.to_dicts():
         mbi = row["mbi"]
         birth_date = row["birth_date"]
-        orec = row["orec"] or "0"
-        crec = row["crec"] or "0"
+        # Validate OREC against hccinfhir's accepted values; default to
+        # "0" (Old Age / OASI) for anything outside {0,1,2,3}.
+        raw_orec = (row.get("orec") or "").strip()
+        orec = raw_orec if raw_orec in {"0", "1", "2", "3"} else "0"
+        # No independent CREC signal in our feed — use OREC as CREC
+        # (hccinfhir's expected behaviour when CREC is unknown).
+        crec = orec
         cohort = classify_cohort(orec=orec, crec=crec)
         age = _compute_age(birth_date, score_as_of)
-        sex = (row["sex"] or "F")[:1].upper()
-        dual = row["dual"] or "NA"
+        sex = (row.get("sex") or "F")[:1].upper()
+        dual = row.get("dual") or "NA"
         dx_codes = tuple(dx_by_mbi.get(mbi, []))
 
         # CMS-HCC / ESRD — delegate to hccinfhir via the driver.
@@ -172,17 +185,30 @@ def execute(executor: Any) -> pl.LazyFrame:
         # CMMI-HCC Concurrent applies only to A&D beneficiaries per PA
         # Appendix B (line 4314): "no ESRD segment".
         if cohort == "AD":
-            # The CMMI driver takes pre-aggregated HCCs, not raw dx codes.
-            # Without a dx-to-HCC mapping step we cannot populate this
-            # accurately; emit a null-score placeholder so the output
-            # schema is consistent and downstream reconciliation can
-            # distinguish "not evaluable" from "low score".
+            dx_bene = BeneficiaryDxInput(
+                mbi=mbi,
+                age=age,
+                sex=sex,
+                diagnosis_codes=dx_codes,
+            )
+            cmmi_hccs = tuple(map_dx_to_cmmi_hccs(dx_bene))
+            cmmi_bene = CmmiConcurrentInput(
+                mbi=mbi,
+                age=age,
+                sex=sex,
+                hccs=cmmi_hccs,
+                # post_kidney_transplant_category resolution needs
+                # transplant-claim metadata we don't have here;
+                # leave None so the coefficient is zero (correct for
+                # non-transplant beneficiaries).
+            )
+            cmmi_score = score_cmmi_concurrent(cmmi_bene)
             rows.append(
                 {
                     "mbi": mbi,
                     "cohort": cohort,
                     "model_version": "cmmi_concurrent",
-                    "total_risk_score": None,
+                    "total_risk_score": cmmi_score.total_risk_score,
                     "score_as_of_date": score_as_of,
                     "performance_year": performance_year,
                 }
