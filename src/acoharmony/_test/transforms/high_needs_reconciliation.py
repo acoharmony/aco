@@ -84,10 +84,12 @@ def seeded(tmp_path: Path):
     ])
 
     # BAR: X agrees on mobility_impairment; Y disagrees on high_risk.
+    # source_filename must carry the ALG{C,R}{YY} suffix so the PY-scope
+    # filter in the transform picks these rows up. PY2026 → "ALGC26".
     _write_bar(silver, [
         {
             "bene_mbi": "X",
-            "bene_eligibility_year_1": 2026,
+            "source_filename": "P.D0259.ALGC26.RP.D261101.T1.xlsx",
             "file_date": "2026-11-01",
             "mobility_impairment_flag": True,
             "high_risk_flag": False,
@@ -97,7 +99,7 @@ def seeded(tmp_path: Path):
         },
         {
             "bene_mbi": "Y",
-            "bene_eligibility_year_1": 2026,
+            "source_filename": "P.D0259.ALGC26.RP.D261101.T1.xlsx",
             "file_date": "2026-11-01",
             "mobility_impairment_flag": False,
             "high_risk_flag": False,     # disagrees with our True
@@ -177,7 +179,7 @@ class TestExecute:
         pl.DataFrame([
             {
                 "bene_mbi": "Z",
-                "bene_eligibility_year_1": 2026,
+                "source_filename": "P.D0259.ALGC26.RP.D261101.T1.xlsx",
                 "file_date": "2026-11-01",
                 "mobility_impairment_flag": "Y",     # string, not bool
                 "high_risk_flag": "N",

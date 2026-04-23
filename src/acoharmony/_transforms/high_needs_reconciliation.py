@@ -89,9 +89,23 @@ def execute(executor: Any) -> pl.LazyFrame:
         )
     )
 
-    # BAR: take the latest file_date per MBI.
+    # BAR: the PY is encoded in the filename, NOT derivable from
+    # file_date. CMS names BAR files ``P.D????.ALGC{YY}.RP.D{YYMMDD}.T*``
+    # for the "current" snapshot and ``P.D????.ALGR{YY}.RP.D{YYMMDD}.T*``
+    # for the performance-year runout. The ``{YY}`` right after ALGC or
+    # ALGR is the PY — so ALGR25 is the PY2025 runout (typically delivered
+    # in early 2026) and ALGC26 is the PY2026 current report.
+    #
+    # We filter BAR rows whose ALGC/ALGR suffix matches the requested
+    # ``performance_year`` and include BOTH the current snapshot and the
+    # runout; per alignment-report semantics the runout is the final
+    # authoritative signal for a PY once it's available, so the latest
+    # file_date wins downstream regardless of which naming convention
+    # was used.
+    py_suffix = str(performance_year)[-2:]  # e.g. 2026 -> '26'
+    filename_re = rf"\.ALG[CR]{py_suffix}\.RP\."
     bar = pl.scan_parquet(silver_path / "bar.parquet").filter(
-        pl.col("bene_eligibility_year_1") == performance_year
+        pl.col("source_filename").str.contains(filename_re)
     )
     latest_bar = (
         bar.sort(["bene_mbi", "file_date"])
