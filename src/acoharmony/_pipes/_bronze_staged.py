@@ -31,7 +31,7 @@ def apply_bronze_staged_pipeline(
     Pipeline Order:
         Stage 1-5:   REACH Model Files (REACH ACO variant)
         Stage 6-32:  CMS Reports (quality, financial, benchmarks, alignment, specialized)
-        Stage 33-34: Reference Data (census, zip_to_county)
+        Stage 33-34: Reference Data (zip_to_county)
 
     Args:
         executor: Executor instance (TransformRunner) with storage and catalog access
@@ -47,6 +47,7 @@ def apply_bronze_staged_pipeline(
         BronzeStage("reach_bnmr", "reach", 1, "REACH Beneficiary MBI Record", optional=True),
         BronzeStage("hdai_reach", "reach", 2, "REACH HDAI Data", optional=True),
         BronzeStage("shadow_bundle_reach", "reach", 3, "REACH Shadow Bundle", optional=True),
+        BronzeStage("reach_calendar", "reach", 4, "ACO REACH Calendar", optional=True),
 
         # CMS Quality Reports (Stage 6-10)
         BronzeStage(
@@ -224,8 +225,7 @@ def apply_bronze_staged_pipeline(
         BronzeStage("sbmsn", "reports_sbm", 40, "SBM SNF (Skilled Nursing Facility)", optional=True),
 
         # Reference Data (Stage 41-42)
-        BronzeStage("census", "reference", 41, "Census Data", optional=True),
-        BronzeStage("zip_to_county", "reference", 42, "ZIP to County Crosswalk", optional=True),
+        BronzeStage("zip_to_county", "reference", 41, "ZIP to County Crosswalk", optional=True),
     ]
 
     logger.info(f"Starting Bronze Staged Pipeline (Non-CCLF): {len(stages)} parsing stages")

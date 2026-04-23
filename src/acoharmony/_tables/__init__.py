@@ -42,7 +42,6 @@ from .cclf9 import Cclf9
 from .cclf_management_report import CclfManagementReport
 from .cclfa import Cclfa
 from .cclfb import Cclfb
-from .census import Census
 from .cms_geo_zips import CmsGeoZips
 from .cms_inquiry import CmsInquiry
 from .consolidated_alignment import ConsolidatedAlignment
@@ -88,10 +87,9 @@ from .quarterly_beneficiary_level_quality_report import QuarterlyBeneficiaryLeve
 from .quarterly_quality_report import QuarterlyQualityReport
 from .rap import Rap
 from .reach_bnmr import ReachBnmr
+from .reach_calendar import ReachCalendar
 from .recon import Recon
-from .rel_patient_program import RelPatientProgram
 from .risk_adjustment_data import RiskAdjustmentData
-from .salesforce_account import SalesforceAccount
 from .sbmdm import Sbmdm
 from .sbmepi import Sbmepi
 from .sbmhh import Sbmhh
@@ -107,7 +105,6 @@ from .sva import Sva
 from .sva_submissions import SvaSubmissions
 from .tparc import Tparc
 from .voluntary_alignment import VoluntaryAlignment
-from .vwyearmo_engagement import VwyearmoEngagement
 from .zip_to_county import ZipToCounty
 
 __all__ = [
@@ -139,7 +136,6 @@ __all__ = [
     "CclfManagementReport",
     "Cclfa",
     "Cclfb",
-    "Census",
     "ConsolidatedAlignment",
     "Eligibility",
     "EmailUnsubscribes",
@@ -173,10 +169,9 @@ __all__ = [
     "QuarterlyQualityReport",
     "Rap",
     "ReachBnmr",
+    "ReachCalendar",
     "Recon",
-    "RelPatientProgram",
     "RiskAdjustmentData",
-    "SalesforceAccount",
     "Sbnabp",
     "Sbqr",
     "ShadowBundleReach",
@@ -184,7 +179,6 @@ __all__ = [
     "SvaSubmissions",
     "Tparc",
     "VoluntaryAlignment",
-    "VwyearmoEngagement",
     "ZipToCounty",
     "Bnex",
     "CmsGeoZips",

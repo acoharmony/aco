@@ -26,7 +26,7 @@ from acoharmony._registry import (
     description="Beneficiary Data Sharing Opt-Out Files (BNEX) - XML file containing beneficiaries who have opted out of data sharing under MSSP",
     file_patterns={"mssp": ["P.A*.BNEX.Y*.D*.T*.xml"]},
 )
-@with_parser(type="xml", encoding="utf-8", has_header=False, embedded_transforms=False)
+@with_parser(type="xml", encoding="utf-8", has_header=False, embedded_transforms=False, row_tag="Beneficiary")
 @with_storage(
     tier="bronze",
     file_patterns={"mssp": ["P.A*.BNEX.Y*.D*.T*.xml"]},

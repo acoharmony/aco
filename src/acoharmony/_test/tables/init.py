@@ -47,7 +47,6 @@ from acoharmony._tables import (
     Cclfa,
     Cclfb,
     CclfManagementReport,
-    Census,
     ConsolidatedAlignment,
     Eligibility,
     Emails,
@@ -80,10 +79,9 @@ from acoharmony._tables import (
     QuarterlyQualityReport,
     Rap,
     ReachBnmr,
+    ReachCalendar,
     Recon,
-    RelPatientProgram,
     RiskAdjustmentData,
-    SalesforceAccount,
     Sbnabp,
     Sbqr,
     ShadowBundleReach,
@@ -91,17 +89,16 @@ from acoharmony._tables import (
     SvaSubmissions,
     Tparc,
     VoluntaryAlignment,
-    VwyearmoEngagement,
     ZipToCounty,
 )
 
-ALL_TABLE_CLASSES = [AcoAlignment, AcoFinancialGuaranteeAmount, Alr, AlternativePaymentArrangementReport, AnnualBeneficiaryLevelQualityReport, AnnualQualityReport, Bar, BeneficiaryDataSharingExclusionFile, BeneficiaryDemographics, BeneficiaryHedrTransparencyFiles, BeneficiaryXref, Cclf0, Cclf1, Cclf2, Cclf3, Cclf4, Cclf5, Cclf6, Cclf7, Cclf8, Cclf9, CclfManagementReport, Cclfa, Cclfb, Census, ConsolidatedAlignment, Eligibility, EmailUnsubscribes, Emails, Engagement, Enrollment, EstimatedCisepChangeThresholdReport, FfsFirstDates, HcmpiMaster, HdaiReach, IdentityTimeline, LastFfsService, Mailed, MbiCrosswalk, Mexpr, NeedsSignature, OfficeZip, Palmr, ParticipantList, Pbvar, PecosTerminationsMonthlyReport, Plaru, PreliminaryAlignmentEstimate, PreliminaryAlternativePaymentArrangementReport156, PreliminaryBenchmarkReportForDc, PreliminaryBenchmarkReportUnredacted, ProspectivePlusOpportunityReport, Pyred, QuarterlyBeneficiaryLevelQualityReport, QuarterlyQualityReport, Rap, ReachBnmr, Recon, RelPatientProgram, RiskAdjustmentData, SalesforceAccount, Sbnabp, Sbqr, ShadowBundleReach, Sva, SvaSubmissions, Tparc, VoluntaryAlignment, VwyearmoEngagement, ZipToCounty]
+ALL_TABLE_CLASSES = [AcoAlignment, AcoFinancialGuaranteeAmount, Alr, AlternativePaymentArrangementReport, AnnualBeneficiaryLevelQualityReport, AnnualQualityReport, Bar, BeneficiaryDataSharingExclusionFile, BeneficiaryDemographics, BeneficiaryHedrTransparencyFiles, BeneficiaryXref, Cclf0, Cclf1, Cclf2, Cclf3, Cclf4, Cclf5, Cclf6, Cclf7, Cclf8, Cclf9, CclfManagementReport, Cclfa, Cclfb, ConsolidatedAlignment, Eligibility, EmailUnsubscribes, Emails, Engagement, Enrollment, EstimatedCisepChangeThresholdReport, FfsFirstDates, HcmpiMaster, HdaiReach, IdentityTimeline, LastFfsService, Mailed, MbiCrosswalk, Mexpr, NeedsSignature, OfficeZip, Palmr, ParticipantList, Pbvar, PecosTerminationsMonthlyReport, Plaru, PreliminaryAlignmentEstimate, PreliminaryAlternativePaymentArrangementReport156, PreliminaryBenchmarkReportForDc, PreliminaryBenchmarkReportUnredacted, ProspectivePlusOpportunityReport, Pyred, QuarterlyBeneficiaryLevelQualityReport, QuarterlyQualityReport, Rap, ReachBnmr, ReachCalendar, Recon, RiskAdjustmentData, Sbnabp, Sbqr, ShadowBundleReach, Sva, SvaSubmissions, Tparc, VoluntaryAlignment, ZipToCounty]
 
 # Models with misaligned Pydantic metadata (pattern constraints leaked from
 # adjacent fields) that make direct instantiation impossible -- the pattern and
 # the field validator conflict.  Exclude from roundtrip / instantiation tests.
 _SCHEMA_METADATA_BUGS = {
-    AcoAlignment, Cclf7, Cclfa, Census, LastFfsService,
+    AcoAlignment, Cclf7, Cclfa, LastFfsService,
     Palmr, Pbvar, Sva, SvaSubmissions, VoluntaryAlignment,
 }
 
@@ -914,64 +911,6 @@ class TestEnrollment:
         with pytest.raises(ValidationError):
             Enrollment(member_id='M001', person_id='P001', enrollment_start_date=date(2024, 1, 1), enrollment_end_date=date(2024, 12, 31), zip_code='NOPE')
 
-class TestCensus:
-    """Test Census - large schema with NPI and TIN validators.
-
-    Note: Census has conflicting constraints (monthyear is date type with
-    string pattern '^\\d{9}$'), making it impossible to instantiate with valid
-    data. These tests verify schema metadata instead.
-    """
-
-    @pytest.mark.unit
-    def test_schema_name(self):
-        assert Census.schema_name() == 'census'
-
-    @pytest.mark.unit
-    def test_schema_metadata(self):
-        meta = Census.schema_metadata()
-        assert meta['name'] == 'census'
-
-    @pytest.mark.unit
-    def test_is_dataclass(self):
-        assert dataclasses.is_dataclass(Census)
-
-class TestSalesforceAccount:
-    """Test SalesforceAccount - TIN, NPI, ZIP validators."""
-
-    SF_ACCOUNT_ID = VALID_NPI  # account_id requires ^\d{10}$ pattern
-
-    @pytest.mark.unit
-    def test_valid_instance(self):
-        obj = SalesforceAccount(account_id=self.SF_ACCOUNT_ID)
-        assert obj.account_id == self.SF_ACCOUNT_ID
-
-    @pytest.mark.unit
-    def test_tin_npi_zip_validators(self):
-        obj = SalesforceAccount(account_id=self.SF_ACCOUNT_ID, tin=VALID_TIN, npi=VALID_NPI, zip_code=VALID_ZIP5)
-        assert obj.tin == VALID_TIN
-        assert obj.npi == VALID_NPI
-        assert obj.zip_code == VALID_ZIP5
-
-    @pytest.mark.unit
-    def test_invalid_tin(self):
-        with pytest.raises(ValidationError):
-            SalesforceAccount(account_id=self.SF_ACCOUNT_ID, tin='12345')
-
-    @pytest.mark.unit
-    def test_invalid_npi(self):
-        with pytest.raises(ValidationError):
-            SalesforceAccount(account_id=self.SF_ACCOUNT_ID, npi='12345')
-
-    @pytest.mark.unit
-    def test_bool_field(self):
-        obj = SalesforceAccount(account_id=self.SF_ACCOUNT_ID, active_flag=True)
-        assert obj.active_flag is True
-
-    @pytest.mark.unit
-    def test_date_fields(self):
-        obj = SalesforceAccount(account_id=self.SF_ACCOUNT_ID, created_date=date(2024, 1, 1), updated_date=date(2024, 6, 15))
-        assert obj.created_date == date(2024, 1, 1)
-
 class TestEmails:
     """Test Emails - with datetime, date, bool fields and JSON parser."""
 
@@ -1469,13 +1408,13 @@ class TestValidatorEdgeCases:
     @pytest.mark.unit
     def test_invalid_npi_patterns(self, bad_npi):
         with pytest.raises(ValidationError):
-            SalesforceAccount(account_id='SF001', npi=bad_npi)
+            Cclf1(cur_clm_uniq_id=VALID_MBI, bene_mbi_id=VALID_MBI, fac_prvdr_npi_num=bad_npi)
 
     @pytest.mark.parametrize('bad_tin', ['12345', '1234567890', '12345678A'])
     @pytest.mark.unit
     def test_invalid_tin_patterns(self, bad_tin):
         with pytest.raises(ValidationError):
-            SalesforceAccount(account_id='SF001', tin=bad_tin)
+            Cclf5(cur_clm_uniq_id='CLM001', clm_line_num=1, bene_mbi_id=VALID_MBI, clm_rndrg_prvdr_tax_num=bad_tin)
 
     @pytest.mark.parametrize('bad_zip', ['1234', '123456', 'ABCDE'])
     @pytest.mark.unit
@@ -1551,14 +1490,6 @@ class TestTypeHandling:
         """Int fields should reject non-integer values."""
         with pytest.raises(ValidationError):
             Cclf0(file_type='CCLF1', file_description='desc', record_count='not_a_number', record_length=100)
-
-    @pytest.mark.unit
-    def test_bool_coercion(self):
-        """Bool fields should accept True/False."""
-        obj = SalesforceAccount(account_id=VALID_NPI, active_flag=True)
-        assert obj.active_flag is True
-        obj2 = SalesforceAccount(account_id=VALID_NPI, active_flag=False)
-        assert obj2.active_flag is False
 
     @pytest.mark.unit
     def test_float_fields(self):

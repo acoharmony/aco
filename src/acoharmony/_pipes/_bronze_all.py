@@ -57,6 +57,7 @@ def apply_bronze_all_pipeline(
         BronzeStage("reach_bnmr", "reach", 16, "REACH Beneficiary MBI Record", optional=True),
         BronzeStage("hdai_reach", "reach", 17, "REACH HDAI Data", optional=True),
         BronzeStage("shadow_bundle_reach", "reach", 18, "REACH Shadow Bundle", optional=True),
+        BronzeStage("reach_calendar", "reach", 19, "ACO REACH Calendar", optional=True),
         BronzeStage(
             "annual_quality_report",
             "reports_quality",
@@ -214,9 +215,8 @@ def apply_bronze_all_pipeline(
             "Beneficiary Data Sharing Exclusion",
             optional=True,
         ),
-        BronzeStage("census", "reference", 53, "Census Data", optional=True),
-        BronzeStage("zip_to_county", "reference", 54, "ZIP to County Crosswalk", optional=True),
-        BronzeStage("office_zip", "reference", 55, "Office ZIP Codes", optional=True),
+        BronzeStage("zip_to_county", "reference", 53, "ZIP to County Crosswalk", optional=True),
+        BronzeStage("office_zip", "reference", 54, "Office ZIP Codes", optional=True),
     ]
 
     logger.info(f"Starting Full Bronze Pipeline: {len(stages)} parsing stages")

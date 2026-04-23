@@ -239,6 +239,12 @@ def extract_file_date(filename: str, schema: Any) -> str | None:
         if match:
             return f"{match.group(1)}-{match.group(2)}-{match.group(3)}"
 
+        # Pattern: _MMDDYYYY before an extension (e.g., ACO_REACH_Calendar_updated_03052026.xlsx)
+        # Anchored on a leading underscore to avoid matching arbitrary 8-digit runs.
+        match = re.search(r"_(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])(20\d{2})\.", filename)
+        if match:
+            return f"{match.group(3)}-{match.group(1)}-{match.group(2)}"
+
         # Pattern: YYYYMMDD in filename (e.g., 20240831)
         match = re.search(r"(20\d{2})(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])", filename)
         if match:
