@@ -314,3 +314,68 @@ CMMI_CONCURRENT_2023: dict[str, dict[str, float]] = {
     "payment_hcc_count": CMMI_CONCURRENT_2023_PAYMENT_HCC_COUNT,
     "hcc_age_lt_65_interaction": CMMI_CONCURRENT_2023_HCC_AGE_LT_65_INTERACTION,
 }
+
+
+# =============================================================================
+# HCC Hierarchy Rules — from Appendix A, Table A-1 of the same document.
+# "If the disease group is listed in this column, then drop the HCC(s) listed
+#  in this column" — the dominant HCC eliminates the subordinate ones from
+# the payment-HCC sum.
+#
+# Source: PY2023 ACO REACH KCC Risk Adjustment.pdf, pages 36-37 (doc pages
+# 35-36). The table is included in Appendix A (not Appendix B where the
+# coefficients live); both appendices together define the full model.
+#
+# Format: dominant_hcc -> tuple of HCC numbers to drop when the dominant is
+# present. All values are strings to match the coefficient dict keys.
+# =============================================================================
+
+CMMI_CONCURRENT_2023_HIERARCHIES: dict[str, tuple[str, ...]] = {
+    "8":   ("9", "10", "11", "12"),
+    "9":   ("10", "11", "12"),
+    "10":  ("11", "12"),
+    "11":  ("12",),
+    "17":  ("18", "19"),
+    "18":  ("19",),
+    "27":  ("28", "29", "80"),
+    "28":  ("29",),
+    "46":  ("48",),
+    "51":  ("52",),
+    "54":  ("55", "56"),
+    "55":  ("56",),
+    "57":  ("58", "59", "60"),
+    "58":  ("59", "60"),
+    "59":  ("60",),
+    "70":  ("71", "72", "103", "104", "169"),
+    "71":  ("72", "104", "169"),
+    "72":  ("169",),
+    "82":  ("83", "84"),
+    "83":  ("84",),
+    "86":  ("87", "88"),
+    "87":  ("88",),
+    "99":  ("100",),
+    "103": ("104",),
+    "106": ("107", "108", "161", "189"),
+    "107": ("108",),
+    "110": ("111", "112"),
+    "111": ("112",),
+    "114": ("115",),
+    "136": ("137", "138"),
+    "137": ("138",),
+    "157": ("158", "159", "161"),
+    "158": ("159", "161"),
+    "159": ("161",),
+    "166": ("80", "167"),
+}
+
+# Invariant: every HCC referenced in the hierarchy table must exist as a
+# coefficient key (or be deliberately absent per the Modified Hierarchies
+# note — e.g. HCC 134 is not in the coefficient dict, so no hierarchy
+# references it).
+_all_hierarchy_codes = (
+    set(CMMI_CONCURRENT_2023_HIERARCHIES.keys())
+    | {code for subs in CMMI_CONCURRENT_2023_HIERARCHIES.values() for code in subs}
+)
+_coefficient_codes = set(CMMI_CONCURRENT_2023_HCC.keys())
+_missing = _all_hierarchy_codes - _coefficient_codes
+assert not _missing, f"Hierarchy references unknown HCCs: {_missing}"
