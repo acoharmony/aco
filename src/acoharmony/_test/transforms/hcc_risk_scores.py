@@ -63,18 +63,34 @@ def seeded_executor(tmp_path: Path):
     ).write_parquet(gold / "eligibility.parquet")
 
     # Silver int_diagnosis_deduped — HIGHRISK_AD has diabetes + MS + HF + COPD;
-    # LOWRISK_AD has a minor dx; ESRD_BENE has dialysis.
+    # LOWRISK_AD has a minor dx; ESRD_BENE has dialysis. clm_from_dt is
+    # present for per-PY windowing — use a date in the prior calendar
+    # year of the test PY (2026) so CMS-HCC Prospective picks these
+    # dx's up, and also in the same year so CMMI-HCC Concurrent picks
+    # them up. We use two dates per bene, one in each window.
     pl.DataFrame(
         {
             "current_bene_mbi_id": [
-                "LOWRISK_AD",
+                "LOWRISK_AD", "LOWRISK_AD",
                 "HIGHRISK_AD", "HIGHRISK_AD", "HIGHRISK_AD", "HIGHRISK_AD",
-                "ESRD_BENE",
+                "HIGHRISK_AD", "HIGHRISK_AD", "HIGHRISK_AD", "HIGHRISK_AD",
+                "ESRD_BENE", "ESRD_BENE",
             ],
             "clm_dgns_cd": [
-                "Z00.00",              # healthy encounter — no HCC
+                "Z00.00", "Z00.00",
                 "E1165", "G35", "I509", "J449",
-                "N185",                # CKD stage 5
+                "E1165", "G35", "I509", "J449",
+                "N185", "N185",
+            ],
+            "clm_from_dt": [
+                # LOWRISK — prior year + same year
+                date(2025, 6, 1), date(2026, 6, 1),
+                # HIGHRISK — prior year (CMS-HCC) four codes
+                date(2025, 2, 1), date(2025, 5, 1), date(2025, 8, 1), date(2025, 11, 1),
+                # HIGHRISK — same year (CMMI) four codes
+                date(2026, 2, 1), date(2026, 5, 1), date(2026, 8, 1), date(2026, 11, 1),
+                # ESRD — prior year + same year
+                date(2025, 6, 1), date(2026, 6, 1),
             ],
         }
     ).write_parquet(silver / "int_diagnosis_deduped.parquet")
