@@ -80,7 +80,8 @@ def execute(executor) -> pl.LazyFrame:
     ).filter(pl.col("row_num") == 1)
 
     try:
-        xref = pl.scan_parquet(silver_path / "int_beneficiary_xref_deduped.parquet")
+        from ._identity_timeline import current_mbi_lookup_lazy
+        xref = current_mbi_lookup_lazy(silver_path)
 
         result = deduped.join(
             xref.select(["crnt_num", "prvs_num"]),

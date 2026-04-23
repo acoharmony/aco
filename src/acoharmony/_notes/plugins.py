@@ -603,7 +603,7 @@ class DataPlugins(PluginRegistry):
         Load a dataset from the silver layer.
 
         Args:
-            dataset_name: Dataset name (e.g., "enterprise_crosswalk", "beneficiary_demographics")
+            dataset_name: Dataset name (e.g., "identity_timeline", "beneficiary_demographics")
             lazy: Return LazyFrame for lazy evaluation (default: True)
             path: Custom path (uses storage backend if None)
 
@@ -612,7 +612,7 @@ class DataPlugins(PluginRegistry):
 
         Example:
             ```python
-            crosswalk_lf = data.load_silver_dataset("enterprise_crosswalk", lazy=True)
+            crosswalk_lf = data.load_silver_dataset("identity_timeline", lazy=True)
             demographics_df = data.load_silver_dataset("beneficiary_demographics", lazy=False)
             ```
         """

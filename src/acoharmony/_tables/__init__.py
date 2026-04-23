@@ -51,7 +51,6 @@ from .email_unsubscribes import EmailUnsubscribes
 from .emails import Emails
 from .engagement import Engagement
 from .enrollment import Enrollment
-from .enterprise_crosswalk import EnterpriseCrosswalk
 from .estimated_cisep_change_threshold_report import EstimatedCisepChangeThresholdReport
 from .ffs_first_dates import FfsFirstDates
 from .gaf_inputs import GafInputs
@@ -59,6 +58,7 @@ from .gcm import Gcm
 from .gpci_inputs import GpciInputs
 from .hcmpi_master import HcmpiMaster
 from .hdai_reach import HdaiReach
+from .identity_timeline import IdentityTimeline
 from .last_ffs_service import LastFfsService
 from .mailed import Mailed
 from .mbi_crosswalk import MbiCrosswalk
@@ -146,11 +146,11 @@ __all__ = [
     "Emails",
     "Engagement",
     "Enrollment",
-    "EnterpriseCrosswalk",
     "EstimatedCisepChangeThresholdReport",
     "FfsFirstDates",
     "HcmpiMaster",
     "HdaiReach",
+    "IdentityTimeline",
     "LastFfsService",
     "Mailed",
     "MbiCrosswalk",

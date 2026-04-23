@@ -56,7 +56,7 @@ class TestCCLFSilverPipeline:
         mock_scan.return_value = mock_lf
 
         result = apply_cclf_silver_pipeline(executor, logger, force=False)
-        assert len(result) == 16  # 16 stages
+        assert len(result) == 15  # 15 stages (int_beneficiary_xref_deduped moved to identity_timeline pipeline)
         checkpoint.mark_pipeline_complete.assert_called_once()
 
     @patch("acoharmony._pipes._checkpoint.PipelineCheckpoint")
@@ -83,7 +83,7 @@ class TestCCLFSilverPipeline:
 
         # execute_stage should not be called if all skipped
         mock_exec.assert_not_called()
-        assert len(checkpoint.completed_stages) == 16
+        assert len(checkpoint.completed_stages) == 15
 
     @patch("acoharmony._pipes._checkpoint.PipelineCheckpoint")
     @patch("acoharmony._pipes._cclf_silver.execute_stage")

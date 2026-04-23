@@ -13,7 +13,6 @@ Transforms handle LazyFrame orchestration.
 
 # Re-export key components from _expressions module
 from ._expressions import (  # pragma: no cover
-    EnterpriseCrosswalkExpression,
     ExpressionRegistry,
     register_expression,
 )
@@ -21,5 +20,4 @@ from ._expressions import (  # pragma: no cover
 __all__ = [  # pragma: no cover
     "ExpressionRegistry",
     "register_expression",
-    "EnterpriseCrosswalkExpression",
 ]

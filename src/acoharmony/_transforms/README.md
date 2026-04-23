@@ -58,7 +58,9 @@ class DiabetesHbA1cControl(QualityMeasureBase):
 ### Crosswalk & Standardization
 - `_crosswalk.py` - Crosswalk operations
 - `_standardization.py` - Data standardization
-- `_enterprise_xwalk.py` - Enterprise crosswalk
+- `_identity_timeline.py` - Silver: append-only MBI identifier timeline
+- `_identity_timeline_gold.py` - Gold: timeline + bnex opt-outs
+- `_identity_timeline_metrics.py` - Gold: churn + crosswalk quality metrics
 
 ### Quality Measures
 - `_quality_cardiovascular.py` - Cardiovascular measures (22k lines)
@@ -85,7 +87,6 @@ class DiabetesHbA1cControl(QualityMeasureBase):
 
 ### Intermediate Demographics
 - `int_beneficiary_demographics_deduped.py` - Demographics dedup
-- `int_beneficiary_xref_deduped.py` - Crosswalk dedup
 - `int_enrollment.py` - Enrollment processing
 
 ### Analytics

@@ -39,7 +39,7 @@ def test_execute_basic(tmp_path: Path) -> None:
         'bene_zip_ext': ['1234'], 'source_filename': ['cclf8.csv'], 'file_date': ['2025-01'],
     })
     _write(cclf8, tmp_path / 'cclf8.parquet')
-    _write(_xref_df(), tmp_path / 'int_beneficiary_xref_deduped.parquet')
+    _write(_xref_df(), tmp_path / 'identity_timeline.parquet')
     result = execute(_make_executor(tmp_path))
     assert isinstance(result, pl.LazyFrame)
     df = result.collect()
@@ -115,8 +115,29 @@ def _make_executor(silver_dir: Path) -> _MockExecutor:
     return _MockExecutor(storage_config=_MockMedallionStorage(silver_path=silver_dir))
 
 def _xref_df() -> pl.DataFrame:
-    """Minimal int_beneficiary_xref_deduped with one mapping row."""
-    return pl.DataFrame({'prvs_num': ['OLD_MBI'], 'crnt_num': ['NEW_MBI'], 'prvs_id_efctv_dt': ['2023-01-01'], 'prvs_id_obslt_dt': ['2023-06-01'], 'source_filename': ['xref.csv'], 'file_date': ['2023-07-01']})
+    """Minimal identity_timeline fixture: OLD_MBI remapped to NEW_MBI."""
+    return pl.DataFrame(
+        {
+            'mbi': ['OLD_MBI', 'NEW_MBI'],
+            'maps_to_mbi': ['NEW_MBI', None],
+            'effective_date': [None, None],
+            'obsolete_date': [None, None],
+            'file_date': [None, None],
+            'observation_type': ['cclf9_remap', 'cclf8_self'],
+            'source_file': ['xref.csv', 'xref.csv'],
+            'hcmpi': [None, None],
+            'chain_id': ['chain_test', 'chain_test'],
+            'hop_index': [1, 0],
+            'is_current_as_of_file_date': [True, True],
+        },
+        schema={
+            'mbi': pl.String, 'maps_to_mbi': pl.String,
+            'effective_date': pl.Date, 'obsolete_date': pl.Date, 'file_date': pl.Date,
+            'observation_type': pl.String, 'source_file': pl.String, 'hcmpi': pl.String,
+            'chain_id': pl.String, 'hop_index': pl.Int64,
+            'is_current_as_of_file_date': pl.Boolean,
+        },
+    )
 
 def _date(y: int, m: int, d: int) -> datetime.date:
     return datetime.date(y, m, d)
@@ -177,8 +198,30 @@ class TestIntBeneficiaryDemographicsDedupedExtended2:
         from acoharmony._transforms import int_beneficiary_demographics_deduped as mod
         silver = tmp_path
         _write(pl.DataFrame(self._base_cclf8_columns()), silver / 'cclf8.parquet')
-        xref = pl.DataFrame({'crnt_num': ['MBI999'], 'prvs_num': ['MBI001']})
-        _write(xref, silver / 'int_beneficiary_xref_deduped.parquet')
+        # identity_timeline fixture: MBI001 remaps to MBI999; MBI999 is the leaf.
+        xref = pl.DataFrame(
+            {
+                'mbi': ['MBI001', 'MBI999'],
+                'maps_to_mbi': ['MBI999', None],
+                'effective_date': [None, None],
+                'obsolete_date': [None, None],
+                'file_date': [None, None],
+                'observation_type': ['cclf9_remap', 'cclf8_self'],
+                'source_file': ['t', 't'],
+                'hcmpi': [None, None],
+                'chain_id': ['c', 'c'],
+                'hop_index': [1, 0],
+                'is_current_as_of_file_date': [True, True],
+            },
+            schema={
+                'mbi': pl.String, 'maps_to_mbi': pl.String,
+                'effective_date': pl.Date, 'obsolete_date': pl.Date, 'file_date': pl.Date,
+                'observation_type': pl.String, 'source_file': pl.String, 'hcmpi': pl.String,
+                'chain_id': pl.String, 'hop_index': pl.Int64,
+                'is_current_as_of_file_date': pl.Boolean,
+            },
+        )
+        _write(xref, silver / 'identity_timeline.parquet')
         executor = _MockExecutor(silver)
         inner = _get_inner_fn(mod.execute)
         result = inner(executor)
@@ -199,7 +242,7 @@ class TestIntBeneficiaryDemographicsDeduped:
     @pytest.mark.unit
     def test_basic_output_columns(self, tmp_path: Path) -> None:
         _write(self._cclf8(), tmp_path / 'cclf8.parquet')
-        _write(_xref_df(), tmp_path / 'int_beneficiary_xref_deduped.parquet')
+        _write(_xref_df(), tmp_path / 'identity_timeline.parquet')
         result = execute(_make_executor(tmp_path)).collect()
         assert 'current_bene_mbi_id' in result.columns
         assert 'geo_zip_plc_name' in result.columns
@@ -212,7 +255,7 @@ class TestIntBeneficiaryDemographicsDeduped:
     def test_dedup_keeps_latest_file_date(self, tmp_path: Path) -> None:
         df = pl.concat([self._cclf8(file_date=['2023-01-01'], bene_fst_name=['OLD']), self._cclf8(file_date=['2023-07-01'], bene_fst_name=['NEW'])])
         _write(df, tmp_path / 'cclf8.parquet')
-        _write(_xref_df(), tmp_path / 'int_beneficiary_xref_deduped.parquet')
+        _write(_xref_df(), tmp_path / 'identity_timeline.parquet')
         result = execute(_make_executor(tmp_path)).collect()
         assert result.shape[0] == 1
         assert result['bene_fst_name'][0] == 'NEW'
@@ -220,6 +263,6 @@ class TestIntBeneficiaryDemographicsDeduped:
     @pytest.mark.unit
     def test_mbi_crosswalk_applied(self, tmp_path: Path) -> None:
         _write(self._cclf8(bene_mbi_id=['OLD_MBI']), tmp_path / 'cclf8.parquet')
-        _write(_xref_df(), tmp_path / 'int_beneficiary_xref_deduped.parquet')
+        _write(_xref_df(), tmp_path / 'identity_timeline.parquet')
         result = execute(_make_executor(tmp_path)).collect()
         assert result['current_bene_mbi_id'][0] == 'NEW_MBI'

@@ -54,11 +54,11 @@ from acoharmony._tables import (
     EmailUnsubscribes,
     Engagement,
     Enrollment,
-    EnterpriseCrosswalk,
     EstimatedCisepChangeThresholdReport,
     FfsFirstDates,
     HcmpiMaster,
     HdaiReach,
+    IdentityTimeline,
     LastFfsService,
     Mailed,
     MbiCrosswalk,
@@ -95,7 +95,7 @@ from acoharmony._tables import (
     ZipToCounty,
 )
 
-ALL_TABLE_CLASSES = [AcoAlignment, AcoFinancialGuaranteeAmount, Alr, AlternativePaymentArrangementReport, AnnualBeneficiaryLevelQualityReport, AnnualQualityReport, Bar, BeneficiaryDataSharingExclusionFile, BeneficiaryDemographics, BeneficiaryHedrTransparencyFiles, BeneficiaryXref, Cclf0, Cclf1, Cclf2, Cclf3, Cclf4, Cclf5, Cclf6, Cclf7, Cclf8, Cclf9, CclfManagementReport, Cclfa, Cclfb, Census, ConsolidatedAlignment, Eligibility, EmailUnsubscribes, Emails, Engagement, Enrollment, EnterpriseCrosswalk, EstimatedCisepChangeThresholdReport, FfsFirstDates, HcmpiMaster, HdaiReach, LastFfsService, Mailed, MbiCrosswalk, Mexpr, NeedsSignature, OfficeZip, Palmr, ParticipantList, Pbvar, PecosTerminationsMonthlyReport, Plaru, PreliminaryAlignmentEstimate, PreliminaryAlternativePaymentArrangementReport156, PreliminaryBenchmarkReportForDc, PreliminaryBenchmarkReportUnredacted, ProspectivePlusOpportunityReport, Pyred, QuarterlyBeneficiaryLevelQualityReport, QuarterlyQualityReport, Rap, ReachBnmr, Recon, RelPatientProgram, RiskAdjustmentData, SalesforceAccount, Sbnabp, Sbqr, ShadowBundleReach, Sva, SvaSubmissions, Tparc, VoluntaryAlignment, VwyearmoEngagement, ZipToCounty]
+ALL_TABLE_CLASSES = [AcoAlignment, AcoFinancialGuaranteeAmount, Alr, AlternativePaymentArrangementReport, AnnualBeneficiaryLevelQualityReport, AnnualQualityReport, Bar, BeneficiaryDataSharingExclusionFile, BeneficiaryDemographics, BeneficiaryHedrTransparencyFiles, BeneficiaryXref, Cclf0, Cclf1, Cclf2, Cclf3, Cclf4, Cclf5, Cclf6, Cclf7, Cclf8, Cclf9, CclfManagementReport, Cclfa, Cclfb, Census, ConsolidatedAlignment, Eligibility, EmailUnsubscribes, Emails, Engagement, Enrollment, EstimatedCisepChangeThresholdReport, FfsFirstDates, HcmpiMaster, HdaiReach, IdentityTimeline, LastFfsService, Mailed, MbiCrosswalk, Mexpr, NeedsSignature, OfficeZip, Palmr, ParticipantList, Pbvar, PecosTerminationsMonthlyReport, Plaru, PreliminaryAlignmentEstimate, PreliminaryAlternativePaymentArrangementReport156, PreliminaryBenchmarkReportForDc, PreliminaryBenchmarkReportUnredacted, ProspectivePlusOpportunityReport, Pyred, QuarterlyBeneficiaryLevelQualityReport, QuarterlyQualityReport, Rap, ReachBnmr, Recon, RelPatientProgram, RiskAdjustmentData, SalesforceAccount, Sbnabp, Sbqr, ShadowBundleReach, Sva, SvaSubmissions, Tparc, VoluntaryAlignment, VwyearmoEngagement, ZipToCounty]
 
 # Models with misaligned Pydantic metadata (pattern constraints leaked from
 # adjacent fields) that make direct instantiation impossible -- the pattern and
@@ -1255,19 +1255,37 @@ class TestBar:
         assert config['type'] == 'excel'
         assert config['embedded_transforms'] is True
 
-class TestEnterpriseCrosswalk:
-    """Test EnterpriseCrosswalk - with transform name."""
+class TestIdentityTimeline:
+    """Test IdentityTimeline - silver tier, observation-row shape."""
 
     @pytest.mark.unit
     def test_valid_instance(self):
-        obj = EnterpriseCrosswalk(prvs_num=VALID_MBI, crnt_num='curr_mbi', mapping_type='xref', created_at='2025-01-01T00:00:00', created_by='test')
-        assert obj.mapping_type == 'xref'
+        from datetime import date
+        obj = IdentityTimeline(
+            mbi=VALID_MBI,
+            file_date=date(2025, 1, 1),
+            observation_type='cclf8_self',
+            chain_id='chain_abc',
+            hop_index=0,
+            is_current_as_of_file_date=True,
+        )
+        assert obj.observation_type == 'cclf8_self'
+        assert obj.hop_index == 0
 
     @pytest.mark.unit
-    def test_bool_and_int_fields(self):
-        obj = EnterpriseCrosswalk(prvs_num=VALID_MBI, crnt_num='curr', mapping_type='chain', created_at='2025-01-01', created_by='system', has_circular_reference=False, chain_depth=2)
-        assert obj.has_circular_reference is False
-        assert obj.chain_depth == 2
+    def test_remap_row(self):
+        from datetime import date
+        obj = IdentityTimeline(
+            mbi=VALID_MBI,
+            maps_to_mbi='NEW_MBI_V',
+            file_date=date(2025, 1, 1),
+            observation_type='cclf9_remap',
+            chain_id='chain_xyz',
+            hop_index=1,
+            is_current_as_of_file_date=False,
+        )
+        assert obj.maps_to_mbi == 'NEW_MBI_V'
+        assert obj.is_current_as_of_file_date is False
 
 class TestVoluntaryAlignment:
     """Test VoluntaryAlignment - silver tier with many bool/date fields.

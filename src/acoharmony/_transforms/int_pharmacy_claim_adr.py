@@ -37,7 +37,8 @@ def execute(executor) -> pl.LazyFrame:
 
     staged_data = pl.scan_parquet(silver_path / "cclf7.parquet")
 
-    beneficiary_xref = pl.scan_parquet(silver_path / "int_beneficiary_xref_deduped.parquet")
+    from ._identity_timeline import current_mbi_lookup_lazy
+    beneficiary_xref = current_mbi_lookup_lazy(silver_path)
 
     partition_cols = [
         "cur_clm_uniq_id",
