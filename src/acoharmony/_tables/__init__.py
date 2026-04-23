@@ -86,6 +86,7 @@ from .pyred import Pyred
 from .quarterly_beneficiary_level_quality_report import QuarterlyBeneficiaryLevelQualityReport
 from .quarterly_quality_report import QuarterlyQualityReport
 from .rap import Rap
+from .reach_appendix_tables import ReachAppendixTables
 from .reach_bnmr import ReachBnmr
 from .reach_calendar import ReachCalendar
 from .recon import Recon
@@ -168,6 +169,7 @@ __all__ = [
     "QuarterlyBeneficiaryLevelQualityReport",
     "QuarterlyQualityReport",
     "Rap",
+    "ReachAppendixTables",
     "ReachBnmr",
     "ReachCalendar",
     "Recon",

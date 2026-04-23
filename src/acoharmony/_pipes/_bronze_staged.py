@@ -48,6 +48,13 @@ def apply_bronze_staged_pipeline(
         BronzeStage("hdai_reach", "reach", 2, "REACH HDAI Data", optional=True),
         BronzeStage("shadow_bundle_reach", "reach", 3, "REACH Shadow Bundle", optional=True),
         BronzeStage("reach_calendar", "reach", 4, "ACO REACH Calendar", optional=True),
+        BronzeStage(
+            "reach_appendix_tables",
+            "reach",
+            5,
+            "REACH Financial Operating Guide Appendix Tables (B.6.1/B.6.2/B.6.3)",
+            optional=True,
+        ),
 
         # CMS Quality Reports (Stage 6-10)
         BronzeStage(
