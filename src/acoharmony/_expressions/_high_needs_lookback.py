@@ -5,17 +5,40 @@
 High-needs eligibility lookback window builder.
 
 Resolves the per-check-date lookback intervals specified by the ACO REACH
-Participation Agreement, Appendix A, Tables C and D. Each criterion
-evaluated at a given check date (Jan 1 / Apr 1 / Jul 1 / Oct 1 of a
-Performance Year) uses a window of claims ending two months prior to the
-check date. Criteria (a), (b), (c), (e) use a 12-month window (Table C);
-criterion (d) uses a five-year window (Table D).
+Participation Agreement. The authoritative text, from Appendix A of
+``$BRONZE/ACO_REACH_PY2026_AR_PA_2023_Starters_508.txt``:
 
-Quoting the PA:
+    Table C. Lookback Periods to Determine Whether a Beneficiary Meets
+    Additional Eligibility Criteria (a)-(c); (e) of Section IV.B.1 of
+    Appendix A for Alignment to a High Needs Population ACO during a
+    Performance Year.
 
-    {table_c}
+        PY2022: 11/1/20 – 10/31/21; 2/1/21 – 1/31/22; 5/1/21 – 4/30/22; 8/1/21 – 7/31/22
+        PY2023: 11/1/21 – 10/31/22; 2/1/22 – 1/31/23; 5/1/22 – 4/30/23; 8/1/22 – 7/31/23
+        PY2024: 11/1/22 – 10/31/23; 2/1/23 – 1/31/24; 5/1/23 – 4/30/24; 8/1/23 – 7/31/24
+        PY2025: 11/1/23 – 10/31/24; 2/1/24 – 1/31/25; 5/1/24 – 4/30/25; 8/1/24 – 7/31/25
+        PY2026: 11/1/24 – 10/31/25; 2/1/25 – 1/31/26; 5/1/25 – 4/30/26; 8/1/25 – 7/31/26
 
-    {table_d}
+    Table D. Lookback Periods to Determine Whether a Beneficiary Meets
+    Additional Eligibility Criteria (d) of Section IV.B.1 of Appendix A
+    for Alignment to a High Needs Population ACO during a Performance
+    Year.
+
+        PY2022: 11/1/16 – 10/31/21; 2/1/17 – 1/31/22; 5/1/17 – 4/30/22; 8/1/17 – 7/31/22
+        PY2023: 11/1/17 – 10/31/22; 2/1/18 – 1/31/23; 5/1/18 – 4/30/23; 8/1/18 – 7/31/23
+        PY2024: 11/1/18 – 10/31/23; 2/1/19 – 1/31/24; 5/1/19 – 4/30/24; 8/1/19 – 7/31/24
+        PY2025: 11/1/19 – 10/31/24; 2/1/20 – 1/31/25; 5/1/20 – 4/30/25; 8/1/20 – 7/31/25
+        PY2026: 11/1/20 – 10/31/25; 2/1/21 – 1/31/26; 5/1/21 – 4/30/26; 8/1/21 – 7/31/26
+
+    — PA lines 3857–3938.
+
+Structural rule derived from those rows: for a check date that is the
+first of a quarter month (Jan/Apr/Jul/Oct), the window ends on the last
+day of the month **three months prior to the check month** and begins on
+the first day of the month ``N`` months earlier, where N = 12 for Table
+C and N = 60 for Table D. The PA describes this as "two months prior",
+but the row data makes clear the anchor is three months — Jan 1 → Oct 31
+prior year (skipping Dec and Nov).
 
 This module is pure and side-effect free. The intervals it emits drive
 the filter predicates in the criterion-specific expression modules
@@ -27,16 +50,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date
-
-from acoharmony._expressions._high_needs_citations import (
-    APPENDIX_A_TABLE_C_LOOKBACK_ABCE,
-    APPENDIX_A_TABLE_D_LOOKBACK_D,
-)
-
-__doc__ = __doc__.format(  # type: ignore[union-attr]
-    table_c=APPENDIX_A_TABLE_C_LOOKBACK_ABCE.strip(),
-    table_d=APPENDIX_A_TABLE_D_LOOKBACK_D.strip(),
-)
 
 
 # The four check dates per Performance Year, in calendar order. Phrased as
