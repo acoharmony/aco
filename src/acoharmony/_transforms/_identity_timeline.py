@@ -295,9 +295,12 @@ def execute(executor) -> pl.LazyFrame:
     # ---- HCMPI enrichment (optional) --------------------------------------
     # hcmpi_master stores identifiers row-per-(hcmpi, identifier_src_field).
     # MBIs live where identifier_src_field == 'member_mbi'. Keep one HCMPI
-    # per MBI — if CMS has somehow assigned two, we take the first.
+    # per MBI — if CMS has somehow assigned two, we take the first. The
+    # presence check guards against the file genuinely being absent;
+    # `pl.scan_parquet` is lazy, so a try/except around scan() never
+    # fires and the FileNotFoundError used to leak out of collect().
     hcmpi_path = silver_path / "hcmpi_master.parquet"
-    try:
+    if hcmpi_path.exists():
         hcmpi = (
             pl.scan_parquet(hcmpi_path)
             .filter(pl.col("identifier_src_field") == "member_mbi")
@@ -308,7 +311,7 @@ def execute(executor) -> pl.LazyFrame:
             .unique(subset=["mbi"], keep="first")
         )
         final_lf = with_hops.join(hcmpi, on="mbi", how="left")
-    except Exception:
+    else:
         final_lf = with_hops.with_columns(pl.lit(None, dtype=pl.String).alias("hcmpi"))
 
     # Final column order matches the pydantic schema

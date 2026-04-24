@@ -40,17 +40,28 @@ Operational summary for criterion (d):
     - Threshold: **two claims with different dates of service** per FOG
       line 1503.
 
-Silver-tier DME claim source
------------------------------
+Source table
+------------
 
-CCLF6 is the DME claim feed. It carries:
-    - ``clm_line_hcpcs_cd`` — HCPCS line code
-    - ``clm_line_from_dt``  — service date (per line)
-    - ``bene_mbi_id``
+``gold/medical_claim`` (Tuva-normalised, MBI-crosswalked via
+``person_id``). The relevant columns:
 
-We also accept CCLF4 (Part B physician) claims where the HCPCS falls
-in the B.6.2 code list, because some of those codes (e.g., E0700,
-E0705) can appear on either feed depending on the billing pathway.
+    - ``person_id``             — crosswalked canonical MBI
+    - ``claim_type``             — "institutional" | "professional"
+    - ``hcpcs_code``            — HCPCS line code
+    - ``claim_line_start_date`` — service date per line
+
+Scope: **any non-inpatient claim** with a B.6.2 HCPCS qualifies, per
+FOG line 1503 — "*one inpatient claim (claim type 60) with a diagnosis
+from B.6.1 will be sufficient for meeting High Needs Population ACO
+eligibility or two claims with a HCPCS code from table B.6.2 with
+different dates of services **for any other claim types**.*" Tuva's
+``medical_claim`` rolls both CCLF6 DME and CCLF4 physician/supplier
+lines into ``claim_type == "professional"`` with no sub-type
+discriminator, so the (d) filter is permissive on ``claim_type`` —
+what gates a claim is the HCPCS match, not the feed of origin. We
+explicitly exclude ``claim_type == "institutional"`` because the FOG
+carves out inpatient as belonging to the (a) pathway.
 """
 
 from __future__ import annotations
@@ -81,20 +92,29 @@ def parse_hcpcs_codes_from_table_b62(lf_b62: pl.LazyFrame) -> pl.LazyFrame:
 
 
 def build_criterion_d_qualifying_claims(
-    claims_lf: pl.LazyFrame,
+    medical_claim_lf: pl.LazyFrame,
     codes_lf: pl.LazyFrame,
     *,
     window: LookbackWindow,
-    mbi_col: str = "bene_mbi_id",
-    hcpcs_col: str = "clm_line_hcpcs_cd",
-    service_date_col: str = "clm_line_from_dt",
+    mbi_col: str = "person_id",
+    claim_type_col: str = "claim_type",
+    hcpcs_col: str = "hcpcs_code",
+    service_date_col: str = "claim_line_start_date",
 ) -> pl.LazyFrame:
     """
-    Find every DME claim line whose HCPCS is in Table B.6.2 and whose
-    service date falls inside the Table D 60-month lookback window.
+    Find every non-inpatient claim line whose HCPCS is in Table B.6.2
+    and whose service date falls inside the Table D 60-month lookback
+    window.
+
+    Reads from ``gold/medical_claim``, excluding rows with
+    ``claim_type == "institutional"`` (those belong to criterion (a)'s
+    inpatient pathway per FOG line 1503). Joins on ``person_id`` so a
+    bene whose MBI rotated mid-window has their pre- and post-rotation
+    claims attributed to a single identity.
 
     Returns one row per matching claim line with columns:
-        mbi_col, service_date, hcpcs_code, category
+        ``person_id`` (via ``mbi_col``), ``service_date``,
+        ``hcpcs_code``, ``category``
     """
     codes = codes_lf.select(
         pl.col("hcpcs_code").alias("_match_code"),
@@ -102,9 +122,13 @@ def build_criterion_d_qualifying_claims(
     )
     service_date = pl.col(service_date_col).cast(pl.Date, strict=False)
     hcpcs_str = pl.col(hcpcs_col).cast(pl.String, strict=False).str.strip_chars()
+    claim_type_str = pl.col(claim_type_col).cast(pl.String, strict=False)
 
     return (
-        claims_lf.filter(service_date.is_between(window.begin, window.end, closed="both"))
+        medical_claim_lf.filter(
+            (claim_type_str != "institutional")
+            & service_date.is_between(window.begin, window.end, closed="both")
+        )
         .with_columns(
             service_date.alias("service_date"),
             hcpcs_str.alias("hcpcs_code"),
@@ -117,7 +141,7 @@ def build_criterion_d_qualifying_claims(
 def build_criterion_d_met_expr(
     qualifying_claims_lf: pl.LazyFrame,
     *,
-    mbi_col: str = "bene_mbi_id",
+    mbi_col: str = "person_id",
 ) -> pl.LazyFrame:
     """
     Collapse the qualifying-claim list to one row per MBI with a

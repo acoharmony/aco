@@ -482,6 +482,24 @@ class TestNdcFactory:
         assert NDC(description="x") is not None
 
 
+class TestDrgFieldFactory:
+    """Cover DRG factory function (line 418)."""
+
+    @pytest.mark.unit
+    def test_drg_field(self):
+        from acoharmony._validators.field_validators import DRG
+
+        field = DRG(description="test drg")
+        assert field is not None
+
+    @pytest.mark.unit
+    def test_rev_field(self):
+        from acoharmony._validators.field_validators import REV
+
+        field = REV(description="test rev")
+        assert field is not None
+
+
 class TestCreatePatternValidatorBranches:
     """Cover branches 116->117, 130->131/134, 134->135/138, 138->139/143."""
 

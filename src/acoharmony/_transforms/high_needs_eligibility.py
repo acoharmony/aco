@@ -26,12 +26,16 @@ its BAR comparison on ``eligible_sticky_across_pys`` for that reason.
 
 Inputs (all silver/gold layer parquets):
 
-    silver/cclf1.parquet                          — inpatient/HH/SNF claims
-    silver/cclf6.parquet                          — DME claims (criterion d)
+    gold/medical_claim.parquet                    — Tuva-normalised union of
+                                                    institutional / DME /
+                                                    professional claims, keyed
+                                                    on person_id (the crosswalked
+                                                    canonical MBI). Feeds
+                                                    criteria (a), (c), (d), (e).
     silver/reach_appendix_tables_mobility_...     — B.6.1 ICD-10 codes
     silver/reach_appendix_tables_frailty_hcpcs    — B.6.2 HCPCS codes
-    gold/hcc_risk_scores.parquet                  — multi-PY scored per model
-    gold/eligibility.parquet                      — OREC for cohort
+    gold/hcc_risk_scores.parquet                  — per-(PY, check_date) scores
+    gold/eligibility.parquet                      — OREC + MSTAT for cohort
 
 Output:
 
@@ -106,16 +110,16 @@ from acoharmony._expressions._hcc_unplanned_admissions import (
 
 
 def _criterion_a_for_check(
-    cclf1_lf: pl.LazyFrame,
+    medical_claim_lf: pl.LazyFrame,
     codes_lf: pl.LazyFrame,
     window_c,
 ) -> pl.LazyFrame:
-    """One row per MBI where criterion (a) is met at this check date."""
+    """One row per person where criterion (a) is met at this check date."""
     qualifying = build_criterion_a_qualifying_claims(
-        cclf1_lf, codes_lf, window=window_c,
+        medical_claim_lf, codes_lf, window=window_c,
     )
     return build_criterion_a_met_expr(qualifying).select(
-        pl.col("bene_mbi_id").alias("mbi"),
+        pl.col("person_id").alias("mbi"),
         pl.col("criterion_a_met"),
     )
 
@@ -129,35 +133,35 @@ def _criterion_b_for_check(scores_lf: pl.LazyFrame) -> pl.LazyFrame:
 
 def _criterion_c_for_check(
     scores_lf: pl.LazyFrame,
-    cclf1_lf: pl.LazyFrame,
+    medical_claim_lf: pl.LazyFrame,
     window_c,
 ) -> pl.LazyFrame:
     admissions = count_unplanned_admissions_in_window(
-        cclf1_lf,
+        medical_claim_lf,
         window_begin=window_c.begin,
         window_end=window_c.end,
-    ).rename({"bene_mbi_id": "mbi"})
+    ).rename({"person_id": "mbi"})
     return build_criterion_c_met_expr(
         scores_lf, admissions, mbi_col="mbi",
     ).select("mbi", "criterion_c_met")
 
 
 def _criterion_d_for_check(
-    cclf6_lf: pl.LazyFrame,
+    medical_claim_lf: pl.LazyFrame,
     codes_lf: pl.LazyFrame,
     window_d,
 ) -> pl.LazyFrame:
     qualifying = build_criterion_d_qualifying_claims(
-        cclf6_lf, codes_lf, window=window_d,
+        medical_claim_lf, codes_lf, window=window_d,
     )
     return build_criterion_d_met_expr(qualifying).select(
-        pl.col("bene_mbi_id").alias("mbi"),
+        pl.col("person_id").alias("mbi"),
         pl.col("criterion_d_met"),
     )
 
 
 def _criterion_e_for_check(
-    cclf1_lf: pl.LazyFrame,
+    medical_claim_lf: pl.LazyFrame,
     window_c,
     performance_year: int,
 ) -> pl.LazyFrame:
@@ -168,12 +172,12 @@ def _criterion_e_for_check(
             schema={"mbi": pl.String, "criterion_e_met": pl.Boolean}
         )
     days = build_snf_hh_days_in_window(
-        cclf1_lf,
+        medical_claim_lf,
         window_begin=window_c.begin,
         window_end=window_c.end,
     )
     met = build_criterion_e_met_expr(
-        days, performance_year, mbi_col="bene_mbi_id",
+        days, performance_year, mbi_col="person_id",
     )
     return met.select("mbi", "criterion_e_met")
 
@@ -203,8 +207,7 @@ def _resolve_performance_years(executor: Any) -> list[int]:
 def _evaluate_one_py(
     performance_year: int,
     *,
-    cclf1: pl.LazyFrame,
-    cclf6: pl.LazyFrame,
+    medical_claim: pl.LazyFrame,
     b61: pl.LazyFrame,
     b62: pl.LazyFrame,
     scores_all_pys: pl.LazyFrame,
@@ -214,21 +217,23 @@ def _evaluate_one_py(
     scores_this_py = scores_all_pys.filter(
         pl.col("performance_year") == performance_year
     )
-    has_cclf6_cols = bool(cclf6.collect_schema().names())
 
     per_check: list[pl.LazyFrame] = []
     for cd in check_dates_for_py(performance_year):
         window_c = table_c_window(performance_year, cd)
         window_d = table_d_window(performance_year, cd)
 
-        a = _criterion_a_for_check(cclf1, b61, window_c)
-        b = _criterion_b_for_check(scores_this_py)
-        c = _criterion_c_for_check(scores_this_py, cclf1, window_c)
-        if has_cclf6_cols:
-            d = _criterion_d_for_check(cclf6, b62, window_d)
-        else:
-            d = pl.LazyFrame(schema={"mbi": pl.String, "criterion_d_met": pl.Boolean})
-        e = _criterion_e_for_check(cclf1, window_c, performance_year)
+        # Risk scores are keyed on (mbi, model_version, PY, check_date)
+        # since FOG line 1406 pins the dx window to the check date. Slice
+        # this check's scores so (b) and (c) evaluate against the
+        # check-aligned window, not a stale calendar-year view.
+        scores_this_check = scores_this_py.filter(pl.col("check_date") == cd)
+
+        a = _criterion_a_for_check(medical_claim, b61, window_c)
+        b = _criterion_b_for_check(scores_this_check)
+        c = _criterion_c_for_check(scores_this_check, medical_claim, window_c)
+        d = _criterion_d_for_check(medical_claim, b62, window_d)
+        e = _criterion_e_for_check(medical_claim, window_c, performance_year)
 
         joined = join_criteria_to_eligibility(
             {
@@ -296,6 +301,23 @@ def execute(executor: Any) -> pl.LazyFrame:
     """
     Run the full multi-PY eligibility evaluation and emit one row per
     (mbi, performance_year, check_date).
+
+    Two-pass materialization to keep peak memory bounded:
+
+      1. Build the per-PY criterion-join tree, ``pl.concat`` across PYs,
+         and stream-sink to an intermediate parquet under
+         ``gold/_work/``. This drops the entire claims-side join graph
+         (medical_claim unpivots, criterion joins, within-PY sticky
+         windows) before the cross-PY window runs.
+      2. Re-open the intermediate as a fresh scan and apply the cross-PY
+         sticky-alignment ``cum_max().over("mbi")``. Window ops over
+         per-MBI partitions can't fully stream, but at this point the
+         partition input is a narrow per-(mbi, PY, check) row set
+         instead of the full join tree, so the partition state stays
+         small.
+
+    The outer pipeline (``_pipes/_high_needs.py``) streams the returned
+    LazyFrame into ``gold/high_needs_eligibility.parquet``.
     """
     from acoharmony.medallion import MedallionLayer
 
@@ -305,10 +327,12 @@ def execute(executor: Any) -> pl.LazyFrame:
 
     performance_years = _resolve_performance_years(executor)
 
-    # Source data — read once per execute, compose lazily.
-    cclf1 = pl.scan_parquet(silver_path / "cclf1.parquet")
-    cclf6_path = silver_path / "cclf6.parquet"
-    cclf6 = pl.scan_parquet(cclf6_path) if cclf6_path.exists() else pl.LazyFrame()
+    # Source data — read once per execute, compose lazily. Criteria
+    # (a), (c), (d), (e) all read from gold/medical_claim (Tuva-
+    # normalised, MBI-crosswalked via person_id). This replaces the
+    # prior per-criterion CCLF1/CCLF6 scans and fixes silent claim-
+    # attribution loss on MBI rotation.
+    medical_claim = pl.scan_parquet(gold_path / "medical_claim.parquet")
 
     b61 = parse_icd10_codes_from_table_b61(
         pl.scan_parquet(
@@ -328,8 +352,7 @@ def execute(executor: Any) -> pl.LazyFrame:
         per_py.append(
             _evaluate_one_py(
                 py,
-                cclf1=cclf1,
-                cclf6=cclf6,
+                medical_claim=medical_claim,
                 b61=b61,
                 b62=b62,
                 scores_all_pys=scores_all_pys,
@@ -337,4 +360,14 @@ def execute(executor: Any) -> pl.LazyFrame:
         )
 
     all_pys = pl.concat(per_py, how="vertical_relaxed")
-    return _apply_cross_py_sticky_alignment(all_pys)
+
+    # Pass 1: stream-sink the per-PY rows so the criterion-join graph
+    # gets fully evaluated and released before the per-MBI window runs.
+    work_dir = gold_path / "_work"
+    work_dir.mkdir(parents=True, exist_ok=True)
+    intermediate_path = work_dir / "high_needs_eligibility_pre_cross_py.parquet"
+    all_pys.sink_parquet(intermediate_path, engine="streaming")
+
+    # Pass 2: re-open and apply the cross-PY sticky-alignment window
+    # over a narrow per-(mbi, PY, check) frame.
+    return _apply_cross_py_sticky_alignment(pl.scan_parquet(intermediate_path))

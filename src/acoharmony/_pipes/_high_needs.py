@@ -17,6 +17,11 @@ Wires the three High-Needs transforms end-to-end:
 Stages 2 and 3 depend on Stage 1; Stage 3 depends on Stage 2. Each
 stage's output parquet lands directly in the gold tier.
 
+Runs incrementally: each stage streams to parquet via ``execute_stage``
+(no full in-memory collect), and a ``PipelineCheckpoint`` lets a
+resumed run skip stages whose parquet already landed. Pass ``force=True``
+to re-run everything from scratch.
+
 Prerequisites (bronze/silver must be materialised):
     silver/cclf1.parquet
     silver/cclf6.parquet   (optional; empty d-criterion if absent)
@@ -35,8 +40,9 @@ from typing import Any
 import polars as pl
 
 from .._decor8 import transform_method
+from ._checkpoint import PipelineCheckpoint
 from ._registry import register_pipeline
-from ._stage import PipelineStage
+from ._stage import PipelineStage, execute_stage
 
 
 @register_pipeline(name="high_needs")
@@ -48,7 +54,7 @@ def apply_high_needs_pipeline(
     executor: Any,
     logger: Any,
     force: bool = False,
-) -> dict[str, pl.LazyFrame]:
+) -> dict[str, Path]:
     """
     Run the High-Needs pipeline end to end.
 
@@ -56,6 +62,14 @@ def apply_high_needs_pipeline(
         gold/hcc_risk_scores.parquet
         gold/high_needs_eligibility.parquet
         gold/high_needs_reconciliation.parquet
+
+    Args:
+        executor: TransformRunner with storage_config and catalog access.
+        logger: Logger for recording operations.
+        force: Re-run every stage even if its parquet is already present.
+
+    Returns:
+        dict mapping stage name to its gold parquet path.
     """
     from .._transforms import (
         hcc_risk_scores,
@@ -66,6 +80,7 @@ def apply_high_needs_pipeline(
 
     storage = executor.storage_config
     gold_path = Path(storage.get_path(MedallionLayer.GOLD))
+    gold_path.mkdir(parents=True, exist_ok=True)
 
     stages = [
         PipelineStage(
@@ -92,25 +107,66 @@ def apply_high_needs_pipeline(
     ]
 
     pipeline_start = datetime.now()
+    checkpoint = PipelineCheckpoint("high_needs", force=force)
+
     logger.info(f"Starting High-Needs Pipeline: {len(stages)} stages")
     logger.info("=" * 80)
+    checkpoint.log_resume_info(logger, len(stages))
 
-    results: dict[str, pl.LazyFrame] = {}
     for stage in sorted(stages, key=lambda s: s.order):
-        logger.info(f"[{stage.group.upper()}] Stage {stage.order}: {stage.name}")
-        start = datetime.now()
-        lf = stage.module.execute(executor)
-        df = lf.collect()
-        gold_path.mkdir(parents=True, exist_ok=True)
-        output = gold_path / f"{stage.name}.parquet"
-        df.write_parquet(output)
-        elapsed = (datetime.now() - start).total_seconds()
-        logger.info(
-            f"  [OK] {stage.name} → {output.name} ({df.height:,} rows, {elapsed:.1f}s)"
+        output_file = gold_path / f"{stage.name}.parquet"
+
+        should_skip, _ = checkpoint.should_skip_stage(
+            stage.name, output_file, logger
         )
-        results[stage.name] = df.lazy()
+        if should_skip:
+            logger.info(
+                f"[{stage.group.upper()}] Stage {stage.order}: {stage.name}"
+            )
+            checkpoint.completed_stages.append(stage.name)
+            continue
+
+        try:
+            execute_stage(stage, executor, logger, gold_path)
+            checkpoint.mark_stage_complete(stage.name)
+        except Exception as e:
+            logger.error(f"[ERROR] {stage.name} failed: {e}")
+            logger.info(f"\n{'=' * 80}")
+            logger.info(
+                f"Pipeline STOPPED at stage {stage.order}/{len(stages)}: "
+                f"{stage.name}"
+            )
+            logger.info(
+                f"Completed stages saved to: "
+                f"{checkpoint.get_tracking_file_path()}"
+            )
+            logger.info(
+                "To resume from this stage, run again "
+                "(completed stages will be skipped)"
+            )
+            logger.info("To force re-run all stages, pass force=True")
+            logger.info(f"{'=' * 80}\n")
+            raise
+
+    logger.info("=" * 80)
+    logger.info("Counting final row counts...")
+    total_rows = 0
+    for stage_name in checkpoint.completed_stages:
+        file_path = gold_path / f"{stage_name}.parquet"
+        row_count = pl.scan_parquet(file_path).select(pl.len()).collect().item()
+        total_rows += row_count
+        logger.info(f"  {stage_name}: {row_count:,} rows")
 
     elapsed = (datetime.now() - pipeline_start).total_seconds()
     logger.info("=" * 80)
-    logger.info(f"High-Needs Pipeline complete in {elapsed:.1f}s")
-    return results
+    logger.info(
+        f"[OK] High-Needs Pipeline Complete: "
+        f"{len(checkpoint.completed_stages)} stages"
+    )
+    logger.info(f"  Total rows: {total_rows:,}")
+    logger.info(f"  Pipeline time: {elapsed:.2f}s")
+    logger.info("=" * 80)
+
+    checkpoint.mark_pipeline_complete(total_rows, elapsed)
+
+    return {name: gold_path / f"{name}.parquet" for name in checkpoint.completed_stages}

@@ -33,6 +33,7 @@ from . import (  # noqa: F401 (imported for registration side effects)
     _cclf_bronze,
     _cclf_gold,
     _cclf_silver,
+    _high_needs,
     _home_visit_gold,
     _identity_timeline,
     _reference_data,

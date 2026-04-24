@@ -74,20 +74,34 @@ class TestCriterionA:
         assert codes == ["G35", "G360", "G800", "G801", "G809"]
 
     @pytest.mark.unit
+    def _medical_claim_row(
+        self,
+        *,
+        mbi="A",
+        bill_type="111",
+        admission_date=date(2024, 6, 15),
+        diagnoses: dict[int, str | None] | None = None,
+    ):
+        """Minimal medical_claim row with the 25 diagnosis positions.
+        Pass ``diagnoses={1: 'G35', 3: 'I10'}`` to populate specific
+        positions; unspecified positions default to null."""
+        dx_map = diagnoses or {}
+        cols = {
+            "person_id": [mbi],
+            "claim_type": ["institutional"],
+            "bill_type_code": [bill_type],
+            "admission_date": [admission_date],
+        }
+        for i in range(1, 26):
+            cols[f"diagnosis_code_{i}"] = [dx_map.get(i)]
+        return pl.LazyFrame(cols)
+
     def test_single_inpatient_match_qualifies(self, b61_codes):
-        cclf1 = pl.LazyFrame(
-            {
-                "bene_mbi_id": ["A"],
-                "clm_type_cd": ["60"],
-                "clm_from_dt": [date(2024, 6, 15)],
-                "prncpl_dgns_cd": ["G35"],
-                "admtg_dgns_cd": [None],
-            }
-        )
+        mc = self._medical_claim_row(diagnoses={1: "G35"})
         codes_lf = parse_icd10_codes_from_table_b61(b61_codes)
         window = LookbackWindow(begin=date(2024, 1, 1), end=date(2024, 12, 31))
 
-        qualifying = build_criterion_a_qualifying_claims(cclf1, codes_lf, window=window)
+        qualifying = build_criterion_a_qualifying_claims(mc, codes_lf, window=window)
         met = build_criterion_a_met_expr(qualifying).collect()
 
         assert met.height == 1
@@ -96,60 +110,42 @@ class TestCriterionA:
         assert row["qualifying_claim_count"] == 1
 
     @pytest.mark.unit
-    def test_admitting_diagnosis_also_qualifies(self, b61_codes):
-        """A B.6.1 code on admtg_dgns_cd should qualify just like
-        prncpl_dgns_cd."""
-        cclf1 = pl.LazyFrame(
-            {
-                "bene_mbi_id": ["A"],
-                "clm_type_cd": ["60"],
-                "clm_from_dt": [date(2024, 6, 15)],
-                "prncpl_dgns_cd": ["Z99.0"],  # not a B.6.1 code
-                "admtg_dgns_cd": ["G80.1"],   # is a B.6.1 code
-            }
-        )
+    def test_secondary_diagnosis_also_qualifies(self, b61_codes):
+        """A B.6.1 code in any of the 25 diagnosis positions qualifies.
+        The FOG 'one inpatient claim with a diagnosis from B.6.1'
+        phrasing doesn't restrict to the principal slot, so a secondary
+        dx match counts."""
+        mc = self._medical_claim_row(diagnoses={1: "Z99.0", 5: "G80.1"})
         codes_lf = parse_icd10_codes_from_table_b61(b61_codes)
         window = LookbackWindow(begin=date(2024, 1, 1), end=date(2024, 12, 31))
 
-        qualifying = build_criterion_a_qualifying_claims(cclf1, codes_lf, window=window)
+        qualifying = build_criterion_a_qualifying_claims(mc, codes_lf, window=window)
         met = build_criterion_a_met_expr(qualifying).collect()
         assert met.height == 1
         assert met.row(0, named=True)["criterion_a_met"] is True
 
     @pytest.mark.unit
     def test_outpatient_claim_does_not_qualify(self, b61_codes):
-        """Only claim-type 60 (inpatient) counts for criterion (a) per
-        FOG line 1503."""
-        cclf1 = pl.LazyFrame(
-            {
-                "bene_mbi_id": ["A"],
-                "clm_type_cd": ["40"],
-                "clm_from_dt": [date(2024, 6, 15)],
-                "prncpl_dgns_cd": ["G35"],
-                "admtg_dgns_cd": [None],
-            }
-        )
+        """Only hospital inpatient (bill_type_code starting ``11``)
+        counts per FOG line 1503. A 13x outpatient facility bill is
+        excluded even with a qualifying dx."""
+        mc = self._medical_claim_row(bill_type="131", diagnoses={1: "G35"})
         codes_lf = parse_icd10_codes_from_table_b61(b61_codes)
         window = LookbackWindow(begin=date(2024, 1, 1), end=date(2024, 12, 31))
-        qualifying = build_criterion_a_qualifying_claims(cclf1, codes_lf, window=window)
+        qualifying = build_criterion_a_qualifying_claims(mc, codes_lf, window=window)
         met = build_criterion_a_met_expr(qualifying).collect()
         assert met.height == 0
 
     @pytest.mark.unit
     def test_out_of_window_excluded(self, b61_codes):
         """An inpatient claim before the window boundary doesn't count."""
-        cclf1 = pl.LazyFrame(
-            {
-                "bene_mbi_id": ["A"],
-                "clm_type_cd": ["60"],
-                "clm_from_dt": [date(2023, 6, 15)],
-                "prncpl_dgns_cd": ["G35"],
-                "admtg_dgns_cd": [None],
-            }
+        mc = self._medical_claim_row(
+            admission_date=date(2023, 6, 15),
+            diagnoses={1: "G35"},
         )
         codes_lf = parse_icd10_codes_from_table_b61(b61_codes)
         window = LookbackWindow(begin=date(2024, 1, 1), end=date(2024, 12, 31))
-        qualifying = build_criterion_a_qualifying_claims(cclf1, codes_lf, window=window)
+        qualifying = build_criterion_a_qualifying_claims(mc, codes_lf, window=window)
         met = build_criterion_a_met_expr(qualifying).collect()
         assert met.height == 0
 
@@ -290,47 +286,50 @@ class TestCriterionD:
 
     @pytest.mark.unit
     def test_two_claims_on_different_dates_qualifies(self, b62_codes):
-        cclf6 = pl.LazyFrame(
+        mc = pl.LazyFrame(
             {
-                "bene_mbi_id": ["A", "A"],
-                "clm_line_hcpcs_cd": ["E0621", "E0290"],
-                "clm_line_from_dt": [date(2024, 3, 1), date(2024, 8, 15)],
+                "person_id": ["A", "A"],
+                "claim_type": ["professional", "professional"],
+                "hcpcs_code": ["E0621", "E0290"],
+                "claim_line_start_date": [date(2024, 3, 1), date(2024, 8, 15)],
             }
         )
         codes_lf = parse_hcpcs_codes_from_table_b62(b62_codes)
         window = LookbackWindow(begin=date(2020, 1, 1), end=date(2024, 12, 31))
-        qualifying = build_criterion_d_qualifying_claims(cclf6, codes_lf, window=window)
+        qualifying = build_criterion_d_qualifying_claims(mc, codes_lf, window=window)
         met = build_criterion_d_met_expr(qualifying).collect()
         assert met.row(0, named=True)["criterion_d_met"] is True
 
     @pytest.mark.unit
     def test_two_claims_same_date_do_not_qualify(self, b62_codes):
         """Distinct service DATES are required per FOG line 1503."""
-        cclf6 = pl.LazyFrame(
+        mc = pl.LazyFrame(
             {
-                "bene_mbi_id": ["A", "A"],
-                "clm_line_hcpcs_cd": ["E0621", "E0290"],
-                "clm_line_from_dt": [date(2024, 3, 1), date(2024, 3, 1)],
+                "person_id": ["A", "A"],
+                "claim_type": ["professional", "professional"],
+                "hcpcs_code": ["E0621", "E0290"],
+                "claim_line_start_date": [date(2024, 3, 1), date(2024, 3, 1)],
             }
         )
         codes_lf = parse_hcpcs_codes_from_table_b62(b62_codes)
         window = LookbackWindow(begin=date(2020, 1, 1), end=date(2024, 12, 31))
-        qualifying = build_criterion_d_qualifying_claims(cclf6, codes_lf, window=window)
+        qualifying = build_criterion_d_qualifying_claims(mc, codes_lf, window=window)
         met = build_criterion_d_met_expr(qualifying).collect()
         assert met.row(0, named=True)["criterion_d_met"] is False
 
     @pytest.mark.unit
     def test_single_claim_does_not_qualify(self, b62_codes):
-        cclf6 = pl.LazyFrame(
+        mc = pl.LazyFrame(
             {
-                "bene_mbi_id": ["A"],
-                "clm_line_hcpcs_cd": ["E0621"],
-                "clm_line_from_dt": [date(2024, 3, 1)],
+                "person_id": ["A"],
+                "claim_type": ["professional"],
+                "hcpcs_code": ["E0621"],
+                "claim_line_start_date": [date(2024, 3, 1)],
             }
         )
         codes_lf = parse_hcpcs_codes_from_table_b62(b62_codes)
         window = LookbackWindow(begin=date(2020, 1, 1), end=date(2024, 12, 31))
-        qualifying = build_criterion_d_qualifying_claims(cclf6, codes_lf, window=window)
+        qualifying = build_criterion_d_qualifying_claims(mc, codes_lf, window=window)
         met = build_criterion_d_met_expr(qualifying).collect()
         assert met.row(0, named=True)["criterion_d_met"] is False
 
@@ -349,7 +348,7 @@ class TestCriterionE:
         """A beneficiary with 200 SNF days in PY2023 still scores
         criterion_e_met=False because the criterion does not apply."""
         days = pl.LazyFrame(
-            {"bene_mbi_id": ["A"], "snf_days": [200], "home_health_days": [200]}
+            {"person_id": ["A"], "snf_days": [200], "home_health_days": [200]}
         )
         result = build_criterion_e_met_expr(days, performance_year=2023).collect()
         assert result.row(0, named=True)["criterion_e_met"] is False
@@ -357,7 +356,7 @@ class TestCriterionE:
     @pytest.mark.unit
     def test_py2024_above_snf_threshold_qualifies(self):
         days = pl.LazyFrame(
-            {"bene_mbi_id": ["A"], "snf_days": [50], "home_health_days": [0]}
+            {"person_id": ["A"], "snf_days": [50], "home_health_days": [0]}
         )
         result = build_criterion_e_met_expr(days, performance_year=2024).collect()
         assert result.row(0, named=True)["criterion_e_met"] is True
@@ -365,7 +364,7 @@ class TestCriterionE:
     @pytest.mark.unit
     def test_py2024_above_hh_threshold_qualifies(self):
         days = pl.LazyFrame(
-            {"bene_mbi_id": ["A"], "snf_days": [0], "home_health_days": [100]}
+            {"person_id": ["A"], "snf_days": [0], "home_health_days": [100]}
         )
         result = build_criterion_e_met_expr(days, performance_year=2024).collect()
         assert result.row(0, named=True)["criterion_e_met"] is True
@@ -373,7 +372,7 @@ class TestCriterionE:
     @pytest.mark.unit
     def test_py2024_below_both_thresholds(self):
         days = pl.LazyFrame(
-            {"bene_mbi_id": ["A"], "snf_days": [30], "home_health_days": [60]}
+            {"person_id": ["A"], "snf_days": [30], "home_health_days": [60]}
         )
         result = build_criterion_e_met_expr(days, performance_year=2024).collect()
         assert result.row(0, named=True)["criterion_e_met"] is False

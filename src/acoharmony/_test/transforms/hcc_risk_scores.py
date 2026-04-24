@@ -104,16 +104,32 @@ def seeded_executor(tmp_path: Path):
 
 class TestExecute:
     @pytest.mark.unit
-    def test_produces_one_row_per_mbi_per_applicable_model(self, seeded_executor):
-        """PY2026 AD gets V24, V28, and CMMI (3 rows each);
-        PY2026 ESRD gets ESRD_V24 only (1 row)."""
+    def test_produces_one_row_per_mbi_per_model_per_check(self, seeded_executor):
+        """Per FOG line 1406 the dx window tracks the check date, so
+        every (mbi, model) pair now emits four rows per PY — one per
+        check date. PY2026 A&D gets V24, V28, and CMMI across 4 checks
+        (12 rows); PY2026 ESRD gets ESRD_V24 across 4 checks (4 rows)."""
         lf = execute(seeded_executor)
         df = lf.collect()
         per_mbi = df.group_by("mbi").agg(pl.len().alias("n"))
         per_mbi_dict = {row["mbi"]: row["n"] for row in per_mbi.to_dicts()}
-        assert per_mbi_dict["LOWRISK_AD"] == 3   # V24, V28, CMMI
-        assert per_mbi_dict["HIGHRISK_AD"] == 3  # V24, V28, CMMI
-        assert per_mbi_dict["ESRD_BENE"] == 1    # ESRD_V24 only
+        assert per_mbi_dict["LOWRISK_AD"] == 12   # 3 models * 4 checks
+        assert per_mbi_dict["HIGHRISK_AD"] == 12  # 3 models * 4 checks
+        assert per_mbi_dict["ESRD_BENE"] == 4     # 1 model * 4 checks
+
+    @pytest.mark.unit
+    def test_check_date_column_populated(self, seeded_executor):
+        """Every score row carries the check_date it was computed for —
+        the eligibility transform joins on (mbi, check_date), so a null
+        check_date would silently drop the row on join."""
+        from datetime import date
+        df = execute(seeded_executor).collect()
+        assert df["check_date"].null_count() == 0
+        expected = {
+            date(2026, 1, 1), date(2026, 4, 1),
+            date(2026, 7, 1), date(2026, 10, 1),
+        }
+        assert set(df["check_date"].unique().to_list()) == expected
 
     @pytest.mark.unit
     def test_highrisk_ad_scores_exceed_lowrisk(self, seeded_executor):
@@ -130,20 +146,20 @@ class TestExecute:
     def test_esrd_bene_uses_esrd_model_only(self, seeded_executor):
         df = execute(seeded_executor).collect()
         esrd = df.filter(pl.col("mbi") == "ESRD_BENE")
-        assert esrd["model_version"].to_list() == ["cms_hcc_esrd_v24"]
-        assert esrd["cohort"].to_list() == ["ESRD"]
+        assert esrd["model_version"].unique().to_list() == ["cms_hcc_esrd_v24"]
+        assert esrd["cohort"].unique().to_list() == ["ESRD"]
 
     @pytest.mark.unit
     def test_cmmi_score_populates_for_ad_benes(self, seeded_executor):
         """CMMI-HCC Concurrent should produce a non-null score once the
-        dx→HCC mapping is in place."""
+        dx→HCC mapping is in place — once per check date."""
         df = execute(seeded_executor).collect()
         cmmi_hr = df.filter(
             (pl.col("mbi") == "HIGHRISK_AD")
             & (pl.col("model_version") == "cmmi_concurrent")
         )
-        assert cmmi_hr.height == 1
-        assert cmmi_hr["total_risk_score"][0] is not None
+        assert cmmi_hr.height == 4  # one per check date
+        assert cmmi_hr["total_risk_score"].null_count() == 0
 
     @pytest.mark.unit
     def test_missing_diagnosis_file_does_not_crash(self, tmp_path):
@@ -169,6 +185,138 @@ class TestExecute:
         )
         df = execute(executor).collect()
         assert df.height >= 1
+
+
+class TestComputeAge:
+    """Unit tests for _compute_age edge cases."""
+
+    @pytest.mark.unit
+    def test_null_birth_date_returns_zero(self):
+        from acoharmony._transforms.hcc_risk_scores import _compute_age
+
+        assert _compute_age(None, date(2026, 1, 1)) == 0
+
+    @pytest.mark.unit
+    def test_birthday_not_yet_reached_subtracts_one(self):
+        from acoharmony._transforms.hcc_risk_scores import _compute_age
+
+        # Born June 15, as-of Jan 1 — birthday hasn't arrived yet.
+        assert _compute_age(date(1950, 6, 15), date(2026, 1, 1)) == 75
+
+    @pytest.mark.unit
+    def test_birthday_already_passed_does_not_subtract(self):
+        from acoharmony._transforms.hcc_risk_scores import _compute_age
+
+        # Born Jan 1, as-of Jan 1 — exact birthday.
+        assert _compute_age(date(1950, 1, 1), date(2026, 1, 1)) == 76
+
+
+class TestResolvePerformanceYears:
+    """Unit tests for _resolve_performance_years precedence branches."""
+
+    @pytest.mark.unit
+    def test_performance_years_list_takes_precedence(self):
+        from acoharmony._transforms.hcc_risk_scores import _resolve_performance_years
+
+        executor = SimpleNamespace(performance_years=[2024, 2025], performance_year=2026)
+        assert _resolve_performance_years(executor) == [2024, 2025]
+
+    @pytest.mark.unit
+    def test_performance_year_singular_used_when_list_absent(self):
+        from acoharmony._transforms.hcc_risk_scores import _resolve_performance_years
+
+        executor = SimpleNamespace(performance_year=2025)
+        assert _resolve_performance_years(executor) == [2025]
+
+    @pytest.mark.unit
+    def test_default_range_used_when_both_absent(self):
+        import datetime
+        from acoharmony._transforms.hcc_risk_scores import (
+            _resolve_performance_years,
+            DEFAULT_FIRST_PY,
+        )
+
+        executor = SimpleNamespace()  # no performance_year(s)
+        result = _resolve_performance_years(executor)
+        expected = list(range(DEFAULT_FIRST_PY, datetime.date.today().year + 1))
+        assert result == expected
+
+
+class TestExecuteEmptyPyList:
+    """Edge-case: passing performance_years=[] must return an empty LazyFrame."""
+
+    @pytest.mark.unit
+    def test_empty_performance_years_returns_empty_frame(self, tmp_path: Path):
+        root = tmp_path / "workspace_empty"
+        storage = _MockStorage(root)
+        gold = storage.get_path("gold")
+        pl.DataFrame(
+            {
+                "member_id": ["BENE"],
+                "birth_date": [date(1955, 1, 1)],
+                "gender": ["F"],
+                "original_reason_entitlement_code": ["0"],
+                "medicare_status_code": [None],
+                "dual_status_code": ["NA"],
+            }
+        ).write_parquet(gold / "eligibility.parquet")
+
+        executor = SimpleNamespace(
+            storage_config=storage,
+            performance_years=[],  # explicit empty list
+        )
+        df = execute(executor).collect()
+        assert df.height == 0
+
+
+class TestDxCacheReuse:
+    """Verify the dx_cache hit branch (290->292) fires — the False path of
+    ``if key not in dx_cache`` when the same window is queried twice."""
+
+    @pytest.mark.unit
+    def test_dx_cache_hit_branch_fires_when_window_repeated(
+        self, tmp_path: Path, monkeypatch
+    ):
+        """Monkeypatch _dx_window_for_check to return the same (begin, end)
+        for every call so that the second check date hits the cache (the
+        ``if key not in dx_cache: False`` branch at line 290)."""
+        from datetime import date as _date
+        import acoharmony._transforms.hcc_risk_scores as _mod
+
+        fixed_window = (_date(2025, 1, 1), _date(2025, 12, 31))
+        monkeypatch.setattr(_mod, "_dx_window_for_check", lambda *_a: fixed_window)
+
+        root = tmp_path / "workspace_cache"
+        storage = _MockStorage(root)
+        gold = storage.get_path("gold")
+        silver = storage.get_path("silver")
+
+        pl.DataFrame(
+            {
+                "member_id": ["BENE_C"],
+                "birth_date": [date(1950, 1, 1)],
+                "gender": ["M"],
+                "original_reason_entitlement_code": ["0"],
+                "medicare_status_code": [None],
+                "dual_status_code": ["NA"],
+            }
+        ).write_parquet(gold / "eligibility.parquet")
+
+        pl.DataFrame(
+            {
+                "current_bene_mbi_id": ["BENE_C"],
+                "clm_dgns_cd": ["E1165"],
+                "clm_from_dt": [date(2025, 6, 1)],
+            }
+        ).write_parquet(silver / "int_diagnosis_deduped.parquet")
+
+        executor = SimpleNamespace(
+            storage_config=storage,
+            performance_year=2026,  # 4 check dates all return the same window → 3 cache hits
+        )
+        df = execute(executor).collect()
+        # 3 models * 4 checks = 12 rows for one AD bene
+        assert df.height == 12
 
 
 class TestMstatEsrdClassification:
@@ -211,6 +359,7 @@ class TestMstatEsrdClassification:
         df = execute(executor).collect()
         assert df["cohort"].unique().to_list() == ["ESRD"]
         assert df["model_version"].unique().to_list() == ["cms_hcc_esrd_v24"]
+        assert df.height == 4  # one per check date
 
     @pytest.mark.unit
     def test_mstat_esrd_bene_produces_nonzero_score(self, tmp_path):
@@ -246,13 +395,11 @@ class TestMstatEsrdClassification:
             storage_config=storage, performance_year=2026,
         )
         df = execute(executor).collect()
-        esrd_row = df.filter(pl.col("model_version") == "cms_hcc_esrd_v24").row(
-            0, named=True,
-        )
-        # The score would be 0.0 under the old bug (OREC='0' passed
-        # straight through). The synthesis flips it to a nonzero score
-        # against the ESRD dx.
-        assert esrd_row["total_risk_score"] > 0.0
+        esrd_rows = df.filter(pl.col("model_version") == "cms_hcc_esrd_v24")
+        assert esrd_rows.height == 4  # 4 check dates
+        # Every check yields a nonzero score. Under the old bug (OREC='0'
+        # passed straight through), all 4 would be 0.0.
+        assert (esrd_rows["total_risk_score"] > 0.0).all()
 
     @pytest.mark.unit
     def test_mstat_20_still_classifies_as_ad(self, tmp_path):

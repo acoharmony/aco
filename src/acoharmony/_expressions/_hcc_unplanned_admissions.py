@@ -24,31 +24,36 @@ filter codified in the PY2024 Financial Operating Guide footnote 5:
 Operational rules
 -----------------
 
-1. Source table: CCLF1 (institutional claim header). The relevant
-   column in our silver layer is ``clm_admsn_type_cd``. The PA/FOG
-   reference "CLM_IP_ADMSN_TYPE_CD" is CMS's name for the same field;
-   our feed stores it as ``clm_admsn_type_cd`` on ``silver/cclf1``.
+1. Source table: ``gold/medical_claim`` (Tuva-normalised union of
+   institutional / DME / professional claims, MBI-crosswalked via
+   ``person_id``). The PA/FOG reference to ``CLM_IP_ADMSN_TYPE_CD`` is
+   surfaced in Tuva's normalised schema as ``admit_type_code``.
 
-2. Include only inpatient claims. The FOG parent rule (line 1503)
-   clarifies "one inpatient claim (claim type 60)" is the accepted
-   evidence type. Claim type 60 is the CCLF code for inpatient
-   institutional claims (Part A inpatient). We filter
-   ``clm_type_cd = '60'`` (stored as string, preserving any leading
-   zeros).
+2. Include only institutional inpatient claims. Tuva encodes this as
+   ``claim_type == "institutional"`` AND ``bill_type_code`` starting
+   with ``"11"`` (UB bill-type facility code 11 = hospital inpatient).
+   The FOG's "claim type 60" rule at line 1503 resolves to the same
+   population in this schema.
 
-3. Deduplicate by admission date per beneficiary. CCLF1 can contain
-   multiple claim lines for the same admission (interim bills, adjusted
-   claims). Count distinct ``clm_from_dt`` per MBI so a single stay
+3. Deduplicate by admission_date per person. medical_claim exposes
+   one row per claim line, so a single stay can contribute many lines
+   (interim bills, adjusted claims, revenue-center detail). Count
+   distinct ``admission_date`` per ``person_id`` so one stay
    contributes once to the admission count.
 
-4. A beneficiary meets criterion IV.B.1(c)'s admissions prong when
+4. Use ``person_id`` (the crosswalked canonical MBI) rather than a raw
+   claim-time MBI. A bene whose MBI rotated mid-window has their pre-
+   and post-rotation admissions attributed to one identity on the
+   medical_claim side.
+
+5. A beneficiary meets criterion IV.B.1(c)'s admissions prong when
    the count of unplanned admissions in the lookback window is
    ``>= 2``. Criterion-c's risk-score prong is evaluated separately and
    ANDed in by the rollup expression in ``_high_needs_criterion_c``.
 
 This module builds Polars expressions only — it does not load data. The
-caller scans ``silver/cclf1.parquet`` and composes this expression into
-its query.
+caller scans ``gold/medical_claim.parquet`` and composes this
+expression into its query.
 """
 
 from __future__ import annotations
@@ -58,10 +63,13 @@ from datetime import date
 import polars as pl
 
 
-# Inpatient claim type in the CCLF feed. Per FOG line 1503, inpatient
-# claims are the only claim type that counts for criterion IV.B.1(a)'s
-# "one inpatient claim" rule; criterion IV.B.1(c)'s admission-counter
-# reuses the same inpatient filter.
+# Tuva UB bill-type-code prefix for hospital inpatient facilities.
+# (First two digits of bill_type_code encode facility type; 11 = hospital
+# inpatient, the Tuva-schema equivalent of CCLF claim type 60.)
+HOSPITAL_INPATIENT_BILL_TYPE_PREFIX = "11"
+
+# Legacy constant retained for any code still reading raw CCLF1. The
+# HN-criteria path no longer uses it — it now reads gold/medical_claim.
 INPATIENT_CLAIM_TYPE_CODE = "60"
 
 # Admission-type code 3 = "Elective" per the CMS claim-type-code codebook.
@@ -73,92 +81,76 @@ ELECTIVE_ADMISSION_TYPE_CODE = "3"
 
 
 def build_unplanned_admission_filter(
-    claim_type_col: str = "clm_type_cd",
-    admission_type_col: str = "clm_admsn_type_cd",
+    claim_type_col: str = "claim_type",
+    bill_type_col: str = "bill_type_code",
+    admission_type_col: str = "admit_type_code",
 ) -> pl.Expr:
     """
-    Build a boolean filter expression that is ``True`` for rows
-    representing unplanned inpatient admissions.
+    Build a boolean filter expression that is ``True`` for rows in
+    ``gold/medical_claim`` representing unplanned inpatient admissions.
 
-    Both columns are cast to ``pl.String`` so numeric inputs
-    (e.g. an int-coded admission type) classify correctly. ``True`` iff:
+    All columns are cast to ``pl.String`` so numeric inputs classify
+    correctly. ``True`` iff:
 
-        - claim type is inpatient (``"60"``), AND
-        - admission type is NOT ``"3"`` (non-elective).
+        - ``claim_type`` is ``"institutional"``, AND
+        - ``bill_type_code`` starts with ``"11"`` (hospital inpatient,
+          the Tuva equivalent of CCLF claim type 60), AND
+        - ``admit_type_code`` is NOT ``"3"`` (non-elective).
 
-    Null admission type counts as unplanned — consistent with the FOG's
-    "is not 3" phrasing, which does not exclude nulls.
+    Null admit type counts as unplanned — consistent with the FOG
+    footnote 5 "is not 3" phrasing, which does not exclude nulls. In
+    Polars ``null != "3"`` evaluates to null (three-valued logic), so
+    the filter forces truthy-on-null via ``fill_null`` with a sentinel.
     """
     claim_type_str = pl.col(claim_type_col).cast(pl.String, strict=False)
+    bill_type_str = pl.col(bill_type_col).cast(pl.String, strict=False)
     admsn_type_str = pl.col(admission_type_col).cast(pl.String, strict=False)
-    # Null admission type counts as unplanned — FOG footnote 5 says
-    # ``is not 3``, and a null value is not the string "3". In Polars
-    # ``null != "3"`` evaluates to null (three-valued logic), so we
-    # make the filter truthy-on-null explicitly via fill_null with a
-    # sentinel that is not "3".
     not_elective = admsn_type_str.fill_null("__null__") != ELECTIVE_ADMISSION_TYPE_CODE
-    return (claim_type_str == INPATIENT_CLAIM_TYPE_CODE) & not_elective
-
-
-def build_unplanned_admission_count_expr(
-    mbi_col: str = "bene_mbi_id",
-    admission_date_col: str = "clm_from_dt",
-    claim_type_col: str = "clm_type_cd",
-    admission_type_col: str = "clm_admsn_type_cd",
-) -> pl.Expr:
-    """
-    Build a group-aggregate expression that counts distinct unplanned
-    admission dates per beneficiary. Intended to be applied inside a
-    ``group_by(mbi_col).agg([...])`` after filtering to the applicable
-    Table C lookback window; the caller composes the window filter
-    outside this module.
-
-    Returns a ``pl.Expr`` usable directly in ``.agg(...)`` — it yields
-    an integer count.
-
-    Deduplication on admission date handles interim-billed and adjusted
-    inpatient claims for the same stay: a beneficiary admitted on
-    2024-07-15 with three adjustment claims counts once, not three
-    times. This matches CMS's operational intent even though the FOG
-    does not spell out the dedupe rule.
-    """
     return (
-        pl.when(
-            build_unplanned_admission_filter(claim_type_col, admission_type_col)
-        )
-        .then(pl.col(admission_date_col))
-        .otherwise(None)
-        .drop_nulls()
-        .n_unique()
-        .alias("unplanned_admission_count")
+        (claim_type_str == "institutional")
+        & bill_type_str.str.starts_with(HOSPITAL_INPATIENT_BILL_TYPE_PREFIX)
+        & not_elective
     )
 
 
 def count_unplanned_admissions_in_window(
-    claims_lf: pl.LazyFrame,
+    medical_claim_lf: pl.LazyFrame,
     *,
     window_begin: date,
     window_end: date,
-    mbi_col: str = "bene_mbi_id",
-    admission_date_col: str = "clm_from_dt",
-    claim_type_col: str = "clm_type_cd",
-    admission_type_col: str = "clm_admsn_type_cd",
+    mbi_col: str = "person_id",
+    admission_date_col: str = "admission_date",
+    claim_type_col: str = "claim_type",
+    bill_type_col: str = "bill_type_code",
+    admission_type_col: str = "admit_type_code",
 ) -> pl.LazyFrame:
     """
-    Convenience: filter ``claims_lf`` to the [window_begin, window_end]
-    inclusive range on ``admission_date_col``, apply the
-    inpatient/non-elective filter, deduplicate by (mbi, admission_date),
-    and emit one row per MBI with an ``unplanned_admission_count``.
+    Filter ``medical_claim_lf`` to the [window_begin, window_end]
+    inclusive range on ``admission_date``, apply the
+    institutional-inpatient / non-elective filter, deduplicate by
+    (person_id, admission_date), and emit one row per person with an
+    ``unplanned_admission_count``.
 
-    Uses ``silver/cclf1`` conventions by default. A beneficiary with no
-    matching admissions will *not* appear in the output — callers that
-    need "zero rows" for the no-admission case should left-join against
-    the beneficiary roster.
+    Reads from ``gold/medical_claim`` (Tuva-normalised, MBI-crosswalked
+    via ``person_id``) by default. Using ``person_id`` ensures that a
+    bene whose MBI rotated mid-window has their pre- and post-rotation
+    admissions counted as one identity, not two.
+
+    Deduplication on admission date handles interim-billed and adjusted
+    inpatient claims for the same stay: a beneficiary admitted on
+    2024-07-15 with three adjustment claims counts once, not three
+    times. A beneficiary with no matching admissions will *not* appear
+    in the output — callers that need "zero rows" for the no-admission
+    case should left-join against the beneficiary roster.
     """
     admission_date = pl.col(admission_date_col).cast(pl.Date, strict=False)
     return (
-        claims_lf.filter(
-            build_unplanned_admission_filter(claim_type_col, admission_type_col)
+        medical_claim_lf.filter(
+            build_unplanned_admission_filter(
+                claim_type_col=claim_type_col,
+                bill_type_col=bill_type_col,
+                admission_type_col=admission_type_col,
+            )
             & admission_date.is_between(window_begin, window_end, closed="both")
         )
         .unique(subset=[mbi_col, admission_date_col])

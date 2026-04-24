@@ -57,7 +57,7 @@ def build_criterion_e_met_expr(
     days_lf: pl.LazyFrame,
     performance_year: int,
     *,
-    mbi_col: str = "bene_mbi_id",
+    mbi_col: str = "person_id",
 ) -> pl.LazyFrame:
     """
     Apply the criterion-e threshold to a per-beneficiary SNF/HH day

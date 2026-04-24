@@ -463,6 +463,31 @@ class TestBuildCalendarReportsLfCadence:
         tparc_jul = df.filter(pl.col("schema_name") == "tparc")
         assert tparc_jul["period"].item() == "M07"
 
+    @pytest.mark.unit
+    def test_monthly_schema_period_falls_back_to_start_date_when_description_silent(
+        self, tmp_path: Path
+    ):
+        """Line 205-206: when classify_calendar_description returns a monthly
+        schema name but no period (description has no month token), period is
+        derived from start_date via _period_from_date."""
+        rows = [
+            {
+                "type": "Report",
+                # No month token — description alone can't determine period.
+                "description": "Provider Specific Payment Reduction Report",
+                "category": "Finance",
+                "start_date": date(2024, 9, 30),  # September → M09
+                "file_date": "2026-04-01",
+                "py": 2024,
+            }
+        ]
+        p = tmp_path / "cal_monthly_fallback.parquet"
+        pl.DataFrame(rows).write_parquet(p)
+        df = build_calendar_reports_lf(p).collect()
+        tparc_row = df.filter(pl.col("schema_name") == "tparc")
+        assert tparc_row.height == 1
+        assert tparc_row["period"].item() == "M09"
+
 
 # ----------------------------------------------------------------------------
 # _period_from_date / _filename_date / _filename_period / _filename_py
@@ -583,6 +608,28 @@ class TestInternalHelpers:
     @pytest.mark.unit
     def test_filename_period_unknown_schema_no_hints_returns_none(self):
         assert _filename_period("some_random_file.xlsx", "unknown_schema") is None
+
+    @pytest.mark.unit
+    def test_filename_period_quarterly_schema_no_date_falls_through_to_monthly_check(
+        self,
+    ):
+        """When a quarterly schema filename has no parseable date, the
+        ``if d:`` guard at line 347 is False and control falls through to the
+        monthly-schema check (347->351 branch). The schema is not monthly, so
+        that block is skipped too, and the annual check gives None."""
+        # reach_bnmr is quarterly; "no-date.xlsx" has no parseable date stamp.
+        assert _filename_period("reach-bnmr-no-date.xlsx", "reach_bnmr") is None
+
+    @pytest.mark.unit
+    def test_filename_period_monthly_schema_no_date_falls_through_to_annual_check(
+        self,
+    ):
+        """When a monthly schema filename has no parseable date, the
+        ``if d:`` guard at line 353 is False and control falls through to the
+        annual-schema check (353->356 branch). The schema is not annual, so the
+        function returns None."""
+        # tparc is monthly; a name-only filename has no parseable date.
+        assert _filename_period("tparc-report-no-date.csv", "tparc") is None
 
     @pytest.mark.unit
     def test_filename_period_annual_schema_returns_A(self):

@@ -42,6 +42,12 @@ class TestAgeSexCell:
         assert age_sex_cell(70, "f") == "F70_74"
         assert age_sex_cell(70, "m") == "M70_74"
 
+    @pytest.mark.unit
+    def test_age_beyond_max_cut_returns_last_cell(self):
+        """An age > 200 falls through the loop and hits the post-loop fallback."""
+        assert age_sex_cell(201, "F") == "F95_GT"
+        assert age_sex_cell(201, "M") == "M95_GT"
+
 
 class TestPaymentHccCountKey:
     @pytest.mark.unit

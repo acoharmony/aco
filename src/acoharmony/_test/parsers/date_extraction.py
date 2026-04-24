@@ -216,6 +216,16 @@ class TestDateExtraction2:
         assert extract_file_date("data.D240315", None) == "2024-03-15"
 
     @pytest.mark.unit
+    def test_mmddyyyy_underscore_pattern(self):
+        """Filenames like ACO_REACH_Calendar_updated_03052026.xlsx use
+        _MMDDYYYY (underscore-anchored) format — line 244-246 of the
+        extractor."""
+        from acoharmony._parsers._date_extraction import extract_file_date
+
+        result = extract_file_date("ACO_REACH_Calendar_updated_03052026.xlsx", None)
+        assert result == "2026-03-05"
+
+    @pytest.mark.unit
     def test_no_match(self):
         from acoharmony._parsers._date_extraction import extract_file_date
 

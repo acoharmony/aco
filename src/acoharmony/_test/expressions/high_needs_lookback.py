@@ -174,3 +174,22 @@ class TestLookbackWindow:
     def test_contains_begin_inclusive(self):
         w = LookbackWindow(begin=date(2024, 1, 1), end=date(2024, 12, 31))
         assert w.contains(date(2024, 1, 1))
+
+
+class TestLastDayOfMonth:
+    """Exercise _last_day_of_month's December branch (line 102)."""
+
+    @pytest.mark.unit
+    def test_december_returns_31(self):
+        from acoharmony._expressions._high_needs_lookback import _last_day_of_month
+
+        assert _last_day_of_month(2024, 12) == date(2024, 12, 31)
+        assert _last_day_of_month(2025, 12) == date(2025, 12, 31)
+
+    @pytest.mark.unit
+    def test_non_december_uses_rollover(self):
+        from acoharmony._expressions._high_needs_lookback import _last_day_of_month
+
+        assert _last_day_of_month(2024, 2) == date(2024, 2, 29)  # leap year
+        assert _last_day_of_month(2023, 2) == date(2023, 2, 28)  # non-leap
+        assert _last_day_of_month(2024, 11) == date(2024, 11, 30)

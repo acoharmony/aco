@@ -34,26 +34,30 @@ alternatives (either clause qualifies the beneficiary):
 Operational rules
 -----------------
 
-1. Source: CCLF1 institutional claim header. We read ``silver/cclf1``.
+1. Source: ``gold/medical_claim`` (Tuva-normalised union of claims,
+   MBI-crosswalked via ``person_id``).
 
-2. Claim-type filter. CMS CCLF claim-type codes split institutional
-   bills by setting:
-       10 = Home Health Agency (HHA)
-       20 = Skilled Nursing Facility (SNF)
-   Other institutional claim types (hospice, outpatient, inpatient,
-   etc.) don't count toward criterion (e).
+2. Claim-type filter. Tuva encodes the claim setting via
+   ``bill_type_code`` (UB 3-digit code; first two digits = facility
+   type):
+       21 = SNF inpatient
+       32 = Home Health
+   Both are institutional claim_type. Other bill_type facilities
+   (inpatient hospital 11, hospice 81/82, outpatient 13, etc.) don't
+   count toward criterion (e).
 
-3. Days computation. For each qualifying claim, the days of service are
-   inclusive of both endpoints — ``clm_thru_dt - clm_from_dt + 1``.
-   The caller must clip each claim's service span to the intersection
-   with the lookback window before summing, otherwise a claim that
-   straddles the window boundary would contribute days outside the
-   measurement period.
+3. Days computation. For each qualifying claim line, the days of
+   service are inclusive of both endpoints —
+   ``claim_line_end_date - claim_line_start_date + 1``. The caller
+   clips each claim's service span to the intersection with the
+   lookback window before summing, otherwise a claim that straddles
+   the window boundary would contribute days outside the measurement
+   period.
 
 4. Per-day deduplication. A beneficiary occasionally has overlapping
-   SNF claims (adjustments, re-billings). Sum distinct service days
-   per beneficiary per setting so a single day of care counts once,
-   regardless of how many claims represent it.
+   SNF claims (adjustments, re-billings, interim bills). Deduplicate
+   on (person_id, start, end, facility) so identical bills don't
+   double-count.
 
 5. Threshold check. Criterion (e) is met when
    ``snf_days >= 45 OR home_health_days >= 90``. That OR is evaluated
@@ -63,6 +67,10 @@ Operational rules
 6. PY gating. The criterion applies only for PY ≥ 2024; the rollup
    expression at ``_high_needs_eligibility`` short-circuits for PY
    2022 / 2023.
+
+7. MBI crosswalk. Use ``person_id`` (the canonical MBI) so a bene
+   whose MBI rotated during the lookback window has their SNF/HH days
+   aggregated across the rotation.
 
 This module builds Polars expressions only — it does not load data or
 resolve lookback windows.
@@ -75,9 +83,9 @@ from datetime import date
 import polars as pl
 
 
-# CCLF claim-type codes.
-SNF_CLAIM_TYPE_CODE = "20"
-HOME_HEALTH_CLAIM_TYPE_CODE = "10"
+# Tuva UB bill-type-code prefixes (first 2 digits = facility type).
+SNF_BILL_TYPE_PREFIX = "21"
+HOME_HEALTH_BILL_TYPE_PREFIX = "32"
 
 # Criterion (e) thresholds (PA Section IV.B.1(e), line 3786).
 SNF_DAYS_THRESHOLD = 45
@@ -94,7 +102,7 @@ def _count_days_in_window_expr(
     Build an expression that computes the per-claim number of service
     days that fall inside [window_begin, window_end] inclusive.
 
-    Clips each claim's [clm_from_dt, clm_thru_dt] span to the window
+    Clips each claim's [from_col, thru_col] span to the window
     boundaries, then returns ``(clipped_end - clipped_begin).days + 1``
     for claims that still have a non-empty span after clipping; zero
     otherwise.
@@ -111,25 +119,27 @@ def _count_days_in_window_expr(
 
 
 def build_snf_hh_days_in_window(
-    claims_lf: pl.LazyFrame,
+    medical_claim_lf: pl.LazyFrame,
     *,
     window_begin: date,
     window_end: date,
-    mbi_col: str = "bene_mbi_id",
-    from_col: str = "clm_from_dt",
-    thru_col: str = "clm_thru_dt",
-    claim_type_col: str = "clm_type_cd",
+    mbi_col: str = "person_id",
+    from_col: str = "claim_line_start_date",
+    thru_col: str = "claim_line_end_date",
+    claim_type_col: str = "claim_type",
+    bill_type_col: str = "bill_type_code",
 ) -> pl.LazyFrame:
     """
-    Per-beneficiary counts of SNF and Home Health service days inside
-    the lookback window.
+    Per-person counts of SNF and Home Health service days inside the
+    lookback window.
 
-    Takes a CCLF1 LazyFrame, filters to SNF (claim type 20) and HH
-    (claim type 10) claims, clips each claim's service span to the
-    window, sums the days per beneficiary per claim-type, and returns a
-    wide LazyFrame with one row per beneficiary:
+    Reads from ``gold/medical_claim``, filters to institutional claims
+    whose ``bill_type_code`` starts with ``"21"`` (SNF) or ``"32"``
+    (Home Health), clips each claim's service span to the window, sums
+    the days per person per setting, and returns a wide LazyFrame with
+    one row per person:
 
-        bene_mbi_id | snf_days | home_health_days
+        person_id | snf_days | home_health_days
 
     Beneficiaries with zero qualifying claims are absent from the
     output — callers that need dense output (one row per beneficiary
@@ -137,29 +147,36 @@ def build_snf_hh_days_in_window(
     """
     days_in_window = _count_days_in_window_expr(window_begin, window_end, from_col, thru_col)
     claim_type_str = pl.col(claim_type_col).cast(pl.String, strict=False)
+    bill_type_str = pl.col(bill_type_col).cast(pl.String, strict=False)
 
-    # Keep only the two qualifying claim types; drop others early to
-    # minimize work.
-    filtered = claims_lf.filter(
-        claim_type_str.is_in([SNF_CLAIM_TYPE_CODE, HOME_HEALTH_CLAIM_TYPE_CODE])
+    is_snf = bill_type_str.str.starts_with(SNF_BILL_TYPE_PREFIX)
+    is_hh = bill_type_str.str.starts_with(HOME_HEALTH_BILL_TYPE_PREFIX)
+
+    filtered = medical_claim_lf.filter(
+        (claim_type_str == "institutional") & (is_snf | is_hh)
     ).with_columns(
-        claim_type_str.alias("_clm_type_str"),
+        pl.when(is_snf)
+        .then(pl.lit("SNF"))
+        .otherwise(pl.lit("HH"))
+        .alias("_facility"),
         days_in_window.alias("_days_in_window"),
     )
 
-    # Deduplicate per (mbi, from, thru, claim_type) so identical
+    # Deduplicate per (person, from, thru, facility) so identical
     # adjusted/interim bills don't double-count.
-    filtered = filtered.unique(subset=[mbi_col, from_col, thru_col, "_clm_type_str"])
+    filtered = filtered.unique(
+        subset=[mbi_col, from_col, thru_col, "_facility"]
+    )
 
     return (
         filtered.group_by(mbi_col)
         .agg(
-            pl.when(pl.col("_clm_type_str") == SNF_CLAIM_TYPE_CODE)
+            pl.when(pl.col("_facility") == "SNF")
             .then(pl.col("_days_in_window"))
             .otherwise(0)
             .sum()
             .alias("snf_days"),
-            pl.when(pl.col("_clm_type_str") == HOME_HEALTH_CLAIM_TYPE_CODE)
+            pl.when(pl.col("_facility") == "HH")
             .then(pl.col("_days_in_window"))
             .otherwise(0)
             .sum()

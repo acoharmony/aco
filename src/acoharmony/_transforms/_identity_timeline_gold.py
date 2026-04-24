@@ -84,10 +84,27 @@ def execute(executor) -> pl.LazyFrame:
             )
         )
         .alias("chain_id")
-    ).with_columns([
-        pl.lit(0, dtype=pl.Int64).alias("hop_index"),  # opt-out attaches to a current identity
-        pl.lit(None, dtype=pl.String).alias("hcmpi"),
-    ]).drop("_silver_chain_id")
+    ).with_columns(pl.lit(None, dtype=pl.String).alias("hcmpi")).drop("_silver_chain_id")
+
+    # Inherit the silver-assigned hop_index for the bnex MBI within its
+    # chain. The earlier implementation hardcoded hop_index=0 for every
+    # bnex row, which corrupts non-canonical MBIs in known chains: a bene
+    # whose MBI rotates and *then* opts out lands at silver-hop=1 (their
+    # rotated MBI) but bnex would re-stamp them at hop=0, producing two
+    # distinct MBIs at hop_index=0 in the same chain. Downstream callers
+    # treating hop_index=0 as canonical then pick non-deterministically
+    # between them. New MBIs not yet in any silver chain (singleton case)
+    # default to hop=0 because they are their own canonical.
+    silver_hops = (
+        timeline.select(["mbi", "chain_id", "hop_index"])
+        .unique()
+        .rename({"hop_index": "_silver_hop_index"})
+    )
+    bnex_with_chain = bnex_with_chain.join(
+        silver_hops, on=["mbi", "chain_id"], how="left"
+    ).with_columns(
+        pl.col("_silver_hop_index").fill_null(0).cast(pl.Int64).alias("hop_index")
+    ).drop("_silver_hop_index")
 
     # Backfill HCMPI for bnex rows from silver where possible.
     mbi_to_hcmpi = (

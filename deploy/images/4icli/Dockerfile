@@ -11,11 +11,11 @@ LABEL org.opencontainers.image.source=https://github.com/acoharmony/aco \
       aco.vendor="HarmonyCares" \
       aco.description="4Innovation DataHub CLI tool"
 
-# Install minimal dependencies
-# `expect` drives the interactive `4icli configure` TTY prompts from env vars at startup.
+# Install minimal dependencies. `coreutils` brings sha256sum used by the
+# rotate-persist wrapper; ca-certificates is for HTTPS to the 4i API.
 RUN apt-get update && apt-get install -y \
     ca-certificates \
-    expect \
+    coreutils \
     && rm -rf /var/lib/apt/lists/*
 
 # Add Zscaler CA certificates to system trust store
@@ -31,11 +31,16 @@ RUN update-ca-certificates
 RUN groupadd -g 1002 care && \
     useradd -u 1002 -g 1002 -m -s /bin/sh care
 
-# Copy 4icli binary and make available to all users
-COPY 4icli /usr/local/bin/4icli
-RUN chmod +x /usr/local/bin/4icli
+# Real 4icli binary lives at 4icli-bin; the `4icli` name resolves to a
+# shim that persists rotated/reconfigured creds back to $BRONZE/config.txt
+# so they survive container restart (the entrypoint reseeds from there).
+# Every caller — Python wrapper or manual `docker exec` — transparently
+# hits the shim with no special routing.
+COPY 4icli /usr/local/bin/4icli-bin
+COPY 4icli-with-persist /usr/local/bin/4icli
+RUN chmod +x /usr/local/bin/4icli-bin /usr/local/bin/4icli
 
-# Entrypoint bootstraps config.txt from FOURICLI_API_KEY/SECRET on every start
+# Entrypoint copies $BRONZE/config.txt into the XDG config path on every start
 COPY entrypoint.sh /usr/local/bin/4icli-entrypoint
 RUN chmod +x /usr/local/bin/4icli-entrypoint
 

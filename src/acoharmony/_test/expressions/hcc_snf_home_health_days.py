@@ -21,31 +21,43 @@ import pytest
 
 @pytest.fixture
 def sample_claims() -> pl.LazyFrame:
-    """CCLF1-shaped frame with SNF, HH, and other claim types."""
+    """``gold/medical_claim``-shaped frame with SNF, HH, and other
+    facility types.
+
+    Tuva schema: ``bill_type_code`` 3-digit UB code; first two digits
+    encode facility — ``21`` SNF, ``32`` Home Health, ``81`` hospice.
+    """
     return pl.LazyFrame(
         {
-            "bene_mbi_id": [
+            "person_id": [
                 "A", "A",           # A: 30 days SNF + 60 days HH
                 "B",                # B: 50 days SNF (exceeds 45-day threshold)
                 "C", "C",           # C: duplicate SNF claims (adjustment)
                 "D",                # D: 95 days HH (exceeds 90)
                 "E",                # E: hospice — doesn't count
             ],
-            "clm_type_cd": [
-                "20", "10",         # A
-                "20",               # B
-                "20", "20",         # C — same span
-                "10",               # D
-                "30",               # E hospice
+            "claim_type": [
+                "institutional", "institutional",
+                "institutional",
+                "institutional", "institutional",
+                "institutional",
+                "institutional",
             ],
-            "clm_from_dt": [
+            "bill_type_code": [
+                "211", "322",       # A: SNF, HH
+                "211",              # B: SNF
+                "211", "211",       # C: SNF dupes
+                "322",              # D: HH
+                "811",              # E hospice
+            ],
+            "claim_line_start_date": [
                 date(2024, 1, 1), date(2024, 3, 1),
                 date(2024, 5, 1),
                 date(2024, 2, 1), date(2024, 2, 1),
                 date(2024, 6, 1),
                 date(2024, 7, 1),
             ],
-            "clm_thru_dt": [
+            "claim_line_end_date": [
                 date(2024, 1, 30), date(2024, 4, 29),
                 date(2024, 6, 19),
                 date(2024, 2, 28), date(2024, 2, 28),
@@ -64,7 +76,7 @@ class TestBuildSnfHhDaysInWindow:
             window_begin=date(2024, 1, 1),
             window_end=date(2024, 12, 31),
         ).collect()
-        rows = {row["bene_mbi_id"]: row for row in result.to_dicts()}
+        rows = {row["person_id"]: row for row in result.to_dicts()}
 
         # A: SNF Jan 1-30 = 30 days; HH Mar 1 - Apr 29 = 60 days
         assert rows["A"]["snf_days"] == 30
@@ -93,7 +105,7 @@ class TestBuildSnfHhDaysInWindow:
             window_end=date(2024, 6, 15),
         ).collect()
         # D's HH spans Jun 1 - Sep 3, window ends Jun 15 → 15 days only
-        d_row = [r for r in result.to_dicts() if r["bene_mbi_id"] == "D"][0]
+        d_row = [r for r in result.to_dicts() if r["person_id"] == "D"][0]
         assert d_row["home_health_days"] == 15
 
 

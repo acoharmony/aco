@@ -42,29 +42,42 @@ def seeded(tmp_path: Path):
     silver = storage.get_path("silver")
     gold = storage.get_path("gold")
 
-    # silver/cclf1 — one unplanned inpatient claim for MBI=A with a
-    # B.6.1 dx (G35) that qualifies criterion (a) at Jan 1 2026.
+    # gold/medical_claim — one unplanned inpatient claim for person A
+    # with a B.6.1 dx (G35) that qualifies criterion (a) at Jan 1 2026.
     # Window for PY2026 Jan 1 check is 2024-11-01 through 2025-10-31.
-    pl.DataFrame(
-        {
-            "bene_mbi_id": ["A", "A"],
-            "clm_type_cd": ["60", "20"],
-            "clm_admsn_type_cd": ["1", None],  # A: emergency (unplanned)
-            "clm_from_dt": [date(2025, 6, 1), date(2025, 1, 1)],  # in window
-            "clm_thru_dt": [date(2025, 6, 10), date(2025, 2, 28)],
-            "prncpl_dgns_cd": ["G35", "J44"],
-            "admtg_dgns_cd": [None, None],
-        }
-    ).write_parquet(silver / "cclf1.parquet")
+    # bill_type 111 = hospital inpatient (qualifies a/c); 211 = SNF
+    # (feeds criterion e). diagnosis_code_1..25 positions are the Tuva-
+    # normalised dx columns — code lands in position 1 (principal).
+    _dx_row_inpatient = {f"diagnosis_code_{i}": None for i in range(1, 26)}
+    _dx_row_inpatient["diagnosis_code_1"] = "G35"
+    _dx_row_snf = {f"diagnosis_code_{i}": None for i in range(1, 26)}
+    _dx_row_snf["diagnosis_code_1"] = "J44"
 
-    # silver/cclf6 — no DME claims.
-    pl.DataFrame(
-        schema={
-            "bene_mbi_id": pl.String,
-            "clm_line_hcpcs_cd": pl.String,
-            "clm_line_from_dt": pl.Date,
-        }
-    ).write_parquet(silver / "cclf6.parquet")
+    _mc_rows = [
+        {
+            "person_id": "A",
+            "claim_type": "institutional",
+            "bill_type_code": "111",
+            "admit_type_code": "1",   # Emergency (unplanned)
+            "admission_date": date(2025, 6, 1),
+            "claim_line_start_date": date(2025, 6, 1),
+            "claim_line_end_date": date(2025, 6, 10),
+            "hcpcs_code": None,
+            **_dx_row_inpatient,
+        },
+        {
+            "person_id": "A",
+            "claim_type": "institutional",
+            "bill_type_code": "211",  # SNF
+            "admit_type_code": None,
+            "admission_date": date(2025, 1, 1),
+            "claim_line_start_date": date(2025, 1, 1),
+            "claim_line_end_date": date(2025, 2, 28),
+            "hcpcs_code": None,
+            **_dx_row_snf,
+        },
+    ]
+    pl.DataFrame(_mc_rows).write_parquet(gold / "medical_claim.parquet")
 
     # B.6.1 silver: one row, comma-separated codes
     pl.DataFrame(
@@ -87,14 +100,19 @@ def seeded(tmp_path: Path):
 
     # gold/hcc_risk_scores — give A a high score so criterion (b) also
     # passes; this helps surface the any_met = a OR b OR ... logic.
+    # Scores are keyed per (mbi, model_version, PY, check_date) since
+    # FOG line 1406 pins the dx window to the check date — write one
+    # row per check so (b)/(c) find a score at every evaluation point.
+    _check_dates = [date(2026, m, 1) for m in (1, 4, 7, 10)]
     pl.DataFrame(
         {
-            "mbi": ["A"],
-            "cohort": ["AD"],
-            "model_version": ["cms_hcc_v24"],
-            "total_risk_score": [3.5],
-            "score_as_of_date": [date(2026, 12, 31)],
-            "performance_year": [2026],
+            "mbi": ["A"] * 4,
+            "cohort": ["AD"] * 4,
+            "model_version": ["cms_hcc_v24"] * 4,
+            "total_risk_score": [3.5] * 4,
+            "score_as_of_date": _check_dates,
+            "performance_year": [2026] * 4,
+            "check_date": _check_dates,
         }
     ).write_parquet(gold / "hcc_risk_scores.parquet")
 
@@ -149,3 +167,74 @@ class TestExecute:
     def test_performance_year_stamped_on_rows(self, seeded):
         df = execute(seeded).collect()
         assert df["performance_year"].unique().to_list() == [2026]
+
+    @pytest.mark.unit
+    def test_criterion_e_false_for_py2023(self, tmp_path: Path):
+        """PY2022/2023: build_criterion_e_applicable returns False so
+        _criterion_e_for_check short-circuits at line 171 returning an
+        empty frame, which coalesces to criterion_e_met=False everywhere."""
+        root = tmp_path / "workspace_2023"
+        storage = _MockStorage(root)
+        silver = storage.get_path("silver")
+        gold = storage.get_path("gold")
+
+        # PY2023 check dates are Jan/Apr/Jul/Oct 2023.
+        # Window C for Jan 1 2023 is 2021-11-01..2022-10-31.
+        _dx_row = {f"diagnosis_code_{i}": None for i in range(1, 26)}
+        _dx_row["diagnosis_code_1"] = "G35"
+
+        pl.DataFrame(
+            [
+                {
+                    "person_id": "B",
+                    "claim_type": "institutional",
+                    "bill_type_code": "111",
+                    "admit_type_code": "1",
+                    "admission_date": date(2022, 6, 1),
+                    "claim_line_start_date": date(2022, 6, 1),
+                    "claim_line_end_date": date(2022, 6, 10),
+                    "hcpcs_code": None,
+                    **_dx_row,
+                }
+            ]
+        ).write_parquet(gold / "medical_claim.parquet")
+
+        pl.DataFrame(
+            {"category": ["Multiple Sclerosis"], "icd10_codes": ["G35"]}
+        ).write_parquet(
+            silver / "reach_appendix_tables_mobility_impairment_icd10.parquet"
+        )
+        pl.DataFrame(
+            schema={"category": pl.String, "hcpcs_code": pl.String, "long_descriptor": pl.String}
+        ).write_parquet(silver / "reach_appendix_tables_frailty_hcpcs.parquet")
+
+        _check_dates_2023 = [date(2023, m, 1) for m in (1, 4, 7, 10)]
+        pl.DataFrame(
+            {
+                "mbi": ["B"] * 4,
+                "cohort": ["AD"] * 4,
+                "model_version": ["cms_hcc_v24"] * 4,
+                "total_risk_score": [3.5] * 4,
+                "score_as_of_date": _check_dates_2023,
+                "performance_year": [2023] * 4,
+                "check_date": _check_dates_2023,
+            }
+        ).write_parquet(gold / "hcc_risk_scores.parquet")
+
+        pl.DataFrame(
+            {
+                "member_id": ["B"],
+                "birth_date": [date(1950, 1, 1)],
+                "gender": ["F"],
+                "original_reason_entitlement_code": ["0"],
+                "medicare_status_code": [None],
+                "dual_status_code": ["NA"],
+            }
+        ).write_parquet(gold / "eligibility.parquet")
+
+        executor = SimpleNamespace(storage_config=storage, performance_year=2023)
+        df = execute(executor).collect()
+        b_rows = df.filter(pl.col("mbi") == "B")
+        assert b_rows.height == 4
+        # criterion_e is not applicable for PY2023 — must be False for all rows.
+        assert b_rows["criterion_e_met"].to_list() == [False, False, False, False]
