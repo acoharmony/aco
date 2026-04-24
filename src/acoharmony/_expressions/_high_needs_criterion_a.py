@@ -67,6 +67,14 @@ from acoharmony._expressions._high_needs_lookback import LookbackWindow
 from acoharmony._expressions._hcc_unplanned_admissions import INPATIENT_CLAIM_TYPE_CODE
 
 
+def _normalize_icd10_code(expr: pl.Expr) -> pl.Expr:
+    """Strip whitespace and remove the decimal separator, so codes
+    emitted by the B.6.1 table (dotted, e.g. ``G80.0``) join against
+    CCLF1 dx columns (dotless, e.g. ``G800``). ICD-10 claim feeds from
+    CMS drop the dot before transmission; the B.6.1 workbook keeps it."""
+    return expr.str.strip_chars().str.replace_all(".", "", literal=True)
+
+
 def parse_icd10_codes_from_table_b61(lf_b61: pl.LazyFrame) -> pl.LazyFrame:
     """
     Normalise the Table B.6.1 silver parquet into one row per ICD-10 code.
@@ -77,7 +85,8 @@ def parse_icd10_codes_from_table_b61(lf_b61: pl.LazyFrame) -> pl.LazyFrame:
 
     Output schema:
         category: str
-        icd10_code: str    — single code with whitespace stripped
+        icd10_code: str    — single code, whitespace-stripped AND dot-stripped
+                             so it matches CCLF1's dotless storage format
 
     Drops the ``(category='x', icd10_codes='x')`` trash row and any
     empty codes that result from trailing commas.
@@ -89,7 +98,7 @@ def parse_icd10_codes_from_table_b61(lf_b61: pl.LazyFrame) -> pl.LazyFrame:
         )
         .explode("_codes_list")
         .with_columns(
-            pl.col("_codes_list").str.strip_chars().alias("icd10_code"),
+            _normalize_icd10_code(pl.col("_codes_list")).alias("icd10_code"),
         )
         .filter(pl.col("icd10_code").str.len_chars() > 0)
         .select("category", "icd10_code")
@@ -135,8 +144,14 @@ def build_criterion_a_qualifying_claims(
         # Cast dx columns to String explicitly so a frame where every
         # row has a null principal or admitting dx (pl.Null inferred
         # dtype) still joins against the String-typed codes frame.
-        pl.col(principal_dx_col).cast(pl.String, strict=False).alias("_principal_dx"),
-        pl.col(admitting_dx_col).cast(pl.String, strict=False).alias("_admitting_dx"),
+        # Also normalize dots so a dotted-format feed (defensive) joins
+        # cleanly; the B.6.1 codes side is already dot-stripped.
+        _normalize_icd10_code(
+            pl.col(principal_dx_col).cast(pl.String, strict=False)
+        ).alias("_principal_dx"),
+        _normalize_icd10_code(
+            pl.col(admitting_dx_col).cast(pl.String, strict=False)
+        ).alias("_admitting_dx"),
     )
 
     # A claim qualifies if EITHER the principal OR the admitting

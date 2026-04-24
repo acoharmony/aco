@@ -64,10 +64,14 @@ class TestCriterionA:
         )
 
     @pytest.mark.unit
-    def test_parse_icd10_explodes_csv_and_drops_trash(self, b61_codes):
+    def test_parse_icd10_explodes_csv_strips_dots_and_drops_trash(self, b61_codes):
+        """CCLF1 stores dx codes dotless (``G800`` not ``G80.0``); the
+        B.6.1 table keeps the dots. The parser strips dots so the two
+        sides join cleanly. Also explodes the comma-separated list and
+        drops the ``(x, x)`` trash row."""
         result = parse_icd10_codes_from_table_b61(b61_codes).collect()
         codes = sorted(result["icd10_code"].to_list())
-        assert codes == ["G35", "G36.0", "G80.0", "G80.1", "G80.9"]
+        assert codes == ["G35", "G360", "G800", "G801", "G809"]
 
     @pytest.mark.unit
     def test_single_inpatient_match_qualifies(self, b61_codes):
