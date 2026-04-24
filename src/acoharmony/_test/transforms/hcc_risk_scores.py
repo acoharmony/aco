@@ -169,3 +169,122 @@ class TestExecute:
         )
         df = execute(executor).collect()
         assert df.height >= 1
+
+
+class TestMstatEsrdClassification:
+    """MSTAT ∈ {11, 21, 31} must classify as ESRD even when OREC is blank
+    or non-ESRD. Prior OREC-only logic silently routed these benes to
+    CMS-HCC A&D and evaluated them against threshold 3.0 instead of the
+    ESRD 0.35 — a silent under-match on criterion (b)."""
+
+    @pytest.mark.unit
+    def test_blank_orec_with_esrd_mstat_routes_to_esrd_model(self, tmp_path):
+        """Bene with blank OREC + MSTAT='31' must be scored under CMS-HCC
+        ESRD V24 only (not A&D V24/V28/CMMI)."""
+        root = tmp_path / "workspace"
+        storage = _MockStorage(root)
+        gold = storage.get_path("gold")
+        silver = storage.get_path("silver")
+
+        pl.DataFrame(
+            {
+                "member_id": ["MSTAT_ESRD_BENE"],
+                "birth_date": [date(1948, 3, 1)],
+                "gender": ["F"],
+                "original_reason_entitlement_code": [""],
+                "medicare_status_code": ["31"],
+                "dual_status_code": ["NA"],
+            }
+        ).write_parquet(gold / "eligibility.parquet")
+
+        pl.DataFrame(
+            {
+                "current_bene_mbi_id": ["MSTAT_ESRD_BENE", "MSTAT_ESRD_BENE"],
+                "clm_dgns_cd": ["N186", "N186"],
+                "clm_from_dt": [date(2025, 6, 1), date(2026, 6, 1)],
+            }
+        ).write_parquet(silver / "int_diagnosis_deduped.parquet")
+
+        executor = SimpleNamespace(
+            storage_config=storage, performance_year=2026,
+        )
+        df = execute(executor).collect()
+        assert df["cohort"].unique().to_list() == ["ESRD"]
+        assert df["model_version"].unique().to_list() == ["cms_hcc_esrd_v24"]
+
+    @pytest.mark.unit
+    def test_mstat_esrd_bene_produces_nonzero_score(self, tmp_path):
+        """The scoring-path OREC synthesis: when cohort is ESRD but raw
+        OREC is not in {2,3}, the transform must synthesize a valid ESRD
+        OREC so the CMS-HCC ESRD V24 model actually computes a score.
+        Without synthesis the model returns 0.0 regardless of dx."""
+        root = tmp_path / "workspace"
+        storage = _MockStorage(root)
+        gold = storage.get_path("gold")
+        silver = storage.get_path("silver")
+
+        pl.DataFrame(
+            {
+                "member_id": ["MSTAT_ESRD_BENE"],
+                "birth_date": [date(1948, 3, 1)],
+                "gender": ["M"],
+                "original_reason_entitlement_code": ["0"],  # non-ESRD raw
+                "medicare_status_code": ["11"],            # ESRD via mstat
+                "dual_status_code": ["NA"],
+            }
+        ).write_parquet(gold / "eligibility.parquet")
+
+        pl.DataFrame(
+            {
+                "current_bene_mbi_id": ["MSTAT_ESRD_BENE"] * 2,
+                "clm_dgns_cd": ["N186", "N186"],
+                "clm_from_dt": [date(2025, 6, 1), date(2026, 6, 1)],
+            }
+        ).write_parquet(silver / "int_diagnosis_deduped.parquet")
+
+        executor = SimpleNamespace(
+            storage_config=storage, performance_year=2026,
+        )
+        df = execute(executor).collect()
+        esrd_row = df.filter(pl.col("model_version") == "cms_hcc_esrd_v24").row(
+            0, named=True,
+        )
+        # The score would be 0.0 under the old bug (OREC='0' passed
+        # straight through). The synthesis flips it to a nonzero score
+        # against the ESRD dx.
+        assert esrd_row["total_risk_score"] > 0.0
+
+    @pytest.mark.unit
+    def test_mstat_20_still_classifies_as_ad(self, tmp_path):
+        """MSTAT='20' (Disabled, no ESRD) with blank OREC → A&D. This
+        guards against over-matching — MSTAT alone must NOT flip benes
+        to ESRD when neither code indicates ESRD."""
+        root = tmp_path / "workspace"
+        storage = _MockStorage(root)
+        gold = storage.get_path("gold")
+        silver = storage.get_path("silver")
+
+        pl.DataFrame(
+            {
+                "member_id": ["DISABLED_BENE"],
+                "birth_date": [date(1970, 1, 1)],
+                "gender": ["F"],
+                "original_reason_entitlement_code": [""],
+                "medicare_status_code": ["20"],
+                "dual_status_code": ["NA"],
+            }
+        ).write_parquet(gold / "eligibility.parquet")
+
+        pl.DataFrame(
+            {
+                "current_bene_mbi_id": ["DISABLED_BENE"],
+                "clm_dgns_cd": ["Z00.00"],
+                "clm_from_dt": [date(2025, 6, 1)],
+            }
+        ).write_parquet(silver / "int_diagnosis_deduped.parquet")
+
+        executor = SimpleNamespace(
+            storage_config=storage, performance_year=2026,
+        )
+        df = execute(executor).collect()
+        assert df["cohort"].unique().to_list() == ["AD"]

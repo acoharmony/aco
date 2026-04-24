@@ -52,17 +52,30 @@ implemented in the hccinfhir library, is:
     Disability Insurance Benefits AND ESRD.
         — hccinfhir/constants.py OREC_ESRD_CODES = {'2', '3'}
 
-    "Current Reason for Entitlement Code" (CREC) uses the same coding
-    scheme and is a secondary signal. CREC may differ from OREC when a
-    beneficiary's current entitlement status has changed — e.g. a
-    disability-originated enrollee later developed ESRD. For ACO REACH
-    purposes, CREC is the authoritative current-status signal when both
-    are available, but most feeds only carry OREC.
+    Medicare Status Code (MSTAT, ``bene_mdcr_stus_cd`` in CCLF8 /
+    ``medicare_status_code`` in our eligibility gold) is a separate
+    current-status signal that also flags ESRD and uses a different
+    coding scheme:
+
+        10 = Aged
+        11 = Aged + ESRD
+        20 = Disabled
+        21 = Disabled + ESRD
+        31 = ESRD only
+
+    MSTAT ∈ {11, 21, 31} means the bene currently has ESRD even if OREC
+    reflects their original entitlement reason (e.g. "aged in" and later
+    developed ESRD). In practice MSTAT catches ~1,700 additional ESRD
+    benes per roster whose OREC is blank or non-ESRD — without this
+    signal, they get silently classified as A&D and evaluated against
+    the CMS-HCC A&D threshold of 3.0 instead of the ESRD threshold of
+    0.35, which is a silent under-match on criterion (b).
 
 This module classifies each beneficiary into exactly one of {"AD",
-"ESRD"} based on OREC (or CREC if present). It is the single source
-of truth consumed by the CMS-HCC, CMS-HCC ESRD, and CMMI-HCC Concurrent
-drivers so model selection stays consistent.
+"ESRD"} by reading BOTH OREC and MSTAT: ESRD if either signal says
+ESRD, else A&D. It is the single source of truth consumed by the
+CMS-HCC, CMS-HCC ESRD, and CMMI-HCC Concurrent drivers so model
+selection stays consistent.
 """
 
 from __future__ import annotations
@@ -70,71 +83,91 @@ from __future__ import annotations
 import polars as pl
 
 
-# Operational ESRD-indicator values (OREC or CREC). Both codes map to the
-# ESRD segment; any other value maps to the A&D segment.
+# OREC values that indicate ESRD. OREC=2 is ESRD-only, OREC=3 is
+# Disability-Insurance + ESRD. Any other OREC value maps to A&D.
 ESRD_ENTITLEMENT_CODES: frozenset[str] = frozenset({"2", "3"})
+
+# Medicare Status Codes (MSTAT, ``bene_mdcr_stus_cd``) that indicate
+# current ESRD regardless of original entitlement. 11 = Aged + ESRD,
+# 21 = Disabled + ESRD, 31 = ESRD only.
+ESRD_MEDICARE_STATUS_CODES: frozenset[str] = frozenset({"11", "21", "31"})
 
 
 def build_ad_vs_esrd_expr(
     orec_col: str = "original_reason_entitlement_code",
-    crec_col: str | None = "medicare_status_code",
+    mstat_col: str | None = "medicare_status_code",
 ) -> pl.Expr:
     """
     Build a ``pl.Expr`` that returns the string ``"ESRD"`` for ESRD
     beneficiaries and ``"AD"`` for everyone else.
 
-    ESRD is detected by checking whether CREC (preferred, when present
-    and non-null) or OREC contains the string ``"2"`` or ``"3"`` — the
-    operational convention documented above. Both columns are cast to
-    ``pl.String`` first so numeric inputs (e.g. ``2`` as int) classify
-    correctly.
+    ESRD is detected by an OR across two signals:
+      - OREC ∈ {"2", "3"}  — original entitlement reason is ESRD
+      - MSTAT ∈ {"11", "21", "31"} — current Medicare status carries ESRD
+
+    Either signal is sufficient. OREC and MSTAT use different code
+    systems (see module docstring) so they are checked independently
+    against their own allow-lists rather than coalesced.
 
     Parameters
     ----------
     orec_col
-        Name of the OREC column on the input frame. Defaults to
-        ``"original_reason_entitlement_code"``, which is the column
-        emitted by ``gold/eligibility.parquet``.
-    crec_col
-        Name of the CREC / current-status column. Pass ``None`` to
-        use OREC alone. Defaults to ``"medicare_status_code"``, also
-        on ``gold/eligibility.parquet``.
-
-    The output expression assumes the resolved column yields a string;
-    callers that need different input semantics (e.g. int-coded CREC)
-    should pre-cast.
+        Name of the OREC column. Defaults to
+        ``"original_reason_entitlement_code"`` (gold/eligibility.parquet).
+    mstat_col
+        Name of the Medicare Status Code column. Pass ``None`` to skip
+        MSTAT (OREC-only classification). Defaults to
+        ``"medicare_status_code"`` (gold/eligibility.parquet).
     """
     orec_str = pl.col(orec_col).cast(pl.String, strict=False)
+    orec_is_esrd = orec_str.is_in(list(ESRD_ENTITLEMENT_CODES))
 
-    if crec_col is None:
-        resolved = orec_str
+    if mstat_col is None:
+        is_esrd = orec_is_esrd
     else:
-        resolved = pl.coalesce(
-            pl.col(crec_col).cast(pl.String, strict=False),
-            orec_str,
-        )
+        mstat_str = pl.col(mstat_col).cast(pl.String, strict=False)
+        mstat_is_esrd = mstat_str.is_in(list(ESRD_MEDICARE_STATUS_CODES))
+        is_esrd = orec_is_esrd | mstat_is_esrd
 
-    esrd_codes = list(ESRD_ENTITLEMENT_CODES)
     return (
-        pl.when(resolved.is_in(esrd_codes))
+        pl.when(is_esrd)
         .then(pl.lit("ESRD"))
         .otherwise(pl.lit("AD"))
     )
 
 
-def classify_cohort(orec: str | int | None, crec: str | int | None = None) -> str:
+def classify_cohort(
+    orec: str | int | None,
+    crec: str | int | None = None,
+    *,
+    medicare_status_code: str | int | None = None,
+) -> str:
     """
     Scalar version of the cohort classifier — for use in tests and the
-    rare non-LazyFrame call site. Same rule as the Polars expression:
-    CREC preferred when present and non-null, else OREC; ESRD if the
-    resolved code is ``"2"`` or ``"3"``, else A&D.
+    non-LazyFrame call site inside ``hcc_risk_scores.execute``.
+
+    ESRD if any of the following are true:
+      - OREC ∈ {"2", "3"}
+      - CREC ∈ {"2", "3"} (CREC treated as an alternate-source OREC)
+      - medicare_status_code ∈ {"11", "21", "31"}
+
+    ``crec`` is retained for compatibility with callers that passed
+    OREC through twice, but it uses the OREC coding scheme (2/3), NOT
+    the MSTAT coding scheme — pass MSTAT via the keyword-only
+    ``medicare_status_code`` argument.
 
     Returns either ``"ESRD"`` or ``"AD"``.
     """
-    resolved = crec if crec is not None else orec
-    if resolved is None:
-        return "AD"
-    token = str(resolved)
-    if token in ESRD_ENTITLEMENT_CODES:
+    orec_token = str(orec) if orec is not None else None
+    crec_token = str(crec) if crec is not None else None
+    mstat_token = (
+        str(medicare_status_code) if medicare_status_code is not None else None
+    )
+
+    if orec_token in ESRD_ENTITLEMENT_CODES:
+        return "ESRD"
+    if crec_token in ESRD_ENTITLEMENT_CODES:
+        return "ESRD"
+    if mstat_token in ESRD_MEDICARE_STATUS_CODES:
         return "ESRD"
     return "AD"

@@ -195,6 +195,7 @@ def execute(executor: Any) -> pl.LazyFrame:
         pl.col("original_reason_entitlement_code")
         .cast(pl.String, strict=False)
         .alias("orec"),
+        pl.col("medicare_status_code").cast(pl.String, strict=False).alias("mstat"),
         pl.col("dual_status_code").cast(pl.String, strict=False).alias("dual"),
     ).unique(subset=["mbi"])
     elig_rows = eligibility.collect()
@@ -225,8 +226,20 @@ def execute(executor: Any) -> pl.LazyFrame:
             birth_date = row["birth_date"]
             raw_orec = (row.get("orec") or "").strip()
             orec = raw_orec if raw_orec in {"0", "1", "2", "3"} else "0"
-            crec = orec
-            cohort = classify_cohort(orec=orec, crec=crec)
+            mstat = (row.get("mstat") or "").strip()
+            cohort = classify_cohort(
+                orec=orec, medicare_status_code=mstat,
+            )
+            # When ESRD is detected via MSTAT but OREC is non-ESRD, the
+            # CMS-HCC ESRD V24 model zeros the score unless OREC ∈ {2,3}.
+            # Synthesize OREC='3' (disability + ESRD) on the scoring
+            # path so the model's age/sex/disability factor sub-model
+            # resolves correctly. This does NOT alter the input OREC in
+            # eligibility; it's a scoring-only adjustment.
+            scoring_orec = (
+                "3" if cohort == "ESRD" and orec not in {"2", "3"} else orec
+            )
+            crec = scoring_orec
             age = _compute_age(birth_date, score_as_of)
             sex = (row.get("sex") or "F")[:1].upper()
             dual = row.get("dual") or "NA"
@@ -238,7 +251,7 @@ def execute(executor: Any) -> pl.LazyFrame:
                     mbi=mbi,
                     age=age,
                     sex=sex,
-                    orec=orec,
+                    orec=scoring_orec,
                     crec=crec,
                     dual_elgbl_cd=dual,
                     diagnosis_codes=dx_codes_prospective,
