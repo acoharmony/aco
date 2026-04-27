@@ -21,6 +21,7 @@ from ._provider import ProviderPlugins
 from ._quality import QualityPlugins
 from ._reach import ReachPlugins
 from ._setup import SetupPlugins
+from ._sva import SvaPlugins
 from ._ui import UIPlugins
 from ._utils import UtilityPlugins
 from .config import NotebookConfig
@@ -39,6 +40,7 @@ identity = IdentityPlugins()
 provider = ProviderPlugins()
 quality = QualityPlugins()
 reach = ReachPlugins()
+sva = SvaPlugins()
 
 __all__ = [
     "NotebookGenerator",
@@ -57,6 +59,7 @@ __all__ = [
     "ProviderPlugins",
     "QualityPlugins",
     "ReachPlugins",
+    "SvaPlugins",
     "setup",
     "ui",
     "data",
@@ -70,4 +73,5 @@ __all__ = [
     "provider",
     "quality",
     "reach",
+    "sva",
 ]
