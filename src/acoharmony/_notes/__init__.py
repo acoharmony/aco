@@ -11,6 +11,7 @@ into these directly — keep notebooks declarative; put logic here.
 
 from ._analysis import AnalysisPlugins
 from ._base import PluginRegistry
+from ._cite import CitePlugins
 from ._crosswalk import CrosswalkPlugins
 from ._data import DataPlugins
 from ._identity import IdentityPlugins
@@ -28,6 +29,7 @@ data = DataPlugins()
 analysis = AnalysisPlugins()
 utils = UtilityPlugins()
 panels = PanelPlugins(ui)
+cite = CitePlugins()
 crosswalk = CrosswalkPlugins()
 identity = IdentityPlugins()
 quality = QualityPlugins()
@@ -42,6 +44,7 @@ __all__ = [
     "AnalysisPlugins",
     "UtilityPlugins",
     "PanelPlugins",
+    "CitePlugins",
     "CrosswalkPlugins",
     "IdentityPlugins",
     "QualityPlugins",
@@ -51,6 +54,7 @@ __all__ = [
     "analysis",
     "utils",
     "panels",
+    "cite",
     "crosswalk",
     "identity",
     "quality",

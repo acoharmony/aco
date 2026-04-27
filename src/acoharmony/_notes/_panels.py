@@ -253,6 +253,132 @@ class PanelPlugins(PluginRegistry):
             )
         return self.mo.vstack(sections)
 
+    # ---- citation corpus ----------------------------------------------
+
+    def cite_summary_cards(self, summary: dict):
+        """Five-up metric grid: total / types / domains / tagged / notes."""
+        return self._ui.summary_cards(
+            [
+                {"name": "Total Citations", "value": summary["total"], "color": "info_blue"},
+                {
+                    "name": "Citation Types",
+                    "value": summary["unique_types"],
+                    "color": "success_green",
+                },
+                {
+                    "name": "Source Domains",
+                    "value": summary["unique_domains"],
+                    "color": "warning_orange",
+                },
+                {
+                    "name": "Tagged Items",
+                    "value": summary["tagged_count"],
+                    "color": "purple",
+                },
+                {
+                    "name": "With Notes",
+                    "value": summary["note_count"],
+                    "color": "danger_red",
+                },
+            ],
+            columns=5,
+        )
+
+    def cite_table_section(
+        self, df: pl.DataFrame, title: str, label: str, summaries: bool = True
+    ):
+        return self.mo.vstack(
+            [
+                self.mo.md(f"## {title}"),
+                self.mo.ui.table(df, show_column_summaries=summaries, label=label),
+            ]
+        )
+
+    def cite_federal_register_panel(self, grouped: dict):
+        """Render a card per Federal Register final rule."""
+        if not grouped:
+            return self.mo.md(
+                """
+                <div style="background: #FEF3C7; border-left: 4px solid #F59E0B; padding: 1rem 1.5rem; border-radius: 8px;">
+                    <p style="margin: 0; color: #92400E;">
+                        No Federal Register citations found in corpus.
+                    </p>
+                </div>
+                """
+            )
+        sections = [
+            self.mo.md(
+                f"""
+                ## 📜 Federal Register Citations by Final Rule
+
+                <div style="background: #EFF6FF; border-left: 4px solid #3B82F6; padding: 1rem 1.5rem; border-radius: 8px; margin-bottom: 2rem;">
+                    <p style="margin: 0; color: #1E40AF;">
+                        Found <strong>{len(grouped)}</strong> unique Federal Register documents
+                    </p>
+                </div>
+                """
+            )
+        ]
+        for doc_num, data in sorted(grouped.items(), reverse=True):
+            parent = data["parent"]
+            if parent.is_empty():
+                continue
+            cols = parent.columns
+            title = parent["title"][0] if "title" in cols else "N/A"
+            author = parent["author"][0] if "author" in cols else "N/A"
+            pub_date = parent["publication_date"][0] if "publication_date" in cols else "N/A"
+            doc_citation = parent["document_citation"][0] if "document_citation" in cols else "N/A"
+            doc_type = parent["document_type"][0] if "document_type" in cols else "N/A"
+            cfr_refs = parent["cfr_references"][0] if "cfr_references" in cols else "N/A"
+            html_url = parent["html_url"][0] if "html_url" in cols else "#"
+            pdf_url = parent["pdf_url"][0] if "pdf_url" in cols else "#"
+            sections.append(
+                self.mo.md(
+                    f"""
+                    <div style="background: white; border: 1px solid #E5E7EB; border-radius: 8px; padding: 1.5rem; margin-bottom: 1.5rem;">
+                        <div style="display: inline-block; background: #DBEAFE; color: #1E40AF; padding: 0.25rem 0.75rem; border-radius: 4px; font-size: 0.85rem; font-weight: 600;">
+                            {doc_type}
+                        </div>
+                        <h3 style="margin: 0.5rem 0; color: #111827;">{title}</h3>
+                        <p style="color: #6B7280; margin: 0.5rem 0;">
+                            <strong>Document:</strong> {doc_num} • <strong>Citation:</strong> {doc_citation}
+                        </p>
+                        <div style="background: #F9FAFB; padding: 1rem; border-radius: 6px; margin: 1rem 0;">
+                            <strong>Author:</strong> {author} •
+                            <strong>Publication Date:</strong> {pub_date} •
+                            <strong>CFR Refs:</strong> {cfr_refs or 'N/A'}
+                        </div>
+                        <a href="{html_url}" target="_blank" style="background: #3B82F6; color: white; padding: 0.5rem 1rem; border-radius: 6px; text-decoration: none; font-weight: 500; margin-right: 0.5rem;">View HTML</a>
+                        <a href="{pdf_url}" target="_blank" style="background: #EF4444; color: white; padding: 0.5rem 1rem; border-radius: 6px; text-decoration: none; font-weight: 500;">View PDF</a>
+                    </div>
+                    """
+                )
+            )
+        return self.mo.vstack(sections)
+
+    def cite_usage_panel(self):
+        return self.mo.md(
+            """
+            ## 🚀 How to Add Citations
+
+            <div style="background: #F3F4F6; padding: 1.5rem; border-radius: 8px;">
+                <h3 style="margin-top: 0;">Citation CLI Commands</h3>
+                <div style="background: white; padding: 1rem; border-radius: 6px; margin: 1rem 0; font-family: monospace;">
+                    <span style="color: #059669;">aco cite url="https://www.cms.gov/..."</span>
+                </div>
+                <div style="background: white; padding: 1rem; border-radius: 6px; margin: 1rem 0; font-family: monospace;">
+                    <span style="color: #059669;">aco cite url="..."</span>
+                    <span style="color: #7C3AED;">--note="..."</span>
+                    <span style="color: #DC2626;">--tags="..."</span>
+                </div>
+                <div style="background: white; padding: 1rem; border-radius: 6px; margin: 1rem 0; font-family: monospace;">
+                    <span style="color: #059669;">aco cite url="..."</span>
+                    <span style="color: #EA580C;">--force</span>
+                </div>
+            </div>
+            """
+        )
+
     # ---- identity_timeline lookup -------------------------------------
 
     def identity_lookup_panel(self, result: dict):
