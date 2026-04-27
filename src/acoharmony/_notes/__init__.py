@@ -18,6 +18,7 @@ from ._identity import IdentityPlugins
 from ._panels import PanelPlugins
 from ._provider import ProviderPlugins
 from ._quality import QualityPlugins
+from ._reach import ReachPlugins
 from ._setup import SetupPlugins
 from ._ui import UIPlugins
 from ._utils import UtilityPlugins
@@ -35,6 +36,7 @@ crosswalk = CrosswalkPlugins()
 identity = IdentityPlugins()
 provider = ProviderPlugins()
 quality = QualityPlugins()
+reach = ReachPlugins()
 
 __all__ = [
     "NotebookGenerator",
@@ -51,6 +53,7 @@ __all__ = [
     "IdentityPlugins",
     "ProviderPlugins",
     "QualityPlugins",
+    "ReachPlugins",
     "setup",
     "ui",
     "data",
@@ -62,4 +65,5 @@ __all__ = [
     "identity",
     "provider",
     "quality",
+    "reach",
 ]
