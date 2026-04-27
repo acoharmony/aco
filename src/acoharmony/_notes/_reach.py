@@ -336,6 +336,210 @@ class ReachPlugins(PluginRegistry):
             )
         )
 
+    # ---- BNMR (Benchmark Report) analytics -----------------------------
+
+    BNMR_TABLES = (
+        "reach_bnmr_report_parameters",
+        "reach_bnmr_financial_settlement",
+        "reach_bnmr_claims",
+        "reach_bnmr_risk",
+        "reach_bnmr_county",
+        "reach_bnmr_uspcc",
+        "reach_bnmr_heba",
+        "reach_bnmr_cap",
+        "reach_bnmr_riskscore_ad",
+        "reach_bnmr_riskscore_esrd",
+        "reach_bnmr_stop_loss_charge",
+        "reach_bnmr_stop_loss_payout",
+        "reach_bnmr_stop_loss_county",
+        "reach_bnmr_stop_loss_claims",
+        "reach_bnmr_data_stop_loss_payout",
+        "reach_bnmr_benchmark_historical_ad",
+        "reach_bnmr_benchmark_historical_esrd",
+    )
+
+    BNMR_CLAIM_TYPE_LABELS = {
+        "10": "10 – HHA",
+        "20": "20 – SNF",
+        "30": "30 – SNF Swing Beds",
+        "40": "40 – Outpatient",
+        "50": "50 – Hospice",
+        "60": "60 – Inpatient",
+        "71": "71 – Physician",
+        "72": "72 – DME/Physician",
+        "81": "81 – DMERC/non-DMEPOS",
+        "82": "82 – DMERC/DMEPOS",
+    }
+
+    def bnmr_deliveries(self, report_parameters: pl.DataFrame) -> pl.DataFrame:
+        """Distinct deliveries with parsed delivery_date from filename."""
+        return (
+            report_parameters.select("source_filename", "performance_year", "aco_id")
+            .unique()
+            .with_columns(
+                pl.col("source_filename")
+                .str.extract(r"\.D(\d{6})\.T", 1)
+                .str.strptime(pl.Date, format="%y%m%d", strict=False)
+                .alias("delivery_date")
+            )
+            .sort("delivery_date")
+        )
+
+    def bnmr_claims_spend(self, claims: pl.DataFrame) -> pl.DataFrame:
+        """Gross claims spend by (delivery, performance_year, claim_type)."""
+        return (
+            claims.filter(pl.col("clm_pmt_amt_agg").is_not_null())
+            .with_columns(
+                pl.col("clm_type_cd")
+                .cast(pl.Utf8)
+                .replace(self.BNMR_CLAIM_TYPE_LABELS, default="Other")
+                .alias("claim_type"),
+            )
+            .group_by("source_filename", "performance_year", "claim_type")
+            .agg(
+                pl.col("clm_pmt_amt_agg")
+                .cast(pl.Float64, strict=False)
+                .sum()
+                .alias("total_spend")
+            )
+            .sort("source_filename")
+        )
+
+    def bnmr_county_rates(self, county: pl.DataFrame) -> pl.DataFrame:
+        """Per-capita county benchmark rates with non-null cast cleanup."""
+        return (
+            county.select(
+                "cty_accrl_cd",
+                "bnmrk",
+                "performance_year",
+                pl.col("cty_rate").cast(pl.Float64, strict=False).alias("rate"),
+                "source_filename",
+            )
+            .filter(pl.col("rate").is_not_null())
+        )
+
+    def bnmr_uspcc_trend(self, uspcc: pl.DataFrame) -> pl.DataFrame:
+        return (
+            uspcc.select(
+                pl.col("clndr_yr").cast(pl.Int32, strict=False).alias("calendar_year"),
+                "bnmrk",
+                pl.col("uspcc").cast(pl.Float64, strict=False).alias("uspcc_value"),
+                "performance_year",
+            )
+            .filter(pl.col("uspcc_value").is_not_null())
+            .unique()
+            .sort("calendar_year")
+        )
+
+    def bnmr_normalization_factor(self, rs_ad: pl.DataFrame) -> pl.DataFrame:
+        return (
+            rs_ad.filter(
+                pl.col("line_description").is_not_null()
+                & pl.col("line_description").str.contains("(?i)normalization factor")
+                & pl.col("py_value").is_not_null()
+            )
+            .select(
+                "source_filename",
+                "performance_year",
+                pl.col("py_value")
+                .cast(pl.Float64, strict=False)
+                .alias("normalization_factor"),
+            )
+            .unique()
+            .sort("source_filename")
+        )
+
+    def bnmr_capitation_aggregate(self, cap: pl.DataFrame) -> pl.DataFrame:
+        """Sum TCC per (pmt_mnth, py, segment), coalescing legacy/new column names."""
+        has_old = "aco_tcc_amt_total" in cap.columns
+        has_new = "aco_tcc_amt_post_seq_paid" in cap.columns
+        tcc_expr = pl.coalesce(
+            pl.col("aco_tcc_amt_total").cast(pl.Float64, strict=False)
+            if has_old
+            else pl.lit(None),
+            pl.col("aco_tcc_amt_post_seq_paid").cast(pl.Float64, strict=False)
+            if has_new
+            else pl.lit(None),
+        ).alias("tcc_amount")
+        return (
+            cap.with_columns(tcc_expr)
+            .filter(pl.col("tcc_amount").is_not_null() & (pl.col("tcc_amount") != 0))
+            .group_by("pmt_mnth", "performance_year", "bnmrk")
+            .agg(pl.col("tcc_amount").sum().alias("total_tcc"))
+            .sort("pmt_mnth")
+        )
+
+    def bnmr_stop_loss_county_payouts(self, slc: pl.DataFrame) -> pl.DataFrame:
+        return (
+            slc.select(
+                "cty_accrl_cd",
+                "bnmrk",
+                "performance_year",
+                pl.col("avg_payout_pct").cast(pl.Float64, strict=False).alias("payout_pct"),
+            )
+            .filter(pl.col("payout_pct").is_not_null())
+        )
+
+    def bnmr_risk_counts(self, risk: pl.DataFrame) -> pl.DataFrame:
+        return (
+            risk.filter(pl.col("bene_dcnt").is_not_null())
+            .group_by("source_filename", "performance_year", "bnmrk")
+            .agg(
+                pl.col("bene_dcnt")
+                .cast(pl.Int64, strict=False)
+                .sum()
+                .alias("total_bene_dcnt"),
+                pl.col("elig_mnths")
+                .cast(pl.Int64, strict=False)
+                .sum()
+                .alias("total_elig_mnths"),
+            )
+            .sort("source_filename")
+        )
+
+    def bnmr_silver_inventory(self, silver_path: Path) -> pl.DataFrame:
+        """Per-table existence + row/column/delivery/perf-year counts."""
+        rows = []
+        for name in self.BNMR_TABLES:
+            path = Path(silver_path) / f"{name}.parquet"
+            if not path.exists():
+                continue
+            df = pl.read_parquet(str(path))
+            n_deliveries = (
+                df["source_filename"].n_unique()
+                if "source_filename" in df.columns
+                else 0
+            )
+            pys = (
+                ", ".join(sorted(df["performance_year"].unique().to_list()))
+                if "performance_year" in df.columns
+                else ""
+            )
+            rows.append(
+                {
+                    "table": name.replace("reach_bnmr_", ""),
+                    "rows": df.height,
+                    "columns": df.width,
+                    "deliveries": n_deliveries,
+                    "performance_years": pys,
+                }
+            )
+        return pl.DataFrame(rows).sort("table") if rows else pl.DataFrame()
+
+    BNMR_REPORT_PARAM_COLS = (
+        "performance_year", "source_filename",
+        "discount", "shared_savings_rate", "quality_withhold", "quality_score",
+        "blend_percentage", "blend_ceiling", "blend_floor",
+        "ad_retrospective_trend", "esrd_retrospective_trend",
+        "ad_completion_factor", "esrd_completion_factor",
+        "aco_type", "risk_arrangement", "payment_mechanism",
+        "stop_loss_elected", "stop_loss_type",
+    )
+
+    def bnmr_report_parameters_view(self, rp: pl.DataFrame) -> pl.DataFrame:
+        present = [c for c in self.BNMR_REPORT_PARAM_COLS if c in rp.columns]
+        return rp.select(present).unique().sort("source_filename")
+
     def schema_drilldown(self, df_prov: pl.DataFrame, schema: str) -> pl.DataFrame:
         """All scheduled and actual rows for a single schema, latest first."""
         return (

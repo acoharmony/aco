@@ -396,3 +396,191 @@ class TestSchemaDrilldown:
         assert out.height == 3
         # Sorted by coalesce(expected, actual) desc
         assert "delivery_status" in out.columns
+
+
+# ---------------------------------------------------------------------------
+# BNMR (Benchmark Report Analysis)
+# ---------------------------------------------------------------------------
+
+
+class TestBnmrDeliveries:
+    @pytest.mark.unit
+    def test_extracts_delivery_date(self) -> None:
+        rp = pl.DataFrame(
+            {
+                "source_filename": [
+                    "ACO.BNMR.D250115.T123000",
+                    "ACO.BNMR.D250115.T123000",  # dup
+                    "ACO.BNMR.D250601.T010000",
+                ],
+                "performance_year": ["PY2025", "PY2025", "PY2025"],
+                "aco_id": ["A", "A", "A"],
+            }
+        )
+        out = ReachPlugins().bnmr_deliveries(rp)
+        assert out.height == 2  # deduped
+        assert out["delivery_date"].to_list() == [date(2025, 1, 15), date(2025, 6, 1)]
+
+
+class TestBnmrClaimsSpend:
+    @pytest.mark.unit
+    def test_groups_with_claim_type_label(self) -> None:
+        claims = pl.DataFrame(
+            {
+                "source_filename": ["d1", "d1", "d1"],
+                "performance_year": ["PY2025"] * 3,
+                "clm_type_cd": ["10", "60", "99"],  # 99 → Other
+                "clm_pmt_amt_agg": ["100", "200", "50"],
+            }
+        )
+        out = ReachPlugins().bnmr_claims_spend(claims)
+        labels = sorted(out["claim_type"].to_list())
+        assert "10 – HHA" in labels
+        assert "Other" in labels
+
+
+class TestBnmrCountyRates:
+    @pytest.mark.unit
+    def test_filters_null_rate(self) -> None:
+        county = pl.DataFrame(
+            {
+                "cty_accrl_cd": ["1", "2"],
+                "bnmrk": ["AD", "ESRD"],
+                "performance_year": ["PY2025", "PY2025"],
+                "cty_rate": [None, "1500.50"],
+                "source_filename": ["d1", "d1"],
+            }
+        )
+        out = ReachPlugins().bnmr_county_rates(county)
+        assert out.height == 1
+        assert out["rate"][0] == 1500.50
+
+
+class TestBnmrUspccTrend:
+    @pytest.mark.unit
+    def test_dedupes_and_sorts(self) -> None:
+        uspcc = pl.DataFrame(
+            {
+                "clndr_yr": ["2024", "2024", "2023"],
+                "bnmrk": ["AD", "AD", "AD"],
+                "uspcc": ["1000", "1000", "950"],
+                "performance_year": ["PY2025", "PY2025", "PY2025"],
+            }
+        )
+        out = ReachPlugins().bnmr_uspcc_trend(uspcc)
+        assert out["calendar_year"].to_list() == [2023, 2024]
+
+
+class TestBnmrNormalizationFactor:
+    @pytest.mark.unit
+    def test_filters_to_normalization_lines(self) -> None:
+        rs_ad = pl.DataFrame(
+            {
+                "line_description": ["Normalization Factor", "Other Line", None],
+                "py_value": ["0.95", "1.0", None],
+                "source_filename": ["d1", "d1", "d1"],
+                "performance_year": ["PY2025"] * 3,
+            }
+        )
+        out = ReachPlugins().bnmr_normalization_factor(rs_ad)
+        assert out.height == 1
+        assert out["normalization_factor"][0] == 0.95
+
+
+class TestBnmrCapitationAggregate:
+    @pytest.mark.unit
+    def test_legacy_column(self) -> None:
+        cap = pl.DataFrame(
+            {
+                "aco_tcc_amt_total": ["1000", "2000", "0"],
+                "pmt_mnth": ["202501", "202502", "202503"],
+                "performance_year": ["PY2025"] * 3,
+                "bnmrk": ["AD"] * 3,
+            }
+        )
+        out = ReachPlugins().bnmr_capitation_aggregate(cap)
+        # 0-value row excluded
+        assert out.height == 2
+
+    @pytest.mark.unit
+    def test_new_column_only(self) -> None:
+        cap = pl.DataFrame(
+            {
+                "aco_tcc_amt_post_seq_paid": ["1500"],
+                "pmt_mnth": ["202501"],
+                "performance_year": ["PY2025"],
+                "bnmrk": ["AD"],
+            }
+        )
+        out = ReachPlugins().bnmr_capitation_aggregate(cap)
+        assert out["total_tcc"][0] == 1500.0
+
+
+class TestBnmrStopLossCounty:
+    @pytest.mark.unit
+    def test_filters_null_payout(self) -> None:
+        slc = pl.DataFrame(
+            {
+                "cty_accrl_cd": ["1", "2"],
+                "bnmrk": ["AD", "AD"],
+                "performance_year": ["PY2025", "PY2025"],
+                "avg_payout_pct": [None, "0.05"],
+            }
+        )
+        out = ReachPlugins().bnmr_stop_loss_county_payouts(slc)
+        assert out.height == 1
+
+
+class TestBnmrRiskCounts:
+    @pytest.mark.unit
+    def test_aggregates(self) -> None:
+        risk = pl.DataFrame(
+            {
+                "bene_dcnt": ["100", "200", None],
+                "elig_mnths": ["1200", "2400", None],
+                "source_filename": ["d1", "d1", "d1"],
+                "performance_year": ["PY2025", "PY2025", "PY2025"],
+                "bnmrk": ["AD", "AD", "AD"],
+            }
+        )
+        out = ReachPlugins().bnmr_risk_counts(risk)
+        assert out["total_bene_dcnt"][0] == 300
+
+
+class TestBnmrSilverInventory:
+    @pytest.mark.unit
+    def test_skips_missing(self, tmp_path: Path) -> None:
+        # No files at all → empty
+        out = ReachPlugins().bnmr_silver_inventory(tmp_path)
+        assert out.is_empty()
+
+    @pytest.mark.unit
+    def test_one_file_present(self, tmp_path: Path) -> None:
+        df = pl.DataFrame(
+            {
+                "source_filename": ["d1"],
+                "performance_year": ["PY2025"],
+                "x": [1],
+            }
+        )
+        df.write_parquet(tmp_path / "reach_bnmr_claims.parquet")
+        out = ReachPlugins().bnmr_silver_inventory(tmp_path)
+        assert out.height == 1
+        assert out["table"][0] == "claims"
+        assert out["deliveries"][0] == 1
+
+
+class TestBnmrReportParametersView:
+    @pytest.mark.unit
+    def test_keeps_only_present_columns(self) -> None:
+        rp = pl.DataFrame(
+            {
+                "performance_year": ["PY2025", "PY2025"],
+                "source_filename": ["d1", "d1"],  # dup
+                "shared_savings_rate": ["0.5", "0.5"],
+                "extra_column": ["x", "y"],  # not in COLS
+            }
+        )
+        out = ReachPlugins().bnmr_report_parameters_view(rp)
+        assert "extra_column" not in out.columns
+        assert out.height == 1  # deduped
