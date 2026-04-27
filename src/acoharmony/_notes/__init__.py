@@ -29,6 +29,7 @@ from ._provider import ProviderPlugins
 from ._quality import QualityPlugins
 from ._reach import ReachPlugins
 from ._setup import SetupPlugins
+from ._signature import SignaturePlugins
 from ._sva import SvaPlugins
 from ._tparc import TparcPlugins
 from ._wound_care import WoundCarePlugins
@@ -58,6 +59,7 @@ pmpm = PmpmPlugins()
 provider = ProviderPlugins()
 quality = QualityPlugins()
 reach = ReachPlugins()
+signature = SignaturePlugins()
 sva = SvaPlugins()
 tparc = TparcPlugins()
 wound_care = WoundCarePlugins()
@@ -87,6 +89,7 @@ __all__ = [
     "ProviderPlugins",
     "QualityPlugins",
     "ReachPlugins",
+    "SignaturePlugins",
     "SvaPlugins",
     "TparcPlugins",
     "WoundCarePlugins",
@@ -111,6 +114,7 @@ __all__ = [
     "provider",
     "quality",
     "reach",
+    "signature",
     "sva",
     "tparc",
     "wound_care",
