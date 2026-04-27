@@ -16,6 +16,7 @@ from ._crosswalk import CrosswalkPlugins
 from ._data import DataPlugins
 from ._identity import IdentityPlugins
 from ._panels import PanelPlugins
+from ._provider import ProviderPlugins
 from ._quality import QualityPlugins
 from ._setup import SetupPlugins
 from ._ui import UIPlugins
@@ -32,6 +33,7 @@ panels = PanelPlugins(ui)
 cite = CitePlugins()
 crosswalk = CrosswalkPlugins()
 identity = IdentityPlugins()
+provider = ProviderPlugins()
 quality = QualityPlugins()
 
 __all__ = [
@@ -47,6 +49,7 @@ __all__ = [
     "CitePlugins",
     "CrosswalkPlugins",
     "IdentityPlugins",
+    "ProviderPlugins",
     "QualityPlugins",
     "setup",
     "ui",
@@ -57,5 +60,6 @@ __all__ = [
     "cite",
     "crosswalk",
     "identity",
+    "provider",
     "quality",
 ]
