@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from datetime import date
+from pathlib import Path
 
 import polars as pl
 import pytest
@@ -165,3 +166,185 @@ class TestModuleConstants:
         assert set(KNOWN_MEASURES) == {"ACR", "DAH", "UAMCC"}
         assert all(m in MEASURE_LABELS for m in KNOWN_MEASURES)
         assert all(m in MEASURE_UNITS for m in KNOWN_MEASURES)
+
+
+# ---------------------------------------------------------------------------
+# per-quarter CMS tie-outs
+# ---------------------------------------------------------------------------
+
+
+class TestPerQuarterTieouts:
+    @pytest.mark.unit
+    def test_acr_per_quarter(self) -> None:
+        df = pl.LazyFrame(
+            [
+                {
+                    "source_filename": "BLQQR_ACR.Q1.PY2024.x",
+                    "bene_id": "B1",
+                    "radm30_flag": 1,
+                },
+                {
+                    "source_filename": "BLQQR_ACR.Q1.PY2024.x",
+                    "bene_id": "B1",
+                    "radm30_flag": 0,
+                },
+                {
+                    "source_filename": "BLQQR_ACR.Q1.PY2024.x",
+                    "bene_id": "B2",
+                    "radm30_flag": 0,
+                },
+            ]
+        )
+        out = QualityPlugins().acr_per_quarter(df)
+        row = out.to_dicts()[0]
+        assert row["our_index_stays"] == 3
+        assert row["our_unique_benes"] == 2
+        assert row["our_readmissions"] == 1
+        assert row["our_raw_rate"] == pytest.approx(33.33, rel=1e-2)
+
+    @pytest.mark.unit
+    def test_acr_exclusions_per_quarter(self) -> None:
+        df = pl.LazyFrame(
+            [
+                {
+                    "source_filename": "BLQQR_EXCL.Q1.PY2024.x",
+                    "ct_benes_acr": "100",
+                }
+            ]
+        )
+        out = QualityPlugins().acr_exclusions_per_quarter(df)
+        assert out["cms_benes"][0] == 100
+
+    @pytest.mark.unit
+    def test_qtlqr_per_quarter(self) -> None:
+        df = pl.LazyFrame(
+            [
+                {
+                    "source_filename": "QTLQR.Q1.PY2024.x",
+                    "measure": "ACR",
+                    "measure_score": "10.5",
+                    "measure_volume": "100",
+                },
+                {
+                    "source_filename": "QTLQR.Q2.PY2024.x",
+                    "measure": "DAH",
+                    "measure_score": "320",
+                    "measure_volume": "200",
+                },
+            ]
+        )
+        out = QualityPlugins().qtlqr_per_quarter(df, "ACR")
+        assert out.height == 1
+        assert out["cms_score"][0] == 10.5
+
+    @pytest.mark.unit
+    def test_acr_comparison(self) -> None:
+        acr = pl.LazyFrame(
+            [
+                {
+                    "source_filename": "BLQQR_ACR.Q1.PY2024.x",
+                    "bene_id": "B1",
+                    "radm30_flag": 1,
+                },
+                {
+                    "source_filename": "BLQQR_ACR.Q1.PY2024.x",
+                    "bene_id": "B2",
+                    "radm30_flag": 0,
+                },
+            ]
+        )
+        excl = pl.LazyFrame(
+            [
+                {"source_filename": "BLQQR_EXCL.Q1.PY2024.x", "ct_benes_acr": "2"}
+            ]
+        )
+        qtlqr = pl.LazyFrame(
+            [
+                {
+                    "source_filename": "QTLQR.Q1.PY2024.x",
+                    "measure": "ACR",
+                    "measure_score": "45.0",
+                    "measure_volume": "100",
+                }
+            ]
+        )
+        out = QualityPlugins().acr_comparison(acr, excl, qtlqr)
+        row = out.to_dicts()[0]
+        assert row["bene_match"] is True
+        assert row["rate_diff_pp"] == pytest.approx(50.0 - 45.0)
+
+    @pytest.mark.unit
+    def test_dah_comparison(self) -> None:
+        dah = pl.LazyFrame(
+            [
+                {
+                    "source_filename": "BLQQR_DAH.Q1.PY2024.x",
+                    "bene_id": "B1",
+                    "survival_days": "365",
+                    "observed_dah": "60",
+                }
+            ]
+        )
+        qtlqr = pl.LazyFrame(
+            [
+                {
+                    "source_filename": "QTLQR.Q1.PY2024.x",
+                    "measure": "DAH",
+                    "measure_score": "300",
+                    "measure_volume": "100",
+                }
+            ]
+        )
+        out = QualityPlugins().dah_comparison(dah, qtlqr)
+        row = out.to_dicts()[0]
+        assert row["our_raw_dah"] == 305.0
+        assert row["dah_diff"] == 5.0
+
+    @pytest.mark.unit
+    def test_uamcc_comparison(self) -> None:
+        uamcc = pl.LazyFrame(
+            [
+                {
+                    "source_filename": "BLQQR_UAMCC.Q1.PY2024.x",
+                    "bene_id": "B1",
+                    "count_unplanned_adm": "0",
+                }
+            ]
+        )
+        qtlqr = pl.LazyFrame(
+            [
+                {
+                    "source_filename": "QTLQR.Q1.PY2024.x",
+                    "measure": "UAMCC",
+                    "measure_score": "50.0",
+                    "measure_volume": "1000",
+                }
+            ]
+        )
+        out = QualityPlugins().uamcc_comparison(uamcc, qtlqr)
+        row = out.to_dicts()[0]
+        assert row["our_unplanned"] == 0
+        assert row["cms_uamcc_rate"] == 50.0
+
+
+class TestValueSetInventory:
+    @pytest.mark.unit
+    def test_empty_dir(self, tmp_path: Path) -> None:
+        out = QualityPlugins().value_set_inventory(tmp_path)
+        assert out.is_empty()
+
+    @pytest.mark.unit
+    def test_classifies_by_measure(self, tmp_path: Path) -> None:
+        for fname in (
+            "value_sets_acr_x.parquet",
+            "value_sets_uamcc_y.parquet",
+            "value_sets_hwr_z.parquet",
+            "value_sets_other_w.parquet",
+        ):
+            pl.DataFrame({"x": [1]}).write_parquet(tmp_path / fname)
+        out = QualityPlugins().value_set_inventory(tmp_path)
+        as_dict = {row["file"]: row["measure"] for row in out.iter_rows(named=True)}
+        assert as_dict["acr_x"] == "ACR"
+        assert as_dict["uamcc_y"] == "UAMCC"
+        assert as_dict["hwr_z"] == "HWR"
+        assert as_dict["other_w"] == "Other"

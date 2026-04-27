@@ -113,6 +113,166 @@ class QualityPlugins(PluginRegistry):
         """BLQQR exclusions with quarter / perf_year parsed from filename."""
         return _annotate_period(excl_lf.collect())
 
+    # ---- per-quarter CMS tie-outs --------------------------------------
+
+    def acr_per_quarter(self, blqqr_acr_lf: pl.LazyFrame) -> pl.DataFrame:
+        """Per-quarter ACR rate from BLQQR (our raw rate)."""
+        df = _annotate_period(blqqr_acr_lf.collect())
+        return (
+            df.group_by("quarter", "perf_year")
+            .agg(
+                pl.len().alias("our_index_stays"),
+                pl.col("bene_id").n_unique().alias("our_unique_benes"),
+                pl.col("radm30_flag")
+                .cast(pl.Int64, strict=False)
+                .sum()
+                .alias("our_readmissions"),
+            )
+            .with_columns(
+                (pl.col("our_readmissions") / pl.col("our_index_stays") * 100)
+                .round(2)
+                .alias("our_raw_rate")
+            )
+            .sort("perf_year", "quarter")
+        )
+
+    def acr_exclusions_per_quarter(self, blqqr_excl_lf: pl.LazyFrame) -> pl.DataFrame:
+        df = _annotate_period(blqqr_excl_lf.collect())
+        return df.select(
+            "quarter",
+            "perf_year",
+            pl.col("ct_benes_acr").cast(pl.Int64, strict=False).alias("cms_benes"),
+        )
+
+    def qtlqr_per_quarter(
+        self,
+        qtlqr_lf: pl.LazyFrame,
+        measure: str,
+    ) -> pl.DataFrame:
+        """QTLQR rate + volume for a measure, parsed per quarter."""
+        return (
+            qtlqr_lf.collect()
+            .filter(pl.col("measure") == measure)
+            .with_columns(
+                pl.col("source_filename")
+                .str.extract(r"QTLQR\.(Q\d)\.", 1)
+                .alias("quarter")
+            )
+            .select(
+                "quarter",
+                pl.col("measure_score")
+                .cast(pl.Float64, strict=False)
+                .alias("cms_score"),
+                pl.col("measure_volume")
+                .cast(pl.Float64, strict=False)
+                .alias("cms_volume"),
+            )
+        )
+
+    def acr_comparison(
+        self,
+        blqqr_acr_lf: pl.LazyFrame,
+        blqqr_excl_lf: pl.LazyFrame,
+        qtlqr_lf: pl.LazyFrame,
+    ) -> pl.DataFrame:
+        ours = self.acr_per_quarter(blqqr_acr_lf)
+        excl = self.acr_exclusions_per_quarter(blqqr_excl_lf)
+        cms = self.qtlqr_per_quarter(qtlqr_lf, "ACR").rename(
+            {"cms_score": "cms_risk_adj_rate"}
+        )
+        return (
+            ours.join(excl, on=["quarter", "perf_year"], how="left")
+            .join(cms, on="quarter", how="left")
+            .with_columns(
+                (pl.col("our_unique_benes") == pl.col("cms_benes")).alias("bene_match"),
+                (pl.col("our_raw_rate") - pl.col("cms_risk_adj_rate"))
+                .round(2)
+                .alias("rate_diff_pp"),
+            )
+        )
+
+    def dah_per_quarter(self, blqqr_dah_lf: pl.LazyFrame) -> pl.DataFrame:
+        df = _annotate_period(blqqr_dah_lf.collect())
+        return (
+            df.group_by("quarter", "perf_year")
+            .agg(
+                pl.col("bene_id").n_unique().alias("our_benes"),
+                (
+                    pl.col("survival_days").cast(pl.Float64)
+                    - pl.col("observed_dah").cast(pl.Float64)
+                )
+                .mean()
+                .round(1)
+                .alias("our_raw_dah"),
+            )
+            .sort("perf_year", "quarter")
+        )
+
+    def dah_comparison(
+        self, blqqr_dah_lf: pl.LazyFrame, qtlqr_lf: pl.LazyFrame
+    ) -> pl.DataFrame:
+        ours = self.dah_per_quarter(blqqr_dah_lf)
+        cms = self.qtlqr_per_quarter(qtlqr_lf, "DAH").rename(
+            {"cms_score": "cms_dah_score", "cms_volume": "cms_person_years"}
+        )
+        return ours.join(cms, on="quarter", how="left").with_columns(
+            (pl.col("our_raw_dah") - pl.col("cms_dah_score")).round(1).alias("dah_diff")
+        )
+
+    def uamcc_per_quarter(self, blqqr_uamcc_lf: pl.LazyFrame) -> pl.DataFrame:
+        df = _annotate_period(blqqr_uamcc_lf.collect())
+        return (
+            df.group_by("quarter", "perf_year")
+            .agg(
+                pl.col("bene_id").n_unique().alias("our_benes"),
+                pl.col("count_unplanned_adm")
+                .cast(pl.Int64, strict=False)
+                .sum()
+                .alias("our_unplanned"),
+            )
+            .sort("perf_year", "quarter")
+        )
+
+    def uamcc_comparison(
+        self, blqqr_uamcc_lf: pl.LazyFrame, qtlqr_lf: pl.LazyFrame
+    ) -> pl.DataFrame:
+        ours = self.uamcc_per_quarter(blqqr_uamcc_lf)
+        cms = self.qtlqr_per_quarter(qtlqr_lf, "UAMCC").rename(
+            {"cms_score": "cms_uamcc_rate", "cms_volume": "cms_person_years"}
+        )
+        return ours.join(cms, on="quarter", how="left")
+
+    # ---- value set inventory -------------------------------------------
+
+    def value_set_inventory(self, silver_path) -> pl.DataFrame:
+        """Inventory of every ``value_sets_*.parquet`` in silver, tagged by measure."""
+        from pathlib import Path
+
+        rows = []
+        for path in sorted(Path(silver_path).glob("value_sets_*.parquet")):
+            df = pl.read_parquet(path)
+            name = path.name.lower()
+            measure = (
+                "UAMCC"
+                if "uamcc" in name
+                else "ACR"
+                if "acr" in name
+                else "HWR"
+                if "hwr" in name
+                else "Other"
+            )
+            rows.append(
+                {
+                    "measure": measure,
+                    "file": path.name.replace("value_sets_", "").replace(".parquet", ""),
+                    "rows": df.height,
+                    "columns": df.width,
+                }
+            )
+        if not rows:
+            return pl.DataFrame()
+        return pl.DataFrame(rows).sort("measure", "file")
+
     def exclusion_long(self, excl_df: pl.DataFrame) -> pl.DataFrame:
         """Long-form opt-out / prior-ineligible counts for ACR + DAH."""
         return pl.concat(
