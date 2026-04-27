@@ -19,6 +19,7 @@ from ._data import DataPlugins
 from ._hedr import HedrPlugins
 from ._identity import IdentityPlugins
 from ._panels import PanelPlugins
+from ._pfs import PfsPlugins
 from ._pmpm import PmpmPlugins
 from ._provider import ProviderPlugins
 from ._quality import QualityPlugins
@@ -43,6 +44,7 @@ cite = CitePlugins()
 crosswalk = CrosswalkPlugins()
 hedr = HedrPlugins()
 identity = IdentityPlugins()
+pfs = PfsPlugins()
 pmpm = PmpmPlugins()
 provider = ProviderPlugins()
 quality = QualityPlugins()
@@ -66,6 +68,7 @@ __all__ = [
     "CrosswalkPlugins",
     "HedrPlugins",
     "IdentityPlugins",
+    "PfsPlugins",
     "PmpmPlugins",
     "ProviderPlugins",
     "QualityPlugins",
@@ -84,6 +87,7 @@ __all__ = [
     "crosswalk",
     "hedr",
     "identity",
+    "pfs",
     "pmpm",
     "provider",
     "quality",
