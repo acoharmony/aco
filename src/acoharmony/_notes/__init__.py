@@ -31,6 +31,7 @@ from ._reach import ReachPlugins
 from ._setup import SetupPlugins
 from ._sva import SvaPlugins
 from ._tparc import TparcPlugins
+from ._wound_care import WoundCarePlugins
 from ._ui import UIPlugins
 from ._utils import UtilityPlugins
 from .config import NotebookConfig
@@ -59,6 +60,7 @@ quality = QualityPlugins()
 reach = ReachPlugins()
 sva = SvaPlugins()
 tparc = TparcPlugins()
+wound_care = WoundCarePlugins()
 
 __all__ = [
     "NotebookGenerator",
@@ -87,6 +89,7 @@ __all__ = [
     "ReachPlugins",
     "SvaPlugins",
     "TparcPlugins",
+    "WoundCarePlugins",
     "setup",
     "ui",
     "data",
@@ -110,4 +113,5 @@ __all__ = [
     "reach",
     "sva",
     "tparc",
+    "wound_care",
 ]
