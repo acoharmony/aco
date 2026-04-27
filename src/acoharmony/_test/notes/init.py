@@ -321,7 +321,7 @@ class TestPluginRegistry:
     @pytest.mark.unit
     def test_mo_lazy_load(self, mock_mo):
         """mo property lazy-loads marimo."""
-        from acoharmony._notes.plugins import PluginRegistry
+        from acoharmony._notes import PluginRegistry
 
         reg = PluginRegistry()
         assert reg._mo is None
@@ -332,7 +332,7 @@ class TestPluginRegistry:
     @pytest.mark.unit
     def test_mo_cached(self, mock_mo):
         """mo property caches after first access."""
-        from acoharmony._notes.plugins import PluginRegistry
+        from acoharmony._notes import PluginRegistry
 
         reg = PluginRegistry()
         reg._mo = mock_mo
@@ -340,29 +340,28 @@ class TestPluginRegistry:
 
     @pytest.mark.unit
     def test_storage_lazy_load(self, mock_storage):
-        """storage property lazy-loads StorageBackend."""
-        from acoharmony._notes.plugins import PluginRegistry
+        """storage property lazy-loads StorageBackend on first access, then caches."""
+        from acoharmony._notes import PluginRegistry
 
         reg = PluginRegistry()
         assert reg._storage is None
         with patch(
-            "acoharmony._notes.plugins.PluginRegistry.storage",
-            new_callable=PropertyMock,
-            return_value=mock_storage,
-        ):
-            pass
-        # Direct set for test
-        reg._storage = mock_storage
-        assert reg.storage is mock_storage
+            "acoharmony._store.StorageBackend", return_value=mock_storage
+        ) as backend:
+            assert reg.storage is mock_storage
+            assert reg.storage is mock_storage  # cached
+            backend.assert_called_once()
 
     @pytest.mark.unit
     def test_catalog_lazy_load(self, mock_catalog):
-        """catalog property lazy-loads Catalog."""
-        from acoharmony._notes.plugins import PluginRegistry
+        """catalog property lazy-loads Catalog on first access, then caches."""
+        from acoharmony._notes import PluginRegistry
 
         reg = PluginRegistry()
-        reg._catalog = mock_catalog
-        assert reg.catalog is mock_catalog
+        with patch("acoharmony.Catalog", return_value=mock_catalog) as ctor:
+            assert reg.catalog is mock_catalog
+            assert reg.catalog is mock_catalog
+            ctor.assert_called_once()
 
 
 class TestSetupPlugins:
@@ -371,18 +370,26 @@ class TestSetupPlugins:
     @pytest.mark.unit
     def test_setup_project_path_exists(self, tmp_path):
         """setup_project_path adds src to sys.path when project exists."""
-        from acoharmony._notes.plugins import SetupPlugins
+        from acoharmony._notes import SetupPlugins
 
         sp = SetupPlugins()
-        with patch.object(Path, "exists", return_value=True):
-            sys.path.copy()
-            result = sp.setup_project_path()
+        # Save sys.path so we can probe whether the insert ran.
+        saved = sys.path.copy()
+        try:
+            # Force the "not in sys.path" branch so line 23 is exercised.
+            target = "/home/care/acoharmony/src"
+            sys.path[:] = [p for p in sys.path if p != target]
+            with patch.object(Path, "exists", return_value=True):
+                result = sp.setup_project_path()
             assert isinstance(result, Path)
+            assert target in sys.path
+        finally:
+            sys.path[:] = saved
 
     @pytest.mark.unit
     def test_setup_project_path_not_exists(self):
         """setup_project_path does not modify sys.path when project missing."""
-        from acoharmony._notes.plugins import SetupPlugins
+        from acoharmony._notes import SetupPlugins
 
         sp = SetupPlugins()
         with patch.object(Path, "exists", return_value=False):
@@ -393,7 +400,7 @@ class TestSetupPlugins:
     @pytest.mark.unit
     def test_initialize_with_path_setup(self, mock_storage, mock_catalog):
         """initialize returns env dict with all expected keys."""
-        from acoharmony._notes.plugins import SetupPlugins
+        from acoharmony._notes import SetupPlugins
 
         sp = SetupPlugins()
         sp._storage = mock_storage
@@ -411,7 +418,7 @@ class TestSetupPlugins:
     @pytest.mark.unit
     def test_initialize_without_path_setup(self, mock_storage, mock_catalog):
         """initialize skips path setup when setup_path=False."""
-        from acoharmony._notes.plugins import SetupPlugins
+        from acoharmony._notes import SetupPlugins
 
         sp = SetupPlugins()
         sp._storage = mock_storage
@@ -422,7 +429,7 @@ class TestSetupPlugins:
     @pytest.mark.unit
     def test_get_medallion_path_success(self, mock_storage):
         """get_medallion_path returns path from storage backend."""
-        from acoharmony._notes.plugins import SetupPlugins
+        from acoharmony._notes import SetupPlugins
 
         sp = SetupPlugins()
         sp._storage = mock_storage
@@ -432,7 +439,7 @@ class TestSetupPlugins:
     @pytest.mark.unit
     def test_get_medallion_path_fallback(self):
         """get_medallion_path returns fallback on storage failure."""
-        from acoharmony._notes.plugins import SetupPlugins
+        from acoharmony._notes import SetupPlugins
 
         sp = SetupPlugins()
         bad_storage = MagicMock()
@@ -446,7 +453,7 @@ class TestUIPlugins:
     """Tests for UIPlugins."""
 
     def _make_ui(self, mock_mo):
-        from acoharmony._notes.plugins import UIPlugins
+        from acoharmony._notes import UIPlugins
 
         ui = UIPlugins()
         ui._mo = mock_mo
@@ -609,8 +616,10 @@ class TestUIPlugins:
         df = pl.DataFrame({"a": [1, 2]})
         result = ui.download_button(df, format="excel", filename="test", include_timestamp=False)
         assert result["filename"] == "test.xlsx"
-        # data should be a callable for lazy generation
+        # data is a callable that yields actual xlsx bytes when invoked.
         assert callable(result["data"])
+        body = result["data"]()
+        assert isinstance(body, bytes) and body[:2] == b"PK"
 
     @pytest.mark.unit
     def test_download_button_parquet(self, mock_mo):
@@ -667,7 +676,7 @@ class TestUIPlugins:
         mock_tracker.state.last_run = "2025-01-01"
         mock_tracker.state.total_runs = 5
         with patch(
-            "acoharmony._notes.plugins.TransformTracker", return_value=mock_tracker, create=True
+            "acoharmony._notes.TransformTracker", return_value=mock_tracker, create=True
         ):
             # The import happens inside branded_footer, mock the import path
             with patch.dict("sys.modules", {}):
@@ -688,7 +697,7 @@ class TestUIPlugins:
     @pytest.mark.unit
     def test_colors_palette_complete(self):
         """COLORS dict contains all expected brand colors."""
-        from acoharmony._notes.plugins import UIPlugins
+        from acoharmony._notes import UIPlugins
 
         expected = {
             "primary_blue",
@@ -711,7 +720,7 @@ class TestDataPlugins:
     """Tests for DataPlugins."""
 
     def _make_data(self, mock_storage):
-        from acoharmony._notes.plugins import DataPlugins
+        from acoharmony._notes import DataPlugins
 
         dp = DataPlugins()
         dp._storage = mock_storage
@@ -1042,7 +1051,7 @@ class TestAnalysisPlugins:
     """Tests for AnalysisPlugins."""
 
     def _make_analysis(self):
-        from acoharmony._notes.plugins import AnalysisPlugins
+        from acoharmony._notes import AnalysisPlugins
 
         return AnalysisPlugins()
 
@@ -1144,7 +1153,7 @@ class TestUtilityPlugins:
     """Tests for UtilityPlugins."""
 
     def _make_utils(self):
-        from acoharmony._notes.plugins import UtilityPlugins
+        from acoharmony._notes import UtilityPlugins
 
         return UtilityPlugins()
 
@@ -1482,7 +1491,7 @@ class TestPluginSingletons:
     @pytest.mark.unit
     def test_singletons_exist(self):
         """Module-level singletons are properly instantiated."""
-        from acoharmony._notes.plugins import (
+        from acoharmony._notes import (
             AnalysisPlugins,
             DataPlugins,
             SetupPlugins,
