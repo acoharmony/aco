@@ -31,16 +31,14 @@ RUN update-ca-certificates
 RUN groupadd -g 1002 care && \
     useradd -u 1002 -g 1002 -m -s /bin/sh care
 
-# Real 4icli binary lives at 4icli-bin; the `4icli` name resolves to a
-# shim that persists rotated/reconfigured creds back to $BRONZE/config.txt
-# so they survive container restart (the entrypoint reseeds from there).
-# Every caller — Python wrapper or manual `docker exec` — transparently
-# hits the shim with no special routing.
-COPY 4icli /usr/local/bin/4icli-bin
-COPY 4icli-with-persist /usr/local/bin/4icli
-RUN chmod +x /usr/local/bin/4icli-bin /usr/local/bin/4icli
+# Install the real 4icli binary. No persistence shim: the runtime
+# container is a read-only credential consumer, so nothing inside ever
+# calls `4icli configure` or `4icli rotate`. Bootstrap (after portal
+# rotation) is handled out-of-band by deploy/images/4icli/bootstrap.sh.
+COPY 4icli /usr/local/bin/4icli
+RUN chmod +x /usr/local/bin/4icli
 
-# Entrypoint copies $BRONZE/config.txt into the XDG config path on every start
+# Entrypoint seeds $HOME/.config/4icli/config.txt from $BRONZE/config.txt
 COPY entrypoint.sh /usr/local/bin/4icli-entrypoint
 RUN chmod +x /usr/local/bin/4icli-entrypoint
 

@@ -10,19 +10,17 @@ services:
     user: "1002:1002"
     environment:
       - ACO_PROFILE=${ACO_PROFILE:-dev}
-      - FOURICLI_API_KEY=${FOURICLI_API_KEY}
-      - FOURICLI_API_SECRET=${FOURICLI_API_SECRET}
       - FOURICLI_APM_ID=${FOURICLI_APM_ID}
     volumes:
-      # NOTE: no host config.txt bind-mount. 4icli's config.txt is a
-      # machine-bound encrypted blob — the decryption key is derived
-      # from environment identifiers that differ between host and
-      # container, so mounting a host-generated config.txt produces
-      # "Authentication failed" when the container tries to decrypt it.
-      # Instead, the entrypoint runs `4icli configure` inside the
-      # container on start, driving it with FOURICLI_API_KEY /
-      # FOURICLI_API_SECRET (set via env below). That produces a
-      # container-local config.txt that 4icli can actually decrypt.
+      # config.txt is bootstrapped out-of-band by
+      # deploy/images/4icli/bootstrap.sh after a portal-issued key/secret
+      # rotation. The runtime container never calls `4icli configure` or
+      # `4icli rotate` — it only reads $BRONZE/config.txt, which arrives
+      # via this workspace mount, and copies it to the XDG path at start.
+      # No FOURICLI_API_KEY / FOURICLI_API_SECRET env wiring on purpose:
+      # past versions used those to auto-`configure` on container start,
+      # which silently produced dead-on-arrival creds and overwrote the
+      # workspace source of truth.
 
       # S3-backed workspace — same mount as aco container.
       - type: bind

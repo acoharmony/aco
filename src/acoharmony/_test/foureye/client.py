@@ -495,40 +495,18 @@ class TestFourICLIClient:
             # May or may not sleep depending on timing, but tests the branch
 
     @pytest.mark.unit
-    def test_configure(self, client):
-        result_mock = MagicMock()
-        result_mock.returncode = 0
-        result_mock.stdout = ""
-        result_mock.stderr = ""
-
-        with patch("subprocess.run", return_value=result_mock):
-            client.configure(interactive=True)
-
-    @pytest.mark.unit
-    def test_configure_failure(self, client):
+    def test_configure_always_raises(self, client):
         from acoharmony._4icli.client import FourICLIConfigurationError
 
-        with patch("subprocess.run", side_effect=OSError("docker fail")):
-            with pytest.raises(FourICLIConfigurationError):
-                client.configure()
+        with pytest.raises(FourICLIConfigurationError, match="bootstrap.sh"):
+            client.configure()
 
     @pytest.mark.unit
-    def test_rotate_credentials(self, client):
-        result_mock = MagicMock()
-        result_mock.returncode = 0
-        result_mock.stdout = ""
-        result_mock.stderr = ""
+    def test_rotate_credentials_always_raises(self, client):
+        from acoharmony._4icli.client import FourICLIConfigurationError
 
-        with patch("subprocess.run", return_value=result_mock):
+        with pytest.raises(FourICLIConfigurationError, match="portal"):
             client.rotate_credentials()
-
-    @pytest.mark.unit
-    def test_rotate_credentials_failure(self, client):
-        from acoharmony._4icli.client import FourICLIConfigurationError
-
-        with patch("subprocess.run", side_effect=OSError("fail")):
-            with pytest.raises(FourICLIConfigurationError):
-                client.rotate_credentials()
 
     @pytest.mark.unit
     def test_list_categories(self, client):
@@ -1164,56 +1142,22 @@ class TestClientRunCommandEdgeCases:
 
 
 class TestClientConfigure:
-    @patch("subprocess.run")
     @pytest.mark.unit
-    def test_configure_success(self, mock_run, make_config, mock_lw):
-        from acoharmony._4icli.client import FourICLI
-
-        mock_run.return_value.returncode = 0
-        mock_run.return_value.stdout = ""
-        mock_run.return_value.stderr = ""
-
-        cli = FourICLI(config=make_config, log_writer=mock_lw, enable_duplicate_detection=False)
-        cli.configure(interactive=False)
-        mock_run.assert_called_once()
-
-    @patch("subprocess.run")
-    @pytest.mark.unit
-    def test_configure_failure(self, mock_run, make_config, mock_lw):
+    def test_configure_always_raises(self, make_config, mock_lw):
         from acoharmony._4icli.client import FourICLI, FourICLIConfigurationError
 
-        mock_run.return_value.returncode = 1
-        mock_run.return_value.stderr = "Config failed"
-
         cli = FourICLI(config=make_config, log_writer=mock_lw, enable_duplicate_detection=False)
-        with pytest.raises(FourICLIConfigurationError):
-            cli.configure()
+        with pytest.raises(FourICLIConfigurationError, match="bootstrap.sh"):
+            cli.configure(interactive=False)
 
 
 class TestClientRotateCredentials:
-    @patch("subprocess.run")
     @pytest.mark.unit
-    def test_rotate_success(self, mock_run, make_config, mock_lw):
-        from acoharmony._4icli.client import FourICLI
-
-        mock_run.return_value.returncode = 0
-        mock_run.return_value.stdout = ""
-        mock_run.return_value.stderr = ""
-
-        cli = FourICLI(config=make_config, log_writer=mock_lw, enable_duplicate_detection=False)
-        cli.rotate_credentials()
-        mock_run.assert_called_once()
-
-    @patch("subprocess.run")
-    @pytest.mark.unit
-    def test_rotate_failure(self, mock_run, make_config, mock_lw):
+    def test_rotate_always_raises(self, make_config, mock_lw):
         from acoharmony._4icli.client import FourICLI, FourICLIConfigurationError
 
-        mock_run.return_value.returncode = 1
-        mock_run.return_value.stderr = "Rotation error"
-
         cli = FourICLI(config=make_config, log_writer=mock_lw, enable_duplicate_detection=False)
-        with pytest.raises(FourICLIConfigurationError):
+        with pytest.raises(FourICLIConfigurationError, match="portal"):
             cli.rotate_credentials()
 
 

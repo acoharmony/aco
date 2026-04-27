@@ -3587,3 +3587,242 @@ class TestCmdDownloadCategoryNoneAndUnmatchedEnum:
             result = cmd_download(args)
 
         assert result == 0
+
+
+# --- cmd_setup tests ---------------------------------------------------------
+
+class TestSetupHelpers:
+    """Cover the small helpers that back cmd_setup."""
+
+    @pytest.mark.unit
+    def test_read_env_file_parses_keys_skipping_blanks_and_comments(self, tmp_path):
+        from acoharmony._4icli.cli import _read_env_file
+
+        env = tmp_path / ".env"
+        env.write_text(
+            "# comment line\n"
+            "\n"
+            "FOO=bar\n"
+            "  BAZ = qux \n"
+            "no_equals_line\n"
+            "EMPTY=\n"
+        )
+        result = _read_env_file(env)
+        assert result == {"FOO": "bar", "BAZ": "qux", "EMPTY": ""}
+
+    @pytest.mark.unit
+    def test_read_env_file_returns_empty_when_missing(self, tmp_path):
+        from acoharmony._4icli.cli import _read_env_file
+
+        assert _read_env_file(tmp_path / "does_not_exist.env") == {}
+
+    @pytest.mark.unit
+    def test_update_env_file_replaces_existing_and_appends_new(self, tmp_path):
+        from acoharmony._4icli.cli import _update_env_file
+
+        env = tmp_path / ".env"
+        env.write_text("# header\nFOO=old\nKEEP=stays\n")
+        _update_env_file(env, {"FOO": "new", "FRESH": "added"})
+        text = env.read_text()
+        assert "# header" in text
+        assert "FOO=new" in text
+        assert "FOO=old" not in text
+        assert "KEEP=stays" in text
+        assert "FRESH=added" in text
+
+    @pytest.mark.unit
+    def test_update_env_file_creates_when_missing(self, tmp_path):
+        from acoharmony._4icli.cli import _update_env_file
+
+        env = tmp_path / "fresh.env"
+        _update_env_file(env, {"A": "1", "B": "2"})
+        assert env.read_text().splitlines() == ["A=1", "B=2"]
+
+    @pytest.mark.unit
+    def test_mask_short_secret(self):
+        from acoharmony._4icli.cli import _mask
+
+        assert _mask("") == "(unset)"
+        assert _mask("short") == "…"
+
+    @pytest.mark.unit
+    def test_mask_long_secret(self):
+        from acoharmony._4icli.cli import _mask
+
+        assert _mask("abcdefghij") == "abcd…ghij"
+
+    @pytest.mark.unit
+    def test_find_deploy_dir_walks_to_repo_root(self):
+        from acoharmony._4icli.cli import _find_deploy_dir
+
+        deploy = _find_deploy_dir()
+        assert deploy.name == "deploy"
+        assert (deploy / ".env").exists()
+        assert (deploy / "images" / "4icli" / "bootstrap.sh").exists()
+
+
+class TestCmdSetup:
+    """Cover cmd_setup. The bootstrap.sh subprocess is always mocked."""
+
+    def _patch_deploy(self, tmp_path, monkeypatch):
+        deploy = tmp_path / "deploy"
+        (deploy / "images" / "4icli").mkdir(parents=True)
+        env = deploy / ".env"
+        env.write_text(
+            "FOURICLI_API_KEY=oldkeyvalue1234\n"
+            "FOURICLI_API_SECRET=oldsecretvalue5678\n"
+            "FOURICLI_APM_ID=D0259\n"
+        )
+        bootstrap = deploy / "images" / "4icli" / "bootstrap.sh"
+        bootstrap.write_text("#!/bin/sh\nexit 0\n")
+        bootstrap.chmod(0o755)
+        monkeypatch.setattr(
+            "acoharmony._4icli.cli._find_deploy_dir", lambda: deploy
+        )
+        return deploy, env
+
+    @pytest.mark.unit
+    def test_setup_keeps_existing_values_and_runs_bootstrap(
+        self, tmp_path, monkeypatch
+    ):
+        from acoharmony._4icli.cli import cmd_setup
+
+        deploy, env = self._patch_deploy(tmp_path, monkeypatch)
+        inputs = iter(["", "", "y"])
+        monkeypatch.setattr("builtins.input", lambda *a, **k: next(inputs))
+        monkeypatch.setattr("acoharmony._4icli.cli.getpass", lambda *a, **k: "")
+
+        run_calls = []
+
+        def fake_run(cmd, env=None, check=False):
+            run_calls.append((cmd, dict(env or {})))
+            return SimpleNamespace(returncode=0)
+
+        monkeypatch.setattr("acoharmony._4icli.cli.subprocess.run", fake_run)
+
+        rc = cmd_setup(argparse.Namespace())
+
+        assert rc == 0
+        assert len(run_calls) == 1
+        invoked_cmd, invoked_env = run_calls[0]
+        assert invoked_cmd[0].endswith("bootstrap.sh")
+        assert invoked_env["FOURICLI_API_KEY"] == "oldkeyvalue1234"
+        assert invoked_env["FOURICLI_API_SECRET"] == "oldsecretvalue5678"
+        text = env.read_text()
+        assert "FOURICLI_API_KEY=oldkeyvalue1234" in text
+        assert "FOURICLI_API_SECRET=oldsecretvalue5678" in text
+
+    @pytest.mark.unit
+    def test_setup_writes_new_values_to_env(self, tmp_path, monkeypatch):
+        from acoharmony._4icli.cli import cmd_setup
+
+        deploy, env = self._patch_deploy(tmp_path, monkeypatch)
+        inputs = iter(["new-key-from-portal", ""])
+        monkeypatch.setattr("builtins.input", lambda *a, **k: next(inputs))
+        monkeypatch.setattr(
+            "acoharmony._4icli.cli.getpass", lambda *a, **k: "new-secret-from-portal"
+        )
+        monkeypatch.setattr(
+            "acoharmony._4icli.cli.subprocess.run",
+            lambda *a, **k: SimpleNamespace(returncode=0),
+        )
+
+        rc = cmd_setup(argparse.Namespace())
+
+        assert rc == 0
+        text = env.read_text()
+        assert "FOURICLI_API_KEY=new-key-from-portal" in text
+        assert "FOURICLI_API_SECRET=new-secret-from-portal" in text
+        assert "FOURICLI_APM_ID=D0259" in text
+
+    @pytest.mark.unit
+    def test_setup_aborts_when_user_declines_match_warning(
+        self, tmp_path, monkeypatch
+    ):
+        from acoharmony._4icli.cli import cmd_setup
+
+        deploy, env = self._patch_deploy(tmp_path, monkeypatch)
+        inputs = iter(["", "", "n"])
+        monkeypatch.setattr("builtins.input", lambda *a, **k: next(inputs))
+        monkeypatch.setattr("acoharmony._4icli.cli.getpass", lambda *a, **k: "")
+
+        called = []
+        monkeypatch.setattr(
+            "acoharmony._4icli.cli.subprocess.run",
+            lambda *a, **k: called.append(1) or SimpleNamespace(returncode=0),
+        )
+
+        rc = cmd_setup(argparse.Namespace())
+
+        assert rc == 1
+        assert called == []
+
+    @pytest.mark.unit
+    def test_setup_propagates_bootstrap_failure(self, tmp_path, monkeypatch):
+        from acoharmony._4icli.cli import cmd_setup
+
+        deploy, env = self._patch_deploy(tmp_path, monkeypatch)
+        inputs = iter(["", "", "y"])
+        monkeypatch.setattr("builtins.input", lambda *a, **k: next(inputs))
+        monkeypatch.setattr("acoharmony._4icli.cli.getpass", lambda *a, **k: "")
+        monkeypatch.setattr(
+            "acoharmony._4icli.cli.subprocess.run",
+            lambda *a, **k: SimpleNamespace(returncode=1),
+        )
+
+        rc = cmd_setup(argparse.Namespace())
+
+        assert rc == 1
+
+    @pytest.mark.unit
+    def test_setup_aborts_when_no_key_available(self, tmp_path, monkeypatch):
+        from acoharmony._4icli.cli import cmd_setup
+
+        deploy = tmp_path / "deploy"
+        (deploy / "images" / "4icli").mkdir(parents=True)
+        (deploy / ".env").write_text("")
+        bootstrap = deploy / "images" / "4icli" / "bootstrap.sh"
+        bootstrap.write_text("#!/bin/sh\nexit 0\n")
+        bootstrap.chmod(0o755)
+        monkeypatch.setattr(
+            "acoharmony._4icli.cli._find_deploy_dir", lambda: deploy
+        )
+        monkeypatch.setattr("builtins.input", lambda *a, **k: "")
+
+        rc = cmd_setup(argparse.Namespace())
+
+        assert rc == 1
+
+    @pytest.mark.unit
+    def test_setup_aborts_when_no_secret_available(self, tmp_path, monkeypatch):
+        from acoharmony._4icli.cli import cmd_setup
+
+        deploy = tmp_path / "deploy"
+        (deploy / "images" / "4icli").mkdir(parents=True)
+        (deploy / ".env").write_text("FOURICLI_API_KEY=k\n")
+        bootstrap = deploy / "images" / "4icli" / "bootstrap.sh"
+        bootstrap.write_text("#!/bin/sh\nexit 0\n")
+        bootstrap.chmod(0o755)
+        monkeypatch.setattr(
+            "acoharmony._4icli.cli._find_deploy_dir", lambda: deploy
+        )
+        monkeypatch.setattr("builtins.input", lambda *a, **k: "")
+        monkeypatch.setattr("acoharmony._4icli.cli.getpass", lambda *a, **k: "")
+
+        rc = cmd_setup(argparse.Namespace())
+
+        assert rc == 1
+
+    @pytest.mark.unit
+    def test_find_deploy_dir_raises_when_no_deploy_anywhere(
+        self, tmp_path, monkeypatch
+    ):
+        from acoharmony._4icli import cli as cli_module
+
+        fake_module_path = tmp_path / "isolated" / "pkg" / "cli.py"
+        fake_module_path.parent.mkdir(parents=True)
+        fake_module_path.write_text("")
+        monkeypatch.setattr(cli_module, "__file__", str(fake_module_path))
+
+        with pytest.raises(FileNotFoundError, match="deploy"):
+            cli_module._find_deploy_dir()

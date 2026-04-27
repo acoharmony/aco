@@ -2,58 +2,64 @@
 
 Containerized 4Innovation CLI for ACO REACH data downloads.
 
-## Build
+## Credential model
+
+The runtime container is a **read-only consumer** of credentials. It never
+calls `4icli configure` or `4icli rotate`. Rotation happens in the
+4Innovation portal; refresh of the local `config.txt` happens out-of-band
+via `bootstrap.sh`.
+
+Layout at runtime:
+
+- **Source of truth:** `/opt/s3/data/workspace/bronze/config.txt` (host)
+  → same path inside the container via the workspace volume mount.
+- **Reader path:** `entrypoint.sh` copies `$BRONZE/config.txt` to
+  `$HOME/.config/4icli/config.txt` (XDG) on every container start.
+  If the source file is missing, the entrypoint exits non-zero —
+  no env-var fallback, no auto-`configure`.
+
+## Bootstrap (after portal rotation)
+
+When 4Innovation issues a new key/secret in the portal:
 
 ```bash
-cd compose/images/4icli
-docker build -t acoharmony/4icli:latest .
+deploy/images/4icli/bootstrap.sh KEY SECRET [APM_ID]
 ```
 
-## Usage
+The script spins up a throwaway container, runs `4icli configure`,
+verifies with a real `datahub -v` call, and only then copies the
+resulting `config.txt` to `$BRONZE/config.txt`. If verify fails, the
+source of truth is left untouched — protects against pasting a typo or
+a not-yet-active key.
 
-The Python client (`acoharmony._4icli.FourICLI`) automatically runs 4icli via Docker with:
-
-- **Storage backend mount**: Profile-aware bronze tier mounted to `/workspace/bronze`
-- **config.txt**: Bind-mounted from `working_dir/config.txt` to `/workspace/bronze/config.txt`
-- **Working directory**: `/workspace/bronze` (where config.txt is expected)
-
-### Manual Usage
+After bootstrap, restart the runtime service to pick up the new file:
 
 ```bash
-# List categories
-docker run --rm \
-  -v /opt/s3/data/workspace/bronze:/workspace/bronze:rw \
-  -v /opt/s3/data/workspace/bronze/config.txt:/workspace/bronze/config.txt:ro \
-  -w /workspace/bronze \
-  acoharmony/4icli:latest \
-  datahub -a D0259 -l
-
-# Download CCLF files
-docker run --rm \
-  -v /opt/s3/data/workspace/bronze:/workspace/bronze:rw \
-  -v /opt/s3/data/workspace/bronze/config.txt:/workspace/bronze/config.txt:ro \
-  -w /workspace/bronze \
-  acoharmony/4icli:latest \
-  datahub -a D0259 -c CCLF -d --createdWithinLastWeek
+docker compose -f deploy/docker-compose.yml restart 4icli
 ```
 
-## Profile Awareness
+## Profile awareness
 
-Storage paths are derived from active profile in `config/profiles.yaml`:
+Storage paths come from the active profile in `aco.toml`:
 
-- **dev profile**: `/opt/s3/data/workspace` → bronze at `/opt/s3/data/workspace/bronze`
-- **prod profile**: Uses profile-specific `storage.data_path`
+- **dev profile:** `/opt/s3/data/workspace` → bronze at `/opt/s3/data/workspace/bronze`
+- **prod profile:** uses profile-specific `storage.data_path`
 
-The container mounts the profile-specific bronze directory, ensuring downloads go to the correct storage backend.
+The container's `working_dir` matches the profile's bronze directory, so
+`4icli datahub -d` (which writes to `$PWD`) lands files in the right place.
 
 ## Files
 
-- `4icli` - Binary executable (70MB)
-- `Dockerfile` - Container image definition
-- `config.txt.example` - Example credentials file (not included in image)
+- `4icli` — real Go binary (~70MB)
+- `Dockerfile` — image definition
+- `entrypoint.sh` — XDG seed + fail-loud-if-missing
+- `bootstrap.sh` — operator script for refreshing `config.txt` after portal rotation
+- `config.txt.example` — example shape only (not used by image)
 
 ## Security
 
-- `config.txt` is bind-mounted read-only at runtime (never baked into image)
-- Container runs as non-root
-- Minimal Ubuntu 22.04 base image
+- `config.txt` lives in the workspace volume and is never baked into the image.
+- The runtime container has no `FOURICLI_API_KEY` / `FOURICLI_API_SECRET`
+  env wiring — credentials only ever exist on disk in encrypted form.
+- Container runs as non-root (`care`, uid 1002).
+- Ubuntu 22.04 base.

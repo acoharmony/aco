@@ -12,7 +12,11 @@ Provides commands for:
 - Comparison of inventory to local files
 """
 
+import os
+import subprocess
+import sys
 from datetime import datetime
+from getpass import getpass
 from pathlib import Path
 
 from .._log import LogWriter
@@ -27,6 +31,162 @@ from .comparison import (
 from .config import FourICLIConfig, get_current_year
 from .inventory import InventoryDiscovery, InventoryResult
 from .models import DataHubCategory
+
+
+def _find_deploy_dir() -> Path:
+    """Locate the repo's deploy/ directory.
+
+    Walks up from this module to find a parent containing both deploy/.env and
+    deploy/images/4icli/bootstrap.sh. Raises if not found — `aco 4icli setup`
+    only runs from a repo checkout, not a wheel install.
+    """
+    here = Path(__file__).resolve()
+    for parent in here.parents:
+        candidate = parent / "deploy"
+        if (candidate / ".env").exists() and (
+            candidate / "images" / "4icli" / "bootstrap.sh"
+        ).exists():
+            return candidate
+    raise FileNotFoundError(
+        "Could not locate deploy/ directory. `aco 4icli setup` must be run "
+        "from a repo checkout containing deploy/.env and "
+        "deploy/images/4icli/bootstrap.sh."
+    )
+
+
+def _read_env_file(env_path: Path) -> dict[str, str]:
+    """Parse a flat KEY=VALUE .env file into a dict, ignoring blank/comment lines."""
+    values: dict[str, str] = {}
+    if not env_path.exists():
+        return values
+    for line in env_path.read_text().splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        if "=" not in stripped:
+            continue
+        key, _, value = stripped.partition("=")
+        values[key.strip()] = value.strip()
+    return values
+
+
+def _update_env_file(env_path: Path, updates: dict[str, str]) -> None:
+    """Rewrite env_path with `updates` applied, preserving comments/order.
+
+    Keys present in the file are updated in place; new keys are appended.
+    """
+    lines = env_path.read_text().splitlines() if env_path.exists() else []
+    seen: set[str] = set()
+    new_lines: list[str] = []
+    for line in lines:
+        stripped = line.strip()
+        if stripped and not stripped.startswith("#") and "=" in stripped:
+            key = stripped.split("=", 1)[0].strip()
+            if key in updates:
+                new_lines.append(f"{key}={updates[key]}")
+                seen.add(key)
+                continue
+        new_lines.append(line)
+    for key, value in updates.items():
+        if key not in seen:
+            new_lines.append(f"{key}={value}")
+    env_path.write_text("\n".join(new_lines) + "\n")
+
+
+def _mask(secret: str) -> str:
+    """Render a secret as `abcd…wxyz` for safe display next to a prompt."""
+    if not secret:
+        return "(unset)"
+    if len(secret) <= 8:
+        return "…"
+    return f"{secret[:4]}…{secret[-4:]}"
+
+
+def cmd_setup(args):
+    """Prompt for fresh portal-issued KEY/SECRET, persist to .env, run bootstrap.
+
+    Operator-facing entry point used after 4Innovation rotates credentials in
+    the portal. Writes the new pair to deploy/.env and then exec's
+    deploy/images/4icli/bootstrap.sh, which:
+      1. spins up a throwaway 4icli container,
+      2. runs `4icli configure --key/--secret`,
+      3. verifies via a real `datahub -v` call,
+      4. on success, copies the resulting config.txt to $BRONZE/config.txt
+         (the source of truth read by the runtime container's entrypoint).
+    """
+    deploy_dir = _find_deploy_dir()
+    env_path = deploy_dir / ".env"
+    bootstrap = deploy_dir / "images" / "4icli" / "bootstrap.sh"
+
+    current = _read_env_file(env_path)
+    current_key = current.get("FOURICLI_API_KEY", "")
+    current_secret = current.get("FOURICLI_API_SECRET", "")
+    current_apm = current.get("FOURICLI_APM_ID", "") or "D0259"
+
+    print("=" * 72)
+    print("4icli setup — refresh credentials after a 4Innovation portal rotation")
+    print("=" * 72)
+    print(f"Writing to: {env_path}")
+    print("Press Enter at any prompt to keep the current value.")
+    print()
+
+    key_prompt = f"FOURICLI_API_KEY [current: {_mask(current_key)}]: "
+    new_key = input(key_prompt).strip() or current_key
+    if not new_key:
+        print("[ERROR] No key provided and none in .env. Aborting.")
+        return 1
+
+    secret_prompt = f"FOURICLI_API_SECRET [current: {_mask(current_secret)}]: "
+    new_secret = getpass(secret_prompt).strip() or current_secret
+    if not new_secret:
+        print("[ERROR] No secret provided and none in .env. Aborting.")
+        return 1
+
+    apm_prompt = f"FOURICLI_APM_ID [current: {current_apm}]: "
+    new_apm = input(apm_prompt).strip() or current_apm
+
+    if new_key == current_key and new_secret == current_secret:
+        print()
+        print("[WARN] Key and secret match what's already in .env.")
+        print(
+            "       If the runtime container is currently failing auth, the "
+            "existing pair is likely revoked — bootstrap will reproduce the failure."
+        )
+        confirm = input("Continue anyway? [y/N]: ").strip().lower()
+        if confirm != "y":
+            print("Aborted.")
+            return 1
+
+    updates = {
+        "FOURICLI_API_KEY": new_key,
+        "FOURICLI_API_SECRET": new_secret,
+        "FOURICLI_APM_ID": new_apm,
+    }
+    _update_env_file(env_path, updates)
+    print()
+    print(f"[OK] Updated {env_path}")
+    print()
+    print(f"Running {bootstrap} ...")
+    print("-" * 72)
+    sys.stdout.flush()
+
+    env = os.environ.copy()
+    env.update(updates)
+    result = subprocess.run([str(bootstrap)], env=env, check=False)
+
+    print("-" * 72)
+    if result.returncode == 0:
+        print("[OK] Bootstrap succeeded.")
+        print(
+            "Next: docker compose -f deploy/docker-compose.yml restart 4icli"
+        )
+    else:
+        print(f"[ERROR] Bootstrap exited with code {result.returncode}.")
+        print(
+            "$BRONZE/config.txt was not modified — fix the credentials and "
+            "re-run `aco 4icli setup`."
+        )
+    return result.returncode
 
 
 def cmd_need_download(args):
@@ -840,6 +1000,11 @@ def main():
         help="Optional date filter: only download files updated after this date",
     )
 
+    # setup subcommand — prompts for fresh KEY/SECRET, runs bootstrap
+    subparsers.add_parser(
+        "setup", help="Refresh 4i credentials after a portal rotation"
+    )
+
     args = parser.parse_args()
 
     if not args.command:
@@ -853,6 +1018,8 @@ def main():
             cmd_need_download(args)
         elif args.command == "download":
             cmd_download(args)
+        elif args.command == "setup":
+            sys.exit(cmd_setup(args))
         else:
             parser.print_help()
             sys.exit(1)

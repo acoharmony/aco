@@ -208,34 +208,23 @@ class FourICLI:
 
     def configure(self, interactive: bool = True) -> None:
         """
-        Configure 4icli credentials.
-
-                Args:
-                    interactive: Whether to run in interactive mode
-
-                Raises:
-                    FourICLIConfigurationError: If configuration fails
+        Disabled. Bootstrap is out-of-band via deploy/images/4icli/bootstrap.sh.
         """
-        try:
-            self.log_writer.info("Configuring 4icli credentials")
-            self._run_command(["configure"], capture_output=not interactive)
-            self.log_writer.info("Configuration completed successfully")
-        except FourICLIError as e:
-            raise FourICLIConfigurationError(f"Failed to configure 4icli: {str(e)}") from e
+        raise FourICLIConfigurationError(
+            "configure() is disabled in the runtime client. "
+            "Bootstrap config.txt out-of-band with deploy/images/4icli/bootstrap.sh "
+            "after a portal-issued key/secret rotation."
+        )
 
     def rotate_credentials(self) -> None:
         """
-        Rotate API credentials.
-
-                Raises:
-                    FourICLIConfigurationError: If rotation fails
+        Disabled. Rotation happens in the 4Innovation portal, not from this process.
         """
-        try:
-            self.log_writer.info("Rotating 4icli credentials")
-            self._run_command(["rotate"])
-            self.log_writer.info("Credentials rotated successfully")
-        except FourICLIError as e:
-            raise FourICLIConfigurationError(f"Failed to rotate credentials: {str(e)}") from e
+        raise FourICLIConfigurationError(
+            "rotate_credentials() is disabled in the runtime client. "
+            "Rotate keys in the 4Innovation portal, then run "
+            "deploy/images/4icli/bootstrap.sh KEY SECRET to refresh config.txt."
+        )
 
     def list_categories(self) -> dict[str, Any]:
         """

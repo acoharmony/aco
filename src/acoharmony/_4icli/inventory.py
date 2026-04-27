@@ -313,7 +313,7 @@ class InventoryDiscovery:
                     or "This key is no longer active" in result.stderr
                 ):
                     self.log_writer.error(
-                        f"Authentication failed for year {year}. Run 'docker exec -it 4icli 4icli configure' to update credentials.",
+                        f"Authentication failed for year {year}. Refresh creds via deploy/images/4icli/bootstrap.sh after a portal rotation.",
                         year=year,
                         stderr=result.stderr,
                     )
@@ -516,7 +516,7 @@ class InventoryDiscovery:
         if result.total_files == 0:
             self.log_writer.warning(
                 "Inventory returned 0 files. This may indicate authentication issues. "
-                "Run 'docker exec -it 4icli 4icli configure' to update credentials, "
+                "Refresh creds via deploy/images/4icli/bootstrap.sh after a portal rotation, "
                 "or check that the APM ID and categories are correct.",
                 apm_id=apm_id,
                 categories=[c.value for c in categories],

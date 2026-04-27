@@ -390,6 +390,17 @@ def main():
         help="Optional date filter: only download files updated after this date",
     )
 
+    # 4icli setup subcommand — prompts for fresh KEY/SECRET, persists to .env,
+    # and runs deploy/images/4icli/bootstrap.sh. Operator runs this after a
+    # 4Innovation portal rotation; takes no arguments.
+    fouricli_subparsers.add_parser(
+        "setup", help="Refresh 4i credentials after a portal rotation"
+    )
+
+    # xfr command - file transfer between locations via pluggable profiles
+    from acoharmony._xfr.cli import add_subparsers as _xfr_add_subparsers
+    _xfr_add_subparsers(subparsers)
+
     # PUF command - CMS Public Use Files management
     puf_parser = subparsers.add_parser("puf", help="CMS Public Use Files (PUF) management")
     puf_subparsers = puf_parser.add_subparsers(dest="puf_command", help="PUF commands")
@@ -1220,7 +1231,12 @@ notes:
             return 1
 
     elif args.command == "4icli":
-        from acoharmony._4icli.cli import cmd_download, cmd_inventory, cmd_need_download
+        from acoharmony._4icli.cli import (
+            cmd_download,
+            cmd_inventory,
+            cmd_need_download,
+            cmd_setup,
+        )
 
         try:
             if args.fouricli_command == "inventory":
@@ -1232,10 +1248,24 @@ notes:
             elif args.fouricli_command == "download":
                 cmd_download(args)
                 return 0
+            elif args.fouricli_command == "setup":
+                return cmd_setup(args)
             else:
                 fouricli_parser.print_help()
                 return 1
 
+        except Exception as e:  # ALLOWED: CLI top-level handler, prints error and returns exit code
+            print(f"[ERROR] Error: {e}")
+            import traceback
+
+            traceback.print_exc()
+            return 1
+
+    elif args.command == "xfr":
+        from acoharmony._xfr.cli import dispatch as _xfr_dispatch
+
+        try:
+            return _xfr_dispatch(args)
         except Exception as e:  # ALLOWED: CLI top-level handler, prints error and returns exit code
             print(f"[ERROR] Error: {e}")
             import traceback
