@@ -3652,13 +3652,21 @@ class TestSetupHelpers:
         assert _mask("abcdefghij") == "abcd…ghij"
 
     @pytest.mark.unit
-    def test_find_deploy_dir_walks_to_repo_root(self):
-        from acoharmony._4icli.cli import _find_deploy_dir
+    def test_find_deploy_dir_walks_to_repo_root(self, tmp_path, monkeypatch):
+        from acoharmony._4icli import cli as cli_module
 
-        deploy = _find_deploy_dir()
-        assert deploy.name == "deploy"
-        assert (deploy / ".env").exists()
-        assert (deploy / "images" / "4icli" / "bootstrap.sh").exists()
+        repo = tmp_path / "repo"
+        deploy = repo / "deploy"
+        (deploy / "images" / "4icli").mkdir(parents=True)
+        (deploy / ".env").write_text("FOURICLI_API_KEY=k\n")
+        (deploy / "images" / "4icli" / "bootstrap.sh").write_text("#!/bin/sh\n")
+        fake_module = repo / "src" / "acoharmony" / "_4icli" / "cli.py"
+        fake_module.parent.mkdir(parents=True)
+        fake_module.write_text("")
+        monkeypatch.setattr(cli_module, "__file__", str(fake_module))
+
+        found = cli_module._find_deploy_dir()
+        assert found == deploy
 
 
 class TestCmdSetup:
