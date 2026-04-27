@@ -3,6 +3,7 @@
 
 """Start deployment services."""
 
+from .._freshness import deploy_state_tracker, ensure_latest_images
 from .._registry import register_deploy_command
 
 
@@ -31,6 +32,7 @@ class StartCommand:
         services: list[str] | None = None,
         group: str | None = None,
         build: bool = False,
+        pull: bool = False,
         **kwargs,
     ) -> int:
         """
@@ -89,6 +91,19 @@ class StartCommand:
             return 1
 
         print(f"Services: {', '.join(services)}")
+
+        # Pull only the acoharmony images whose recorded version is
+        # stale relative to the current git tag (or all of them if
+        # --pull was passed).
+        if not build:
+            pull_rc = ensure_latest_images(
+                self.manager.docker,
+                deploy_state_tracker(),
+                services,
+                force=pull,
+            )
+            if pull_rc != 0:
+                return pull_rc
 
         # Start services
         try:

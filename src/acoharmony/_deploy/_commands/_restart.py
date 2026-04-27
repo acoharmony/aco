@@ -3,6 +3,7 @@
 
 """Restart deployment services."""
 
+from .._freshness import deploy_state_tracker, ensure_latest_images
 from .._registry import register_deploy_command
 
 
@@ -11,7 +12,10 @@ class RestartCommand:
     """
     Restart deployment services.
 
-        This command restarts running Docker Compose services.
+        Performs an image freshness check (pulling stale acoharmony
+        images), then `compose up -d` so any newly-pulled image actually
+        replaces the running container — `compose restart` alone leaves
+        the old image in place.
     """
 
     def __init__(self, manager):
@@ -29,6 +33,7 @@ class RestartCommand:
         self,
         services: list[str] | None = None,
         group: str | None = None,
+        pull: bool = False,
         **kwargs,
     ) -> int:
         """
@@ -83,9 +88,20 @@ class RestartCommand:
 
         print(f"Services: {', '.join(services)}")
 
-        # Restart services
+        pull_rc = ensure_latest_images(
+            self.manager.docker,
+            deploy_state_tracker(),
+            services,
+            force=pull,
+        )
+        if pull_rc != 0:
+            return pull_rc
+
+        # `up -d` (not `restart`): if a freshly-pulled image differs
+        # from the running container's image, compose recreates the
+        # container. Plain `restart` would keep the old image.
         try:
-            result = self.manager.docker.restart(services)
+            result = self.manager.docker.up(services, detach=True, no_build=True)
 
             if result.returncode == 0:
                 print("[OK] Services restarted successfully")

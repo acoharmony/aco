@@ -627,6 +627,25 @@ def _fail_result(code: int = 1, stderr: str = "error") -> subprocess.CompletedPr
 # ---------------------------------------------------------------------------
 
 
+@pytest.fixture(autouse=False)
+def _stub_start_freshness(monkeypatch):
+    """Stub the start command's image freshness check (it shells out to docker)."""
+    monkeypatch.setattr(
+        "acoharmony._deploy._commands._start.ensure_latest_images",
+        lambda *a, **kw: 0,
+    )
+
+
+@pytest.fixture(autouse=False)
+def _stub_restart_freshness(monkeypatch):
+    """Stub the restart command's image freshness check."""
+    monkeypatch.setattr(
+        "acoharmony._deploy._commands._restart.ensure_latest_images",
+        lambda *a, **kw: 0,
+    )
+
+
+@pytest.mark.usefixtures("_stub_start_freshness")
 class TestStartCommand:
     """Tests for StartCommand.execute()."""
 
@@ -862,6 +881,7 @@ class TestStopCommand:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.usefixtures("_stub_restart_freshness")
 class TestRestartCommand:
     """Tests for RestartCommand.execute()."""
 
@@ -875,7 +895,7 @@ class TestRestartCommand:
     @pytest.mark.unit
     def test_restart_by_group(self, capsys) -> None:
         mgr = _mock_manager("dev")
-        mgr.docker.restart.return_value = _ok_result()
+        mgr.docker.up.return_value = _ok_result()
         cmd = RestartCommand(mgr)
         result = cmd.execute(group="infrastructure")
         assert result == 0
@@ -890,7 +910,7 @@ class TestRestartCommand:
     @pytest.mark.unit
     def test_restart_specific_services(self, capsys) -> None:
         mgr = _mock_manager("dev")
-        mgr.docker.restart.return_value = _ok_result()
+        mgr.docker.up.return_value = _ok_result()
         cmd = RestartCommand(mgr)
         result = cmd.execute(services=["postgres", "s3api"])
         assert result == 0
@@ -898,7 +918,7 @@ class TestRestartCommand:
     @pytest.mark.unit
     def test_restart_with_invalid_services_warns(self, capsys) -> None:
         mgr = _mock_manager("dev")
-        mgr.docker.restart.return_value = _ok_result()
+        mgr.docker.up.return_value = _ok_result()
         cmd = RestartCommand(mgr)
         result = cmd.execute(services=["postgres", "fakesvc"])
         assert result == 0
@@ -914,7 +934,7 @@ class TestRestartCommand:
     @pytest.mark.unit
     def test_restart_all_default(self, capsys) -> None:
         mgr = _mock_manager("dev")
-        mgr.docker.restart.return_value = _ok_result()
+        mgr.docker.up.return_value = _ok_result()
         cmd = RestartCommand(mgr)
         result = cmd.execute()
         assert result == 0
@@ -923,7 +943,7 @@ class TestRestartCommand:
     @pytest.mark.unit
     def test_restart_docker_failure(self, capsys) -> None:
         mgr = _mock_manager("dev")
-        mgr.docker.restart.return_value = _fail_result(2, "failed")
+        mgr.docker.up.return_value = _fail_result(2, "failed")
         cmd = RestartCommand(mgr)
         result = cmd.execute(services=["postgres"])
         assert result == 2
@@ -931,7 +951,7 @@ class TestRestartCommand:
     @pytest.mark.unit
     def test_restart_docker_exception(self, capsys) -> None:
         mgr = _mock_manager("dev")
-        mgr.docker.restart.side_effect = RuntimeError("boom")
+        mgr.docker.up.side_effect = RuntimeError("boom")
         cmd = RestartCommand(mgr)
         result = cmd.execute(services=["postgres"])
         assert result == 1
@@ -939,7 +959,7 @@ class TestRestartCommand:
     @pytest.mark.unit
     def test_restart_success_with_stdout(self, capsys) -> None:
         mgr = _mock_manager("dev")
-        mgr.docker.restart.return_value = _ok_result(stdout="Restarted")
+        mgr.docker.up.return_value = _ok_result(stdout="Restarted")
         cmd = RestartCommand(mgr)
         result = cmd.execute(services=["postgres"])
         assert result == 0

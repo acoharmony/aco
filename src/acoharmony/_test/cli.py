@@ -1481,7 +1481,7 @@ class TestCiteCommandExtended:
 class TestDeployCommandExtended:
     """Extended tests for deploy command."""
 
-    @patch("acoharmony._deploy._manager.DeploymentManager")
+    @patch("acoharmony._deploy.DeploymentManager")
     @patch("sys.argv", ["aco", "deploy", "restart", "marimo"])
     @pytest.mark.unit
     def test_deploy_restart(self, mock_manager_class):
@@ -1494,7 +1494,7 @@ class TestDeployCommandExtended:
 
         # Just check command routes
 
-    @patch("acoharmony._deploy._manager.DeploymentManager")
+    @patch("acoharmony._deploy.DeploymentManager")
     @patch("sys.argv", ["aco", "deploy", "logs", "marimo"])
     @pytest.mark.unit
     def test_deploy_logs(self, mock_manager_class):
@@ -1507,7 +1507,7 @@ class TestDeployCommandExtended:
 
         # Just check command routes
 
-    @patch("acoharmony._deploy._manager.DeploymentManager")
+    @patch("acoharmony._deploy.DeploymentManager")
     @patch("sys.argv", ["aco", "deploy", "build"])
     @pytest.mark.unit
     def test_deploy_build(self, mock_manager_class):

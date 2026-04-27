@@ -619,19 +619,33 @@ notes:
         choices=["start", "stop", "restart", "status", "logs", "ps", "build"],
         help="Deployment action to perform",
     )
-    deploy_parser.add_argument("services", nargs="*", help="Specific services to act on (optional)")
     deploy_parser.add_argument(
-        "--group", "-g", help="Service group (root, infrastructure, analytics, development)"
+        "services", nargs="*", help="Specific services to act on (optional)"
     )
     deploy_parser.add_argument(
-        "--follow", "-f", action="store_true", help="Follow log output (for logs command)"
+        "--group",
+        "-g",
+        help="Service group (root, infrastructure, analytics, development)",
     )
-    deploy_parser.add_argument("--tail", type=int, help="Number of lines to show from logs")
+    deploy_parser.add_argument(
+        "--follow",
+        "-f",
+        action="store_true",
+        help="Follow log output (logs)",
+    )
+    deploy_parser.add_argument(
+        "--tail", type=int, help="Number of log lines to show (logs)"
+    )
     deploy_parser.add_argument(
         "--build",
-        "-b",
         action="store_true",
-        help="Build images before starting (for 'start' action only)",
+        help="Build images locally instead of pulling (start)",
+    )
+    deploy_parser.add_argument(
+        "--pull",
+        "-p",
+        action="store_true",
+        help="Force-pull all acoharmony images, ignoring deploy state (start, restart)",
     )
 
     # Test command - Coverage orchestration
@@ -1503,6 +1517,7 @@ notes:
                 follow=args.follow,
                 tail=args.tail,
                 build=getattr(args, "build", False),
+                pull=getattr(args, "pull", False),
             )
             return result if isinstance(result, int) else 0
 

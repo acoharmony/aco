@@ -4,7 +4,6 @@ services:
       context: ../images/4icli
       dockerfile: Dockerfile
     image: ghcr.io/acoharmony/4icli:latest
-    pull_policy: build  # Always build locally
     container_name: 4icli
     restart: unless-stopped
     user: "1002:1002"
