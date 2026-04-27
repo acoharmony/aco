@@ -18,6 +18,7 @@ from ._crosswalk import CrosswalkPlugins
 from ._data import DataPlugins
 from ._identity import IdentityPlugins
 from ._panels import PanelPlugins
+from ._pmpm import PmpmPlugins
 from ._provider import ProviderPlugins
 from ._quality import QualityPlugins
 from ._reach import ReachPlugins
@@ -40,6 +41,7 @@ calendar = CalendarPlugins()
 cite = CitePlugins()
 crosswalk = CrosswalkPlugins()
 identity = IdentityPlugins()
+pmpm = PmpmPlugins()
 provider = ProviderPlugins()
 quality = QualityPlugins()
 reach = ReachPlugins()
@@ -61,6 +63,7 @@ __all__ = [
     "CitePlugins",
     "CrosswalkPlugins",
     "IdentityPlugins",
+    "PmpmPlugins",
     "ProviderPlugins",
     "QualityPlugins",
     "ReachPlugins",
@@ -77,6 +80,7 @@ __all__ = [
     "cite",
     "crosswalk",
     "identity",
+    "pmpm",
     "provider",
     "quality",
     "reach",
