@@ -16,6 +16,7 @@ from ._calendar import CalendarPlugins
 from ._cite import CitePlugins
 from ._crosswalk import CrosswalkPlugins
 from ._data import DataPlugins
+from ._hedr import HedrPlugins
 from ._identity import IdentityPlugins
 from ._panels import PanelPlugins
 from ._pmpm import PmpmPlugins
@@ -40,6 +41,7 @@ acr = AcrPlugins()
 calendar = CalendarPlugins()
 cite = CitePlugins()
 crosswalk = CrosswalkPlugins()
+hedr = HedrPlugins()
 identity = IdentityPlugins()
 pmpm = PmpmPlugins()
 provider = ProviderPlugins()
@@ -62,6 +64,7 @@ __all__ = [
     "CalendarPlugins",
     "CitePlugins",
     "CrosswalkPlugins",
+    "HedrPlugins",
     "IdentityPlugins",
     "PmpmPlugins",
     "ProviderPlugins",
@@ -79,6 +82,7 @@ __all__ = [
     "calendar",
     "cite",
     "crosswalk",
+    "hedr",
     "identity",
     "pmpm",
     "provider",
