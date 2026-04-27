@@ -9,6 +9,7 @@ Exposes the plugin singletons (``setup``, ``ui``, ``data``, ``analysis``,
 into these directly — keep notebooks declarative; put logic here.
 """
 
+from ._acr import AcrPlugins
 from ._analysis import AnalysisPlugins
 from ._base import PluginRegistry
 from ._calendar import CalendarPlugins
@@ -34,6 +35,7 @@ data = DataPlugins()
 analysis = AnalysisPlugins()
 utils = UtilityPlugins()
 panels = PanelPlugins(ui)
+acr = AcrPlugins()
 calendar = CalendarPlugins()
 cite = CitePlugins()
 crosswalk = CrosswalkPlugins()
@@ -54,6 +56,7 @@ __all__ = [
     "AnalysisPlugins",
     "UtilityPlugins",
     "PanelPlugins",
+    "AcrPlugins",
     "CalendarPlugins",
     "CitePlugins",
     "CrosswalkPlugins",
@@ -69,6 +72,7 @@ __all__ = [
     "analysis",
     "utils",
     "panels",
+    "acr",
     "calendar",
     "cite",
     "crosswalk",
