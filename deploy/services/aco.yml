@@ -4,19 +4,16 @@ services:
       context: ../images/uv
       dockerfile: Dockerfile
     image: ghcr.io/acoharmony/uv:latest
-    pull_policy: build  # Always build locally
     container_name: aco
     networks:
       - acoharmony-internal  # For service communication
       - acoharmony-external  # For host port exposure
     volumes:
       - /opt/s3/data/workspace:/opt/s3/data/workspace  # Data storage
-      - uv:/uv-cache  # UV cache directory (named volume)
     env_file:
       - ../.env
     environment:
       - ACO_PROFILE=dev  # Use dev profile
-      - UV_CACHE_DIR=/uv-cache
     working_dir: /app
     command:
       - uv
@@ -28,7 +25,3 @@ services:
     labels:
       - "aco.network=bridge"  # Uses bridge networks
       - "aco.type=service"  # Service container
-
-volumes:
-  uv:
-    external: true
