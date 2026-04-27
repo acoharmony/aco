@@ -64,7 +64,7 @@ hdai_profile = TransferProfile(
                 date_floor="month_start",
             ),
             SchemaPatternRule(
-                schemas=("bar",),
+                schemas=("bar", "palmr", "pbvar"),
                 date_floor="month_start",
             ),
         )

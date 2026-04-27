@@ -46,6 +46,19 @@ class TestHdaiProfile:
         assert SchemaPatternRule in types
 
     @pytest.mark.unit
+    def test_schema_rule_includes_bar_palmr_pbvar(self):
+        import acoharmony._xfr._profiles.hdai as hdai_module
+
+        importlib.reload(hdai_module)
+        from acoharmony._xfr.profile import resolve_profile
+
+        profile = resolve_profile("hdai")
+        schema_rule = next(
+            r for r in profile.source_rule.rules if isinstance(r, SchemaPatternRule)
+        )
+        assert set(schema_rule.schemas) == {"bar", "palmr", "pbvar"}
+
+    @pytest.mark.unit
     def test_zip_pattern_includes_monthly_excludes_weekly(self):
         import acoharmony._xfr._profiles.hdai as hdai_module
 
