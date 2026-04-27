@@ -70,13 +70,6 @@ SERVICES: dict[str, ServiceDefinition] = {
         dependencies=[],
         category="app",
     ),
-    "aco": ServiceDefinition(
-        name="aco",
-        description="ACO Harmony service",
-        ports=[],
-        dependencies=[],
-        category="app",
-    ),
 }
 
 

@@ -79,7 +79,7 @@ class TestProfileServiceMapperGetAllServices:
     @pytest.mark.unit
     def test_dev_all_services(self) -> None:
         all_svc = ProfileServiceMapper("dev").get_all_services()
-        assert all_svc == sorted(["4icli", "aco", "marimo", "docs"])
+        assert all_svc == sorted(["4icli", "marimo", "docs"])
 
     @pytest.mark.unit
     def test_prod_has_no_services(self) -> None:
@@ -128,8 +128,8 @@ class TestProfileServiceMapperValidateServices:
     @pytest.mark.unit
     def test_all_valid(self) -> None:
         mapper = ProfileServiceMapper("dev")
-        valid, invalid = mapper.validate_services(["4icli", "aco"])
-        assert valid == ["4icli", "aco"]
+        valid, invalid = mapper.validate_services(["4icli", "marimo"])
+        assert valid == ["4icli", "marimo"]
         assert invalid == []
 
     @pytest.mark.unit

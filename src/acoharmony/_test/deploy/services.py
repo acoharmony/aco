@@ -58,15 +58,14 @@ class TestServicesDict:
 
     @pytest.mark.unit
     def test_app_services_exist(self) -> None:
-        for name in ("4icli", "aco"):
-            assert name in SERVICES
-            assert SERVICES[name].category == "app"
+        assert "4icli" in SERVICES
+        assert SERVICES["4icli"].category == "app"
 
     @pytest.mark.unit
     def test_catalog_matches_compose(self) -> None:
         # SERVICES must mirror deploy/docker-compose.yml — drift breaks
         # `aco deploy start/restart`.
-        assert set(SERVICES.keys()) == {"4icli", "aco", "docs", "marimo"}
+        assert set(SERVICES.keys()) == {"4icli", "docs", "marimo"}
 
 
 class TestGetServiceDefinition:
@@ -94,7 +93,7 @@ class TestListServicesByCategory:
     @pytest.mark.unit
     def test_app_category(self) -> None:
         result = list_services_by_category("app")
-        assert result == ["4icli", "aco"]
+        assert result == ["4icli"]
 
     @pytest.mark.unit
     def test_empty_category(self) -> None:
@@ -114,5 +113,5 @@ class TestGetServiceDependencies:
 
     @pytest.mark.unit
     def test_result_is_sorted(self) -> None:
-        deps = get_service_dependencies("aco")
+        deps = get_service_dependencies("4icli")
         assert deps == sorted(deps)

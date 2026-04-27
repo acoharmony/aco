@@ -682,7 +682,7 @@ class TestStartCommand:
         mgr = _mock_manager("dev")
         mgr.docker.up.return_value = _ok_result()
         cmd = StartCommand(mgr)
-        result = cmd.execute(services=["4icli", "aco"])
+        result = cmd.execute(services=["4icli", "marimo"])
         assert result == 0
         call_services = mgr.docker.up.call_args[0][0]
         assert "4icli" in call_services
@@ -912,7 +912,7 @@ class TestRestartCommand:
         mgr = _mock_manager("dev")
         mgr.docker.up.return_value = _ok_result()
         cmd = RestartCommand(mgr)
-        result = cmd.execute(services=["4icli", "aco"])
+        result = cmd.execute(services=["4icli", "marimo"])
         assert result == 0
 
     @pytest.mark.unit
@@ -1259,7 +1259,7 @@ class TestBuildCommand:
         mgr = _mock_manager("dev")
         mgr.docker.build.return_value = _ok_result()
         cmd = BuildCommand(mgr)
-        result = cmd.execute(services=["4icli", "aco"])
+        result = cmd.execute(services=["4icli", "marimo"])
         assert result == 0
         out = capsys.readouterr().out
         assert "Building 2 services" in out
@@ -1405,8 +1405,8 @@ class TestEdgeCases:
     @pytest.mark.unit
     def test_validate_services_preserves_order(self) -> None:
         mapper = ProfileServiceMapper("dev")
-        valid, invalid = mapper.validate_services(["aco", "4icli", "fake", "marimo"])
-        assert valid == ["aco", "4icli", "marimo"]
+        valid, invalid = mapper.validate_services(["4icli", "marimo", "fake", "docs"])
+        assert valid == ["4icli", "marimo", "docs"]
         assert invalid == ["fake"]
 
     @pytest.mark.unit
