@@ -570,6 +570,252 @@ class TestBnmrSilverInventory:
         assert out["deliveries"][0] == 1
 
 
+# ---------------------------------------------------------------------------
+# High-cost beneficiary ranking (reach_high_cost notebook)
+# ---------------------------------------------------------------------------
+
+
+class TestLoadPalmrLatest:
+    @pytest.mark.unit
+    def test_missing(self, tmp_path: Path) -> None:
+        out = ReachPlugins().load_palmr_latest(tmp_path)
+        assert out.collect().is_empty()
+
+    @pytest.mark.unit
+    def test_filters_to_latest(self, tmp_path: Path) -> None:
+        df = pl.DataFrame(
+            {
+                "file_date": ["2024-01-01", "2024-06-01"],
+                "bene_mbi": ["A", "B"],
+                "prvdr_npi": ["N1", "N2"],
+                "prvdr_tin": ["T1", "T2"],
+            }
+        )
+        df.write_parquet(tmp_path / "palmr.parquet")
+        out = ReachPlugins().load_palmr_latest(tmp_path).collect()
+        assert out.height == 1
+        assert out["file_date"][0] == "2024-06-01"
+
+
+class TestLoadBarLatestLazy:
+    @pytest.mark.unit
+    def test_missing(self, tmp_path: Path) -> None:
+        out = ReachPlugins().load_bar_latest_lazy(tmp_path)
+        assert out.collect().is_empty()
+
+    @pytest.mark.unit
+    def test_filters(self, tmp_path: Path) -> None:
+        df = pl.DataFrame(
+            {"file_date": ["2024-01-01", "2024-06-01"], "bene_mbi": ["A", "B"]}
+        )
+        df.write_parquet(tmp_path / "bar.parquet")
+        out = ReachPlugins().load_bar_latest_lazy(tmp_path).collect()
+        assert out.height == 1
+
+
+class TestReachProviderNpis:
+    @pytest.mark.unit
+    def test_empty(self) -> None:
+        out = ReachPlugins().reach_provider_npis(pl.LazyFrame())
+        assert out.is_empty()
+
+    @pytest.mark.unit
+    def test_extracts_distinct(self) -> None:
+        lf = pl.LazyFrame(
+            {
+                "prvdr_npi": ["N1", "N1", "N2", None],
+                "prvdr_tin": ["T1", "T1", "T2", "T3"],
+            }
+        )
+        out = ReachPlugins().reach_provider_npis(lf)
+        assert out.height == 2  # N1, N2 — null filtered
+
+
+class TestProviderNameLookup:
+    @pytest.mark.unit
+    def test_empty_input(self, tmp_path: Path) -> None:
+        out = ReachPlugins().provider_name_lookup(tmp_path, pl.DataFrame())
+        assert out.is_empty()
+
+    @pytest.mark.unit
+    def test_no_participant_list_falls_back(self, tmp_path: Path) -> None:
+        providers = pl.DataFrame({"prvdr_npi": ["N1"], "prvdr_tin": ["T1"]})
+        out = ReachPlugins().provider_name_lookup(tmp_path, providers)
+        assert out.height == 1
+        assert out["provider_name"][0] == "Provider NPI N1"
+
+    @pytest.mark.unit
+    def test_with_participant_list(self, tmp_path: Path) -> None:
+        pl.DataFrame(
+            {
+                "individual_npi": ["N1", "N2", "N3", "1770583577"],
+                "individual_first_name": ["Alice", None, "Charlie", "X"],
+                "individual_last_name": ["Smith", "Jones", "Brown", "Y"],
+            }
+        ).write_parquet(tmp_path / "participant_list.parquet")
+        providers = pl.DataFrame({"prvdr_npi": ["N1"], "prvdr_tin": ["T1"]})
+        out = ReachPlugins().provider_name_lookup(tmp_path, providers)
+        as_dict = {row["rendering_npi"]: row["provider_name"] for row in out.iter_rows(named=True)}
+        assert as_dict["N1"] == "Alice Smith"
+        assert "1770583577" not in as_dict  # excluded
+
+
+class TestJoinBeneficiaryData:
+    @pytest.mark.unit
+    def test_empty_metrics(self) -> None:
+        out = ReachPlugins().join_beneficiary_data(
+            pl.LazyFrame(),
+            pl.LazyFrame(),
+            pl.LazyFrame(),
+            pl.DataFrame({"prvdr_npi": ["N1"]}),
+        )
+        assert out.is_empty()
+
+    @pytest.mark.unit
+    def test_empty_providers(self) -> None:
+        metrics = pl.LazyFrame({"person_id": ["A"], "year": [2025]})
+        out = ReachPlugins().join_beneficiary_data(
+            metrics, pl.LazyFrame(), pl.LazyFrame(), pl.DataFrame()
+        )
+        assert out.is_empty()
+
+    @pytest.mark.unit
+    def test_empty_palmr(self) -> None:
+        metrics = pl.LazyFrame({"person_id": ["A"], "year": [2025]})
+        providers = pl.DataFrame({"prvdr_npi": ["N1"]})
+        out = ReachPlugins().join_beneficiary_data(
+            metrics, pl.LazyFrame(), pl.LazyFrame(), providers
+        )
+        assert out.is_empty()
+
+    @pytest.mark.unit
+    def test_with_full_join(self) -> None:
+        metrics = pl.LazyFrame(
+            {"person_id": ["MBI1"], "year": [2025], "total_spend_ytd": [10000.0]}
+        )
+        palmr = pl.LazyFrame(
+            {
+                "bene_mbi": ["MBI1"],
+                "prvdr_npi": ["N1"],
+                "prvdr_tin": ["T1"],
+            }
+        )
+        bar = pl.LazyFrame(
+            {
+                "bene_mbi": ["MBI1"],
+                "bene_first_name": ["Alice"],
+                "bene_last_name": ["Smith"],
+                "bene_city": ["Boston"],
+                "bene_state": ["MA"],
+                "bene_date_of_death": [None],
+            }
+        )
+        providers = pl.DataFrame({"prvdr_npi": ["N1"]})
+        out = ReachPlugins().join_beneficiary_data(metrics, bar, palmr, providers)
+        assert out.height == 1
+        assert out["bene_first_name"][0] == "Alice"
+
+    @pytest.mark.unit
+    def test_no_bar(self) -> None:
+        metrics = pl.LazyFrame(
+            {"person_id": ["MBI1"], "year": [2025], "total_spend_ytd": [10000.0]}
+        )
+        palmr = pl.LazyFrame(
+            {"bene_mbi": ["MBI1"], "prvdr_npi": ["N1"], "prvdr_tin": ["T1"]}
+        )
+        providers = pl.DataFrame({"prvdr_npi": ["N1"]})
+        out = ReachPlugins().join_beneficiary_data(
+            metrics, pl.LazyFrame(), palmr, providers
+        )
+        assert out.height == 1
+        assert "bene_first_name" not in out.columns
+
+
+class TestReadmissionCounts:
+    @pytest.mark.unit
+    def test_empty(self) -> None:
+        out = ReachPlugins().readmission_counts(pl.LazyFrame())
+        assert out.is_empty()
+
+    @pytest.mark.unit
+    def test_filters_year(self) -> None:
+        lf = pl.LazyFrame(
+            {
+                "patient_id": ["A", "A", "B"],
+                "index_admission_date": [date(2025, 3, 1), date(2025, 6, 1), date(2024, 1, 1)],
+            }
+        )
+        out = ReachPlugins().readmission_counts(lf, year=2025)
+        as_dict = {row["patient_id"]: row["readmission_count"] for row in out.iter_rows(named=True)}
+        assert as_dict == {"A": 2}
+
+
+def _enriched() -> pl.DataFrame:
+    return pl.DataFrame(
+        {
+            "person_id": ["A", "B", "C", "D"],
+            "prvdr_npi": ["N1", "N1", "N1", "N2"],
+            "total_spend_ytd": [100.0, 50.0, 200.0, 999.0],
+            "inpatient_admits_ytd": [2, 0, 1, 5],
+            "er_admits_ytd": [1, 0, 3, 2],
+            "snf_spend_ytd": [50.0, 0.0, 100.0, 200.0],
+            "home_health_spend_ytd": [10.0, 0.0, 20.0, 100.0],
+        }
+    )
+
+
+class TestRankHighCost:
+    @pytest.mark.unit
+    def test_empty_input(self) -> None:
+        out = ReachPlugins().rank_high_cost(pl.DataFrame(), "N1", "total_spend")
+        assert out.is_empty()
+
+    @pytest.mark.unit
+    def test_total_spend(self) -> None:
+        out = ReachPlugins().rank_high_cost(_enriched(), "N1", "total_spend")
+        assert out["person_id"].to_list() == ["C", "A", "B"]
+
+    @pytest.mark.unit
+    def test_inpatient_filters_zeros(self) -> None:
+        out = ReachPlugins().rank_high_cost(_enriched(), "N1", "inpatient")
+        assert "B" not in out["person_id"].to_list()
+
+    @pytest.mark.unit
+    def test_er(self) -> None:
+        out = ReachPlugins().rank_high_cost(_enriched(), "N1", "er")
+        assert out["person_id"].to_list() == ["C", "A"]
+
+    @pytest.mark.unit
+    def test_snf(self) -> None:
+        out = ReachPlugins().rank_high_cost(_enriched(), "N1", "snf")
+        assert out["person_id"].to_list() == ["C", "A"]
+
+    @pytest.mark.unit
+    def test_home_health(self) -> None:
+        out = ReachPlugins().rank_high_cost(_enriched(), "N1", "home_health")
+        assert out["person_id"].to_list() == ["C", "A"]
+
+    @pytest.mark.unit
+    def test_readmissions_no_counts(self) -> None:
+        out = ReachPlugins().rank_high_cost(_enriched(), "N1", "readmissions")
+        assert out.is_empty()
+
+    @pytest.mark.unit
+    def test_readmissions_with_counts(self) -> None:
+        rc = pl.DataFrame(
+            {"patient_id": ["A", "C"], "readmission_count": [1, 3]}
+        )
+        out = ReachPlugins().rank_high_cost(
+            _enriched(), "N1", "readmissions", readmission_counts=rc
+        )
+        assert out["person_id"].to_list() == ["C", "A"]
+
+    @pytest.mark.unit
+    def test_unknown_kind_raises(self) -> None:
+        with pytest.raises(ValueError, match="Unknown rank kind"):
+            ReachPlugins().rank_high_cost(_enriched(), "N1", "bogus")
+
+
 class TestBnmrReportParametersView:
     @pytest.mark.unit
     def test_keeps_only_present_columns(self) -> None:

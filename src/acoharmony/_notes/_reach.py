@@ -526,6 +526,199 @@ class ReachPlugins(PluginRegistry):
             )
         return pl.DataFrame(rows).sort("table") if rows else pl.DataFrame()
 
+    # ---- High-cost beneficiary by provider (reach_high_cost notebook) ---
+
+    EXCLUDED_PROVIDER_NPIS = ("1770583577", "1184815383", "1285636043")
+
+    def load_palmr_latest(self, silver_path: Path) -> pl.LazyFrame:
+        """Load PALMR filtered to its most recent file_date."""
+        path = Path(silver_path) / "palmr.parquet"
+        if not path.exists():
+            return pl.LazyFrame()
+        lf = pl.scan_parquet(str(path))
+        latest = lf.select(pl.col("file_date").max()).collect().item()
+        return lf.filter(pl.col("file_date") == latest)
+
+    def load_bar_latest_lazy(self, silver_path: Path) -> pl.LazyFrame:
+        """Load BAR filtered to its most recent file_date (LazyFrame variant)."""
+        path = Path(silver_path) / "bar.parquet"
+        if not path.exists():
+            return pl.LazyFrame()
+        lf = pl.scan_parquet(str(path))
+        latest = lf.select(pl.col("file_date").max()).collect().item()
+        return lf.filter(pl.col("file_date") == latest)
+
+    def reach_provider_npis(self, palmr_lf: pl.LazyFrame) -> pl.DataFrame:
+        """Distinct ``(prvdr_npi, prvdr_tin)`` pairs from PALMR."""
+        if palmr_lf.collect_schema() == {}:
+            return pl.DataFrame(
+                schema={"prvdr_npi": pl.Utf8, "prvdr_tin": pl.Utf8}
+            )
+        return (
+            palmr_lf.select("prvdr_npi", "prvdr_tin")
+            .unique()
+            .filter(pl.col("prvdr_npi").is_not_null())
+            .collect()
+        )
+
+    def provider_name_lookup(
+        self,
+        silver_path: Path,
+        reach_providers_df: pl.DataFrame,
+    ) -> pl.DataFrame:
+        """Build ``rendering_npi → provider_name`` lookup from participant_list."""
+        if reach_providers_df.is_empty():
+            return pl.DataFrame(
+                schema={"rendering_npi": pl.Utf8, "provider_name": pl.Utf8}
+            )
+
+        path = Path(silver_path) / "participant_list.parquet"
+        if not path.exists():
+            return pl.DataFrame(
+                {
+                    "rendering_npi": reach_providers_df["prvdr_npi"].to_list(),
+                    "provider_name": [
+                        f"Provider NPI {npi}"
+                        for npi in reach_providers_df["prvdr_npi"].to_list()
+                    ],
+                }
+            )
+        return (
+            pl.scan_parquet(str(path))
+            .select(
+                pl.col("individual_npi").alias("rendering_npi"),
+                pl.when(
+                    pl.col("individual_first_name").is_not_null()
+                    & pl.col("individual_last_name").is_not_null()
+                )
+                .then(
+                    pl.col("individual_first_name")
+                    + pl.lit(" ")
+                    + pl.col("individual_last_name")
+                )
+                .otherwise(pl.lit("Provider NPI ") + pl.col("individual_npi"))
+                .alias("provider_name"),
+            )
+            .filter(pl.col("rendering_npi").is_not_null())
+            .filter(~pl.col("rendering_npi").is_in(list(self.EXCLUDED_PROVIDER_NPIS)))
+            .unique(subset=["rendering_npi"])
+            .collect()
+        )
+
+    def join_beneficiary_data(
+        self,
+        beneficiary_metrics_lf: pl.LazyFrame,
+        bar_lf: pl.LazyFrame,
+        palmr_lf: pl.LazyFrame,
+        reach_providers_df: pl.DataFrame,
+        year: int = 2025,
+    ) -> pl.DataFrame:
+        """
+        Beneficiary metrics joined to PALMR (for provider attribution) + BAR demographics.
+        """
+        if beneficiary_metrics_lf.collect_schema() == {} or reach_providers_df.is_empty():
+            return pl.DataFrame()
+        if palmr_lf.collect_schema() == {}:
+            return pl.DataFrame()
+
+        metrics = beneficiary_metrics_lf.filter(pl.col("year") == year)
+        palmr_dedup = palmr_lf.select(
+            "bene_mbi", "prvdr_npi", "prvdr_tin"
+        ).unique(subset=["bene_mbi", "prvdr_npi"])
+        metrics_with_provider = metrics.join(
+            palmr_dedup, left_on="person_id", right_on="bene_mbi", how="inner"
+        )
+        if bar_lf.collect_schema() != {}:
+            return metrics_with_provider.join(
+                bar_lf.select(
+                    "bene_mbi",
+                    "bene_first_name",
+                    "bene_last_name",
+                    "bene_city",
+                    "bene_state",
+                    "bene_date_of_death",
+                ),
+                left_on="person_id",
+                right_on="bene_mbi",
+                how="left",
+            ).collect()
+        return metrics_with_provider.collect()
+
+    def readmission_counts(
+        self,
+        readmissions_lf: pl.LazyFrame,
+        year: int = 2025,
+    ) -> pl.DataFrame:
+        """Readmissions per patient_id for ``year``."""
+        if readmissions_lf.collect_schema() == {}:
+            return pl.DataFrame(
+                schema={"patient_id": pl.Utf8, "readmission_count": pl.Int64}
+            )
+        return (
+            readmissions_lf.filter(pl.col("index_admission_date").dt.year() == year)
+            .group_by("patient_id")
+            .agg(pl.len().alias("readmission_count"))
+            .collect()
+        )
+
+    def rank_high_cost(
+        self,
+        enriched_df: pl.DataFrame,
+        provider_npi: str,
+        kind: str,
+        readmission_counts: pl.DataFrame | None = None,
+        n: int = 25,
+    ) -> pl.DataFrame:
+        """
+        Top-N beneficiaries for one provider by ``kind`` ∈
+        {total_spend, inpatient, er, readmissions, snf, home_health}.
+        """
+        if enriched_df.is_empty():
+            return pl.DataFrame()
+        scoped = enriched_df.filter(pl.col("prvdr_npi") == provider_npi)
+        if kind == "total_spend":
+            return scoped.sort("total_spend_ytd", descending=True).head(n)
+        if kind == "inpatient":
+            return (
+                scoped.filter(pl.col("inpatient_admits_ytd") > 0)
+                .sort("inpatient_admits_ytd", descending=True)
+                .head(n)
+            )
+        if kind == "er":
+            return (
+                scoped.filter(pl.col("er_admits_ytd") > 0)
+                .sort("er_admits_ytd", descending=True)
+                .head(n)
+            )
+        if kind == "snf":
+            return (
+                scoped.filter(pl.col("snf_spend_ytd") > 0)
+                .sort("snf_spend_ytd", descending=True)
+                .head(n)
+            )
+        if kind == "home_health":
+            return (
+                scoped.filter(pl.col("home_health_spend_ytd") > 0)
+                .sort("home_health_spend_ytd", descending=True)
+                .head(n)
+            )
+        if kind == "readmissions":
+            if readmission_counts is None or readmission_counts.is_empty():
+                return pl.DataFrame()
+            return (
+                scoped.join(
+                    readmission_counts,
+                    left_on="person_id",
+                    right_on="patient_id",
+                    how="left",
+                )
+                .with_columns(pl.col("readmission_count").fill_null(0))
+                .filter(pl.col("readmission_count") > 0)
+                .sort("readmission_count", descending=True)
+                .head(n)
+            )
+        raise ValueError(f"Unknown rank kind: {kind}")
+
     BNMR_REPORT_PARAM_COLS = (
         "performance_year", "source_filename",
         "discount", "shared_savings_rate", "quality_withhold", "quality_score",
