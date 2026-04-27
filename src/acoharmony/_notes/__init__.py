@@ -16,6 +16,7 @@ from ._calendar import CalendarPlugins
 from ._cite import CitePlugins
 from ._crosswalk import CrosswalkPlugins
 from ._data import DataPlugins
+from ._hdai import HdaiPlugins
 from ._hedr import HedrPlugins
 from ._home_visit import HomeVisitPlugins
 from ._identity import IdentityPlugins
@@ -43,6 +44,7 @@ acr = AcrPlugins()
 calendar = CalendarPlugins()
 cite = CitePlugins()
 crosswalk = CrosswalkPlugins()
+hdai = HdaiPlugins()
 hedr = HedrPlugins()
 home_visit = HomeVisitPlugins()
 identity = IdentityPlugins()
@@ -68,6 +70,7 @@ __all__ = [
     "CalendarPlugins",
     "CitePlugins",
     "CrosswalkPlugins",
+    "HdaiPlugins",
     "HedrPlugins",
     "HomeVisitPlugins",
     "IdentityPlugins",
@@ -88,6 +91,7 @@ __all__ = [
     "calendar",
     "cite",
     "crosswalk",
+    "hdai",
     "hedr",
     "home_visit",
     "identity",
