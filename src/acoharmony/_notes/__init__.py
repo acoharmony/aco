@@ -18,6 +18,7 @@ from ._crosswalk import CrosswalkPlugins
 from ._data import DataPlugins
 from ._hdai import HdaiPlugins
 from ._hedr import HedrPlugins
+from ._high_needs import HighNeedsPlugins
 from ._home_visit import HomeVisitPlugins
 from ._identity import IdentityPlugins
 from ._panels import PanelPlugins
@@ -46,6 +47,7 @@ cite = CitePlugins()
 crosswalk = CrosswalkPlugins()
 hdai = HdaiPlugins()
 hedr = HedrPlugins()
+high_needs = HighNeedsPlugins()
 home_visit = HomeVisitPlugins()
 identity = IdentityPlugins()
 pfs = PfsPlugins()
@@ -72,6 +74,7 @@ __all__ = [
     "CrosswalkPlugins",
     "HdaiPlugins",
     "HedrPlugins",
+    "HighNeedsPlugins",
     "HomeVisitPlugins",
     "IdentityPlugins",
     "PfsPlugins",
@@ -93,6 +96,7 @@ __all__ = [
     "crosswalk",
     "hdai",
     "hedr",
+    "high_needs",
     "home_visit",
     "identity",
     "pfs",
