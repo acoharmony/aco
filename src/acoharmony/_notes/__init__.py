@@ -21,6 +21,7 @@ from ._hedr import HedrPlugins
 from ._high_needs import HighNeedsPlugins
 from ._home_visit import HomeVisitPlugins
 from ._identity import IdentityPlugins
+from ._mailers import MailersPlugins
 from ._panels import PanelPlugins
 from ._pfs import PfsPlugins
 from ._pmpm import PmpmPlugins
@@ -50,6 +51,7 @@ hedr = HedrPlugins()
 high_needs = HighNeedsPlugins()
 home_visit = HomeVisitPlugins()
 identity = IdentityPlugins()
+mailers = MailersPlugins()
 pfs = PfsPlugins()
 pmpm = PmpmPlugins()
 provider = ProviderPlugins()
@@ -77,6 +79,7 @@ __all__ = [
     "HighNeedsPlugins",
     "HomeVisitPlugins",
     "IdentityPlugins",
+    "MailersPlugins",
     "PfsPlugins",
     "PmpmPlugins",
     "ProviderPlugins",
@@ -99,6 +102,7 @@ __all__ = [
     "high_needs",
     "home_visit",
     "identity",
+    "mailers",
     "pfs",
     "pmpm",
     "provider",
