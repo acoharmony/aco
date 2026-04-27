@@ -8,19 +8,18 @@ This module maps deployment profiles to their appropriate service groups,
 ensuring that only relevant services are started for each environment.
 """
 
-# Profile-to-service-group mapping
-# Each profile defines logical groups of services
+# Profile-to-service-group mapping. Service names must match the
+# services defined in deploy/docker-compose.yml.
 PROFILE_SERVICE_GROUPS: dict[str, dict[str, list[str]]] = {
     "local": {
-        "infrastructure": ["postgres", "s3api"],
         "analytics": ["marimo", "docs"],
     },
     "dev": {
-        "infrastructure": ["postgres", "s3api", "4icli", "aco"],
+        "infrastructure": ["4icli", "aco"],
         "analytics": ["marimo", "docs"],
     },
     "staging": {
-        "infrastructure": ["postgres", "s3api", "4icli", "aco"],
+        "infrastructure": ["4icli", "aco"],
         "analytics": ["marimo", "docs"],
     },
     "prod": {

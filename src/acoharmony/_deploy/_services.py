@@ -43,41 +43,15 @@ class ServiceDefinition:
     category: str = "other"
 
 
-# Service catalog - metadata for all deployable services
+# Service catalog — must match the services actually defined in
+# deploy/docker-compose.yml. Add an entry here when a new compose
+# service is added, and remove it when one is dropped.
 SERVICES: dict[str, ServiceDefinition] = {
-    # Core infrastructure services
-    "postgres": ServiceDefinition(
-        name="postgres",
-        description="PostgreSQL database",
-        ports=["5432"],
-        dependencies=[],
-        healthcheck_url="http://localhost:5432",
-        required_env_vars=["POSTGRES_USER"],
-        category="core",
-    ),
-    "s3api": ServiceDefinition(
-        name="s3api",
-        description="MinIO S3-compatible object storage",
-        ports=["9000", "10001"],
-        dependencies=[],
-        healthcheck_url="http://localhost:9000",
-        category="core",
-    ),
-    # Data services
-    "catalog": ServiceDefinition(
-        name="catalog",
-        description="Catalog service",
-        ports=["8080"],
-        dependencies=["postgres", "s3api"],
-        healthcheck_url="http://localhost:8080/health",
-        category="core",
-    ),
-    # Development tools
     "marimo": ServiceDefinition(
         name="marimo",
         description="Marimo interactive notebooks",
         ports=["7777"],
-        dependencies=["postgres", "s3api"],
+        dependencies=[],
         healthcheck_url="http://localhost:7777",
         category="dev-tools",
     ),
@@ -89,15 +63,6 @@ SERVICES: dict[str, ServiceDefinition] = {
         healthcheck_url="http://localhost:8000",
         category="dev-tools",
     ),
-    "gitea": ServiceDefinition(
-        name="gitea",
-        description="Gitea Git service",
-        ports=["3000"],
-        dependencies=["postgres"],
-        healthcheck_url="http://localhost:3000",
-        category="dev-tools",
-    ),
-    # Application services
     "4icli": ServiceDefinition(
         name="4icli",
         description="4Innovation CLI service",
@@ -109,7 +74,7 @@ SERVICES: dict[str, ServiceDefinition] = {
         name="aco",
         description="ACO Harmony service",
         ports=[],
-        dependencies=["catalog"],
+        dependencies=[],
         category="app",
     ),
 }

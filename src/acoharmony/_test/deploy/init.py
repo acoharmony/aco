@@ -567,7 +567,7 @@ class TestDeploymentManagerGetServicesForGroup:
     def test_delegates_to_mapper(self) -> None:
         mgr = _make_manager("dev")
         result = mgr.get_services_for_group("infrastructure")
-        assert "postgres" in result
+        assert "4icli" in result
 
     @pytest.mark.unit
     def test_invalid_group_raises(self) -> None:
@@ -583,7 +583,7 @@ class TestDeploymentManagerGetAllServices:
     def test_delegates_to_mapper(self) -> None:
         mgr = _make_manager("dev")
         result = mgr.get_all_services()
-        assert "postgres" in result
+        assert "4icli" in result
         assert isinstance(result, list)
 
 
@@ -593,8 +593,8 @@ class TestDeploymentManagerValidateServices:
     @pytest.mark.unit
     def test_delegates_to_mapper(self) -> None:
         mgr = _make_manager("dev")
-        valid, invalid = mgr.validate_services(["postgres", "fake"])
-        assert "postgres" in valid
+        valid, invalid = mgr.validate_services(["4icli", "fake"])
+        assert "4icli" in valid
         assert "fake" in invalid
 
 
@@ -682,17 +682,17 @@ class TestStartCommand:
         mgr = _mock_manager("dev")
         mgr.docker.up.return_value = _ok_result()
         cmd = StartCommand(mgr)
-        result = cmd.execute(services=["postgres", "s3api"])
+        result = cmd.execute(services=["4icli", "aco"])
         assert result == 0
         call_services = mgr.docker.up.call_args[0][0]
-        assert "postgres" in call_services
+        assert "4icli" in call_services
 
     @pytest.mark.unit
     def test_start_with_invalid_services_warns(self, capsys) -> None:
         mgr = _mock_manager("dev")
         mgr.docker.up.return_value = _ok_result()
         cmd = StartCommand(mgr)
-        result = cmd.execute(services=["postgres", "fakesvc"])
+        result = cmd.execute(services=["4icli", "fakesvc"])
         assert result == 0
         out = capsys.readouterr().out
         assert "Warning" in out
@@ -720,7 +720,7 @@ class TestStartCommand:
         mgr = _mock_manager("dev")
         mgr.docker.up.return_value = _fail_result(2, "container error")
         cmd = StartCommand(mgr)
-        result = cmd.execute(services=["postgres"])
+        result = cmd.execute(services=["4icli"])
         assert result == 2
         assert "Error starting services" in capsys.readouterr().out
 
@@ -729,7 +729,7 @@ class TestStartCommand:
         mgr = _mock_manager("dev")
         mgr.docker.up.side_effect = RuntimeError("connection refused")
         cmd = StartCommand(mgr)
-        result = cmd.execute(services=["postgres"])
+        result = cmd.execute(services=["4icli"])
         assert result == 1
         assert "Exception occurred" in capsys.readouterr().out
 
@@ -739,7 +739,7 @@ class TestStartCommand:
         mgr.docker.up.return_value = _ok_result()
         cmd = StartCommand(mgr)
         with patch("builtins.print"):
-            cmd.execute(services=["postgres"], build=True)
+            cmd.execute(services=["4icli"], build=True)
         # no_build should be False when build=True
         call_kwargs = mgr.docker.up.call_args
         assert call_kwargs[1]["no_build"] is False
@@ -750,7 +750,7 @@ class TestStartCommand:
         mgr.docker.up.return_value = _ok_result()
         cmd = StartCommand(mgr)
         with patch("builtins.print"):
-            cmd.execute(services=["postgres"], build=False)
+            cmd.execute(services=["4icli"], build=False)
         call_kwargs = mgr.docker.up.call_args
         assert call_kwargs[1]["no_build"] is True
 
@@ -759,7 +759,7 @@ class TestStartCommand:
         mgr = _mock_manager("dev")
         mgr.docker.up.return_value = _ok_result(stdout="Container started")
         cmd = StartCommand(mgr)
-        result = cmd.execute(services=["postgres"])
+        result = cmd.execute(services=["4icli"])
         assert result == 0
         out = capsys.readouterr().out
         assert "Container started" in out
@@ -810,7 +810,7 @@ class TestStopCommand:
         mgr = _mock_manager("dev")
         mgr.docker.stop.return_value = _ok_result()
         cmd = StopCommand(mgr)
-        result = cmd.execute(services=["postgres"])
+        result = cmd.execute(services=["4icli"])
         assert result == 0
         mgr.docker.stop.assert_called_once()
 
@@ -819,7 +819,7 @@ class TestStopCommand:
         mgr = _mock_manager("dev")
         mgr.docker.stop.return_value = _ok_result()
         cmd = StopCommand(mgr)
-        result = cmd.execute(services=["postgres", "fakesvc"])
+        result = cmd.execute(services=["4icli", "fakesvc"])
         assert result == 0
         assert "Warning" in capsys.readouterr().out
 
@@ -846,7 +846,7 @@ class TestStopCommand:
         mgr = _mock_manager("dev")
         mgr.docker.stop.return_value = _fail_result(2, "failed")
         cmd = StopCommand(mgr)
-        result = cmd.execute(services=["postgres"])
+        result = cmd.execute(services=["4icli"])
         assert result == 2
 
     @pytest.mark.unit
@@ -854,7 +854,7 @@ class TestStopCommand:
         mgr = _mock_manager("dev")
         mgr.docker.stop.side_effect = RuntimeError("boom")
         cmd = StopCommand(mgr)
-        result = cmd.execute(services=["postgres"])
+        result = cmd.execute(services=["4icli"])
         assert result == 1
         assert "Exception occurred" in capsys.readouterr().out
 
@@ -863,7 +863,7 @@ class TestStopCommand:
         mgr = _mock_manager("dev")
         mgr.docker.stop.return_value = _ok_result(stdout="Stopped")
         cmd = StopCommand(mgr)
-        result = cmd.execute(services=["postgres"])
+        result = cmd.execute(services=["4icli"])
         assert result == 0
         assert "Stopped" in capsys.readouterr().out
 
@@ -912,7 +912,7 @@ class TestRestartCommand:
         mgr = _mock_manager("dev")
         mgr.docker.up.return_value = _ok_result()
         cmd = RestartCommand(mgr)
-        result = cmd.execute(services=["postgres", "s3api"])
+        result = cmd.execute(services=["4icli", "aco"])
         assert result == 0
 
     @pytest.mark.unit
@@ -920,7 +920,7 @@ class TestRestartCommand:
         mgr = _mock_manager("dev")
         mgr.docker.up.return_value = _ok_result()
         cmd = RestartCommand(mgr)
-        result = cmd.execute(services=["postgres", "fakesvc"])
+        result = cmd.execute(services=["4icli", "fakesvc"])
         assert result == 0
         assert "Warning" in capsys.readouterr().out
 
@@ -945,7 +945,7 @@ class TestRestartCommand:
         mgr = _mock_manager("dev")
         mgr.docker.up.return_value = _fail_result(2, "failed")
         cmd = RestartCommand(mgr)
-        result = cmd.execute(services=["postgres"])
+        result = cmd.execute(services=["4icli"])
         assert result == 2
 
     @pytest.mark.unit
@@ -953,7 +953,7 @@ class TestRestartCommand:
         mgr = _mock_manager("dev")
         mgr.docker.up.side_effect = RuntimeError("boom")
         cmd = RestartCommand(mgr)
-        result = cmd.execute(services=["postgres"])
+        result = cmd.execute(services=["4icli"])
         assert result == 1
 
     @pytest.mark.unit
@@ -961,7 +961,7 @@ class TestRestartCommand:
         mgr = _mock_manager("dev")
         mgr.docker.up.return_value = _ok_result(stdout="Restarted")
         cmd = RestartCommand(mgr)
-        result = cmd.execute(services=["postgres"])
+        result = cmd.execute(services=["4icli"])
         assert result == 0
         assert "Restarted" in capsys.readouterr().out
 
@@ -1021,11 +1021,11 @@ class TestStatusCommand:
     def test_status_shows_running_services(self, capsys) -> None:
         mgr = _mock_manager("dev")
         mgr.compose_path = Path("/fake/compose.yml")
-        mgr.docker.ps.return_value = _ok_result(stdout="postgres  Up 5 minutes")
+        mgr.docker.ps.return_value = _ok_result(stdout="4icli  Up 5 minutes")
         cmd = StatusCommand(mgr)
         result = cmd.execute()
         assert result == 0
-        assert "postgres  Up 5 minutes" in capsys.readouterr().out
+        assert "4icli  Up 5 minutes" in capsys.readouterr().out
 
 
 # ---------------------------------------------------------------------------
@@ -1063,7 +1063,7 @@ class TestLogsCommand:
         mgr = _mock_manager("dev")
         mgr.docker.logs.return_value = _ok_result(stdout="logs here")
         cmd = LogsCommand(mgr)
-        result = cmd.execute(services=["postgres"])
+        result = cmd.execute(services=["4icli"])
         assert result == 0
 
     @pytest.mark.unit
@@ -1071,7 +1071,7 @@ class TestLogsCommand:
         mgr = _mock_manager("dev")
         mgr.docker.logs.return_value = _ok_result()
         cmd = LogsCommand(mgr)
-        result = cmd.execute(services=["postgres", "fakesvc"])
+        result = cmd.execute(services=["4icli", "fakesvc"])
         assert result == 0
         assert "Warning" in capsys.readouterr().out
 
@@ -1097,15 +1097,15 @@ class TestLogsCommand:
         mgr.docker.logs.return_value = _ok_result()
         cmd = LogsCommand(mgr)
         with patch("builtins.print"):
-            cmd.execute(services=["postgres"], follow=True, tail=50)
-        mgr.docker.logs.assert_called_once_with(["postgres"], follow=True, tail=50)
+            cmd.execute(services=["4icli"], follow=True, tail=50)
+        mgr.docker.logs.assert_called_once_with(["4icli"], follow=True, tail=50)
 
     @pytest.mark.unit
     def test_logs_docker_exception(self, capsys) -> None:
         mgr = _mock_manager("dev")
         mgr.docker.logs.side_effect = RuntimeError("fail")
         cmd = LogsCommand(mgr)
-        result = cmd.execute(services=["postgres"])
+        result = cmd.execute(services=["4icli"])
         assert result == 1
         assert "Exception occurred" in capsys.readouterr().out
 
@@ -1114,7 +1114,7 @@ class TestLogsCommand:
         mgr = _mock_manager("dev")
         mgr.docker.logs.side_effect = KeyboardInterrupt()
         cmd = LogsCommand(mgr)
-        result = cmd.execute(services=["postgres"])
+        result = cmd.execute(services=["4icli"])
         assert result == 0
         assert "Log viewing stopped" in capsys.readouterr().out
 
@@ -1125,7 +1125,7 @@ class TestLogsCommand:
             args=[], returncode=0, stdout="out", stderr="warn"
         )
         cmd = LogsCommand(mgr)
-        result = cmd.execute(services=["postgres"])
+        result = cmd.execute(services=["4icli"])
         assert result == 0
         out = capsys.readouterr().out
         assert "out" in out
@@ -1136,7 +1136,7 @@ class TestLogsCommand:
         mgr = _mock_manager("dev")
         mgr.docker.logs.return_value = _fail_result(2, "")
         cmd = LogsCommand(mgr)
-        result = cmd.execute(services=["postgres"])
+        result = cmd.execute(services=["4icli"])
         assert result == 2
 
 
@@ -1173,17 +1173,17 @@ class TestPsCommand:
     @pytest.mark.unit
     def test_ps_specific_services(self, capsys) -> None:
         mgr = _mock_manager("dev")
-        mgr.docker.ps.return_value = _ok_result(stdout="postgres  Up")
+        mgr.docker.ps.return_value = _ok_result(stdout="4icli  Up")
         cmd = PsCommand(mgr)
-        result = cmd.execute(services=["postgres"])
+        result = cmd.execute(services=["4icli"])
         assert result == 0
 
     @pytest.mark.unit
     def test_ps_with_invalid_services(self, capsys) -> None:
         mgr = _mock_manager("dev")
-        mgr.docker.ps.return_value = _ok_result(stdout="postgres  Up")
+        mgr.docker.ps.return_value = _ok_result(stdout="4icli  Up")
         cmd = PsCommand(mgr)
-        result = cmd.execute(services=["postgres", "fakesvc"])
+        result = cmd.execute(services=["4icli", "fakesvc"])
         assert result == 0
         assert "Warning" in capsys.readouterr().out
 
@@ -1259,7 +1259,7 @@ class TestBuildCommand:
         mgr = _mock_manager("dev")
         mgr.docker.build.return_value = _ok_result()
         cmd = BuildCommand(mgr)
-        result = cmd.execute(services=["postgres", "s3api"])
+        result = cmd.execute(services=["4icli", "aco"])
         assert result == 0
         out = capsys.readouterr().out
         assert "Building 2 services" in out
@@ -1269,7 +1269,7 @@ class TestBuildCommand:
         mgr = _mock_manager("dev")
         mgr.docker.build.return_value = _ok_result()
         cmd = BuildCommand(mgr)
-        result = cmd.execute(services=["postgres", "fakesvc"])
+        result = cmd.execute(services=["4icli", "fakesvc"])
         assert result == 0
         assert "Warning" in capsys.readouterr().out
 
@@ -1298,7 +1298,7 @@ class TestBuildCommand:
         mgr = _mock_manager("dev")
         mgr.docker.build.return_value = _fail_result(2, "build error")
         cmd = BuildCommand(mgr)
-        result = cmd.execute(services=["postgres"])
+        result = cmd.execute(services=["4icli"])
         assert result == 2
         assert "Error building images" in capsys.readouterr().out
 
@@ -1307,7 +1307,7 @@ class TestBuildCommand:
         mgr = _mock_manager("dev")
         mgr.docker.build.side_effect = RuntimeError("boom")
         cmd = BuildCommand(mgr)
-        result = cmd.execute(services=["postgres"])
+        result = cmd.execute(services=["4icli"])
         assert result == 1
         assert "Exception occurred" in capsys.readouterr().out
 
@@ -1316,7 +1316,7 @@ class TestBuildCommand:
         mgr = _mock_manager("dev")
         mgr.docker.build.return_value = _ok_result(stdout="Built OK")
         cmd = BuildCommand(mgr)
-        result = cmd.execute(services=["postgres"])
+        result = cmd.execute(services=["4icli"])
         assert result == 0
         assert "Built OK" in capsys.readouterr().out
 
@@ -1361,10 +1361,10 @@ class TestProfileServiceGroupsData:
         assert PROFILE_SERVICE_GROUPS["prod"] == {}
 
     @pytest.mark.unit
-    def test_local_infrastructure(self) -> None:
-        infra = PROFILE_SERVICE_GROUPS["local"]["infrastructure"]
-        assert "postgres" in infra
-        assert "s3api" in infra
+    def test_local_analytics(self) -> None:
+        analytics = PROFILE_SERVICE_GROUPS["local"]["analytics"]
+        assert "marimo" in analytics
+        assert "docs" in analytics
 
 
 # ---------------------------------------------------------------------------
@@ -1405,8 +1405,8 @@ class TestEdgeCases:
     @pytest.mark.unit
     def test_validate_services_preserves_order(self) -> None:
         mapper = ProfileServiceMapper("dev")
-        valid, invalid = mapper.validate_services(["s3api", "postgres", "fake", "marimo"])
-        assert valid == ["s3api", "postgres", "marimo"]
+        valid, invalid = mapper.validate_services(["aco", "4icli", "fake", "marimo"])
+        assert valid == ["aco", "4icli", "marimo"]
         assert invalid == ["fake"]
 
     @pytest.mark.unit
@@ -1440,7 +1440,7 @@ class TestEdgeCases:
 
     @pytest.mark.unit
     def test_get_service_dependencies_no_deps(self) -> None:
-        deps = get_service_dependencies("postgres")
+        deps = get_service_dependencies("4icli")
         assert deps == []
 
 

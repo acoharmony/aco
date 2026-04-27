@@ -2,7 +2,6 @@
 """Tests for acoharmony/_deploy/_profiles.py."""
 
 
-# Magic auto-import: brings in ALL exports from module under test
 from acoharmony._test._import_magic import auto_import
 
 
@@ -14,13 +13,10 @@ import pytest
 
 
 class TestProfileServiceMapper:
-    """Tests for ProfileServiceMapper."""
-
     @pytest.mark.unit
     def test_local_profile_init(self) -> None:
         mapper = ProfileServiceMapper("local")
         assert mapper.profile == "local"
-        assert "infrastructure" in mapper.groups
         assert "analytics" in mapper.groups
 
     @pytest.mark.unit
@@ -36,8 +32,7 @@ class TestProfileServiceMapper:
 
     @pytest.mark.unit
     def test_prod_profile_empty_groups(self) -> None:
-        mapper = ProfileServiceMapper("prod")
-        assert mapper.groups == {}
+        assert ProfileServiceMapper("prod").groups == {}
 
     @pytest.mark.unit
     def test_unknown_profile_raises(self) -> None:
@@ -51,14 +46,10 @@ class TestProfileServiceMapper:
 
 
 class TestProfileServiceMapperGetGroupServices:
-    """Tests for get_group_services()."""
-
     @pytest.mark.unit
     def test_valid_group(self) -> None:
-        mapper = ProfileServiceMapper("local")
-        infra = mapper.get_group_services("infrastructure")
-        assert "postgres" in infra
-        assert "s3api" in infra
+        mapper = ProfileServiceMapper("dev")
+        assert mapper.get_group_services("analytics") == ["marimo", "docs"]
 
     @pytest.mark.unit
     def test_invalid_group_raises(self) -> None:
@@ -80,63 +71,42 @@ class TestProfileServiceMapperGetGroupServices:
 
 
 class TestProfileServiceMapperGetAllServices:
-    """Tests for get_all_services()."""
-
     @pytest.mark.unit
     def test_local_all_services(self) -> None:
-        mapper = ProfileServiceMapper("local")
-        all_svc = mapper.get_all_services()
-        assert "postgres" in all_svc
-        assert "s3api" in all_svc
-        assert "marimo" in all_svc
-        assert "docs" in all_svc
-        assert all_svc == sorted(all_svc)
+        all_svc = ProfileServiceMapper("local").get_all_services()
+        assert all_svc == ["docs", "marimo"]
 
     @pytest.mark.unit
-    def test_dev_all_services_count(self) -> None:
-        mapper = ProfileServiceMapper("dev")
-        all_svc = mapper.get_all_services()
-        # dev has infrastructure (4) + analytics (2) = 6
-        assert len(all_svc) == 6
+    def test_dev_all_services(self) -> None:
+        all_svc = ProfileServiceMapper("dev").get_all_services()
+        assert all_svc == sorted(["4icli", "aco", "marimo", "docs"])
 
     @pytest.mark.unit
     def test_prod_has_no_services(self) -> None:
-        mapper = ProfileServiceMapper("prod")
-        assert mapper.get_all_services() == []
+        assert ProfileServiceMapper("prod").get_all_services() == []
 
     @pytest.mark.unit
     def test_returns_sorted_unique(self) -> None:
-        mapper = ProfileServiceMapper("dev")
-        all_svc = mapper.get_all_services()
+        all_svc = ProfileServiceMapper("dev").get_all_services()
         assert all_svc == sorted(set(all_svc))
 
 
 class TestProfileServiceMapperListGroups:
-    """Tests for list_groups()."""
-
     @pytest.mark.unit
     def test_local_groups(self) -> None:
-        mapper = ProfileServiceMapper("local")
-        groups = mapper.list_groups()
-        assert groups == sorted(["infrastructure", "analytics"])
+        assert ProfileServiceMapper("local").list_groups() == ["analytics"]
 
     @pytest.mark.unit
     def test_dev_groups(self) -> None:
-        mapper = ProfileServiceMapper("dev")
-        groups = mapper.list_groups()
-        assert "infrastructure" in groups
-        assert "analytics" in groups
-        assert groups == sorted(groups)
+        groups = ProfileServiceMapper("dev").list_groups()
+        assert groups == sorted(["analytics", "infrastructure"])
 
     @pytest.mark.unit
     def test_prod_groups_empty(self) -> None:
-        mapper = ProfileServiceMapper("prod")
-        assert mapper.list_groups() == []
+        assert ProfileServiceMapper("prod").list_groups() == []
 
 
 class TestProfileServiceMapperIsProduction:
-    """Tests for is_production()."""
-
     @pytest.mark.unit
     def test_prod_is_production(self) -> None:
         assert ProfileServiceMapper("prod").is_production() is True
@@ -155,13 +125,11 @@ class TestProfileServiceMapperIsProduction:
 
 
 class TestProfileServiceMapperValidateServices:
-    """Tests for validate_services()."""
-
     @pytest.mark.unit
     def test_all_valid(self) -> None:
-        mapper = ProfileServiceMapper("local")
-        valid, invalid = mapper.validate_services(["postgres", "s3api"])
-        assert valid == ["postgres", "s3api"]
+        mapper = ProfileServiceMapper("dev")
+        valid, invalid = mapper.validate_services(["4icli", "aco"])
+        assert valid == ["4icli", "aco"]
         assert invalid == []
 
     @pytest.mark.unit
@@ -173,17 +141,17 @@ class TestProfileServiceMapperValidateServices:
 
     @pytest.mark.unit
     def test_mixed(self) -> None:
-        mapper = ProfileServiceMapper("local")
-        valid, invalid = mapper.validate_services(["postgres", "fake"])
-        assert valid == ["postgres"]
+        mapper = ProfileServiceMapper("dev")
+        valid, invalid = mapper.validate_services(["4icli", "fake"])
+        assert valid == ["4icli"]
         assert invalid == ["fake"]
 
     @pytest.mark.unit
     def test_prod_all_invalid(self) -> None:
         mapper = ProfileServiceMapper("prod")
-        valid, invalid = mapper.validate_services(["postgres"])
+        valid, invalid = mapper.validate_services(["4icli"])
         assert valid == []
-        assert invalid == ["postgres"]
+        assert invalid == ["4icli"]
 
     @pytest.mark.unit
     def test_empty_list(self) -> None:
