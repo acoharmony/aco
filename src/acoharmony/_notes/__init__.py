@@ -15,6 +15,7 @@ from ._crosswalk import CrosswalkPlugins
 from ._data import DataPlugins
 from ._identity import IdentityPlugins
 from ._panels import PanelPlugins
+from ._quality import QualityPlugins
 from ._setup import SetupPlugins
 from ._ui import UIPlugins
 from ._utils import UtilityPlugins
@@ -29,6 +30,7 @@ utils = UtilityPlugins()
 panels = PanelPlugins(ui)
 crosswalk = CrosswalkPlugins()
 identity = IdentityPlugins()
+quality = QualityPlugins()
 
 __all__ = [
     "NotebookGenerator",
@@ -42,6 +44,7 @@ __all__ = [
     "PanelPlugins",
     "CrosswalkPlugins",
     "IdentityPlugins",
+    "QualityPlugins",
     "setup",
     "ui",
     "data",
@@ -50,4 +53,5 @@ __all__ = [
     "panels",
     "crosswalk",
     "identity",
+    "quality",
 ]
