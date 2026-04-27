@@ -204,3 +204,156 @@ class ReachPlugins(PluginRegistry):
             .agg(pl.len().alias("count"))
             .sort("last_month_str")
         )
+
+    # ---- delivery provenance (calendar vs 4i inventory) ---------------
+
+    @staticmethod
+    def cadence_bucket(period: str | None) -> str:
+        """Classify a period marker into a cadence bucket."""
+        if period is None:
+            return "unknown"
+        if period.startswith("M"):
+            return "monthly"
+        if period.startswith("Q"):
+            return "quarterly"
+        if period.startswith("S"):
+            return "semi_annual"
+        if period == "A":
+            return "annual"
+        return "other"
+
+    def delivery_status_pivot(
+        self,
+        df_prov: pl.DataFrame,
+        statuses: tuple[str, ...] = ("on_time", "early", "late", "unscheduled"),
+    ) -> pl.DataFrame:
+        """One row per schema, columns are counts per status."""
+        return (
+            df_prov.filter(pl.col("schema_name").is_not_null())
+            .group_by("schema_name")
+            .agg(
+                *[
+                    (pl.col("delivery_status") == s).sum().alias(s)
+                    for s in statuses
+                ],
+                pl.len().alias("total"),
+            )
+            .sort("total", descending=True)
+        )
+
+    def delivery_diff_stats(self, df_prov: pl.DataFrame) -> pl.DataFrame:
+        """n / mean / median / quartiles / min / max of delivery_diff_days."""
+        delivered = df_prov.filter(pl.col("delivery_diff_days").is_not_null())
+        if delivered.height == 0:
+            return pl.DataFrame()
+        return delivered.select(
+            pl.col("delivery_diff_days").count().alias("n"),
+            pl.col("delivery_diff_days").mean().round(2).alias("mean_days"),
+            pl.col("delivery_diff_days").median().alias("median_days"),
+            pl.col("delivery_diff_days").quantile(0.25).alias("p25_days"),
+            pl.col("delivery_diff_days").quantile(0.75).alias("p75_days"),
+            pl.col("delivery_diff_days").min().alias("min_days"),
+            pl.col("delivery_diff_days").max().alias("max_days"),
+        )
+
+    def delivery_outliers(
+        self,
+        df_prov: pl.DataFrame,
+        kind: str,
+        n: int = 20,
+    ) -> pl.DataFrame:
+        """Top-N late or early outlier rows."""
+        descending = kind == "late"
+        return (
+            df_prov.filter(pl.col("delivery_status") == kind)
+            .sort("delivery_diff_days", descending=descending)
+            .select(
+                "schema_name",
+                "period",
+                "py",
+                "expected_date",
+                "actual_delivery_date",
+                "delivery_diff_days",
+                "description",
+            )
+            .head(n)
+        )
+
+    def delivery_cadence(self, df_prov: pl.DataFrame) -> pl.DataFrame:
+        """Dominant cadence + scheduled span per schema."""
+        return (
+            df_prov.filter(
+                pl.col("schema_name").is_not_null()
+                & pl.col("expected_date").is_not_null()
+            )
+            .with_columns(
+                pl.col("period")
+                .map_elements(self.cadence_bucket, return_dtype=pl.String)
+                .alias("cadence_bucket")
+            )
+            .group_by("schema_name")
+            .agg(
+                pl.col("cadence_bucket").mode().first().alias("dominant_cadence"),
+                pl.col("expected_date").min().alias("first_scheduled"),
+                pl.col("expected_date").max().alias("last_scheduled"),
+                pl.len().alias("scheduled_count"),
+                pl.col("category").first().alias("category"),
+            )
+            .sort("scheduled_count", descending=True)
+        )
+
+    def delivery_trend(self, df_prov: pl.DataFrame) -> pl.DataFrame:
+        """Mean lag days per (schema, year, quarter)."""
+        delivered = df_prov.filter(pl.col("delivery_diff_days").is_not_null())
+        if delivered.height == 0:
+            return pl.DataFrame()
+        return (
+            delivered.with_columns(
+                pl.col("expected_date").dt.year().alias("year"),
+                ((pl.col("expected_date").dt.month() - 1) // 3 + 1).alias("quarter"),
+            )
+            .group_by("schema_name", "year", "quarter")
+            .agg(
+                pl.col("delivery_diff_days").mean().round(1).alias("mean_lag_days"),
+                pl.len().alias("n_deliveries"),
+            )
+            .sort("schema_name", "year", "quarter")
+        )
+
+    def unexpected_deliveries(self, df_prov: pl.DataFrame) -> pl.DataFrame:
+        """Rows tagged unscheduled — corrections / reissues / ad-hoc drops."""
+        return (
+            df_prov.filter(pl.col("delivery_status") == "unscheduled")
+            .sort("actual_delivery_date", descending=True)
+            .select(
+                "schema_name",
+                "period",
+                "py",
+                "actual_delivery_date",
+                "actual_delivery_source",
+                "delivered_file_count",
+                "delivered_filenames",
+            )
+        )
+
+    def schema_drilldown(self, df_prov: pl.DataFrame, schema: str) -> pl.DataFrame:
+        """All scheduled and actual rows for a single schema, latest first."""
+        return (
+            df_prov.filter(pl.col("schema_name") == schema)
+            .sort(
+                pl.coalesce(["expected_date", "actual_delivery_date"]),
+                descending=True,
+                nulls_last=True,
+            )
+            .select(
+                "period",
+                "py",
+                "expected_date",
+                "actual_delivery_date",
+                "delivery_diff_days",
+                "delivery_status",
+                "actual_delivery_source",
+                "description",
+                "delivered_file_count",
+            )
+        )

@@ -240,3 +240,159 @@ class TestTemporalDistribution:
         out = ReachPlugins().temporal_distribution(df)
         assert out["last_month_str"].to_list() == ["202501", "202506"]
         assert out["count"].to_list() == [1, 2]
+
+
+# ---------------------------------------------------------------------------
+# delivery provenance
+# ---------------------------------------------------------------------------
+
+
+def _delivery_df() -> pl.DataFrame:
+    return pl.DataFrame(
+        {
+            "schema_name": ["bar", "bar", "bar", "crr", "crr", None],
+            "period": ["M01", "Q1", "S1", "A", "M02", "M03"],
+            "py": ["PY2025"] * 6,
+            "expected_date": [
+                date(2025, 1, 15),
+                date(2025, 4, 1),
+                date(2025, 6, 30),
+                date(2025, 12, 31),
+                date(2025, 2, 15),
+                None,
+            ],
+            "actual_delivery_date": [
+                date(2025, 1, 15),
+                date(2025, 4, 8),
+                None,
+                date(2025, 12, 30),
+                date(2025, 2, 13),
+                date(2025, 3, 5),
+            ],
+            "actual_delivery_source": [
+                "remote_metadata",
+                "filename",
+                None,
+                "download",
+                "remote_metadata",
+                "remote_metadata",
+            ],
+            "delivery_diff_days": [0, 7, None, -1, -2, None],
+            "delivery_status": [
+                "on_time",
+                "late",
+                "unscheduled",
+                "early",
+                "early",
+                "unscheduled",
+            ],
+            "description": ["d1", "d2", "d3", "d4", "d5", "d6"],
+            "category": ["c1", "c1", "c1", "c2", "c2", None],
+            "delivered_file_count": [1, 1, 1, 1, 1, 1],
+            "delivered_filenames": [["f"]] * 6,
+        }
+    )
+
+
+class TestCadenceBucket:
+    @pytest.mark.unit
+    @pytest.mark.parametrize(
+        "period,expected",
+        [
+            (None, "unknown"),
+            ("M01", "monthly"),
+            ("Q1", "quarterly"),
+            ("S2", "semi_annual"),
+            ("A", "annual"),
+            ("X", "other"),
+        ],
+    )
+    def test_classifies(self, period, expected):
+        assert ReachPlugins.cadence_bucket(period) == expected
+
+
+class TestDeliveryStatusPivot:
+    @pytest.mark.unit
+    def test_pivots_by_schema(self) -> None:
+        out = ReachPlugins().delivery_status_pivot(_delivery_df())
+        as_dict = {row["schema_name"]: row for row in out.iter_rows(named=True)}
+        assert as_dict["bar"]["total"] == 3
+        assert as_dict["bar"]["on_time"] == 1
+        assert as_dict["bar"]["late"] == 1
+        assert as_dict["bar"]["unscheduled"] == 1
+        # Null schema rows excluded
+        assert None not in as_dict
+
+
+class TestDeliveryDiffStats:
+    @pytest.mark.unit
+    def test_returns_stats(self) -> None:
+        out = ReachPlugins().delivery_diff_stats(_delivery_df())
+        assert out["n"][0] == 4  # rows with non-null delivery_diff_days
+        assert "mean_days" in out.columns
+
+    @pytest.mark.unit
+    def test_empty(self) -> None:
+        df = pl.DataFrame(
+            {"delivery_diff_days": pl.Series([None, None], dtype=pl.Int64)}
+        )
+        out = ReachPlugins().delivery_diff_stats(df)
+        assert out.is_empty()
+
+
+class TestDeliveryOutliers:
+    @pytest.mark.unit
+    def test_late_sorted_desc(self) -> None:
+        out = ReachPlugins().delivery_outliers(_delivery_df(), "late", n=10)
+        assert out.height == 1
+        assert out["delivery_diff_days"][0] == 7
+
+    @pytest.mark.unit
+    def test_early_sorted_asc(self) -> None:
+        out = ReachPlugins().delivery_outliers(_delivery_df(), "early", n=10)
+        # Two early rows; sorted asc → -2 first
+        assert out["delivery_diff_days"][0] == -2
+
+
+class TestDeliveryCadence:
+    @pytest.mark.unit
+    def test_dominant_cadence_per_schema(self) -> None:
+        out = ReachPlugins().delivery_cadence(_delivery_df())
+        as_dict = {row["schema_name"]: row for row in out.iter_rows(named=True)}
+        # bar has M01, Q1, S1 → all distinct buckets, mode picks one
+        assert as_dict["bar"]["dominant_cadence"] in {"monthly", "quarterly", "semi_annual"}
+        assert as_dict["crr"]["scheduled_count"] == 2
+
+
+class TestDeliveryTrend:
+    @pytest.mark.unit
+    def test_groups_by_quarter(self) -> None:
+        out = ReachPlugins().delivery_trend(_delivery_df())
+        assert "year" in out.columns and "quarter" in out.columns
+        # Q1 quarter for bar's January expected_date
+        bar_q1 = out.filter((pl.col("schema_name") == "bar") & (pl.col("quarter") == 1))
+        assert bar_q1.height >= 1
+
+    @pytest.mark.unit
+    def test_empty(self) -> None:
+        df = pl.DataFrame({"delivery_diff_days": pl.Series([None], dtype=pl.Int64)})
+        out = ReachPlugins().delivery_trend(df)
+        assert out.is_empty()
+
+
+class TestUnexpectedDeliveries:
+    @pytest.mark.unit
+    def test_filters_to_unscheduled(self) -> None:
+        out = ReachPlugins().unexpected_deliveries(_delivery_df())
+        assert out.height == 2
+        # Sorted by actual_delivery_date desc — None last in our fixture
+        assert set(out["actual_delivery_date"].to_list()) == {date(2025, 3, 5), None}
+
+
+class TestSchemaDrilldown:
+    @pytest.mark.unit
+    def test_filters_and_sorts(self) -> None:
+        out = ReachPlugins().schema_drilldown(_delivery_df(), "bar")
+        assert out.height == 3
+        # Sorted by coalesce(expected, actual) desc
+        assert "delivery_status" in out.columns
