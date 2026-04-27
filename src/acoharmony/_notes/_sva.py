@@ -161,6 +161,97 @@ class SvaPlugins(PluginRegistry):
             .collect()
         )
 
+    # ---- Mabel log dashboard ------------------------------------------
+
+    def parse_mabel_log(self, log_path: Path):
+        """Wrap ``acoharmony._parsers._mabel_log.parse_mabel_log``."""
+        from acoharmony._parsers._mabel_log import parse_mabel_log
+
+        return parse_mabel_log(log_path)
+
+    def mabel_log_kpis(
+        self,
+        df_events: pl.DataFrame,
+        df_sessions: pl.DataFrame,
+        df_uploads: pl.DataFrame,
+        df_daily: pl.DataFrame,
+    ) -> dict:
+        """Top-line counts + date range for the upload-monitor dashboard header."""
+        total_uploads = df_uploads.height
+        days_active = df_daily.height
+        sessions_with_uploads = df_sessions.filter(pl.col("files_uploaded") > 0).height
+        return {
+            "total_sessions": df_sessions.height,
+            "total_uploads": total_uploads,
+            "total_patients": df_uploads.select(
+                pl.col("patient_name").drop_nulls().n_unique()
+            ).item(),
+            "sva_forms": df_uploads.filter(pl.col("is_sva_form")).height,
+            "non_sva": total_uploads - df_uploads.filter(pl.col("is_sva_form")).height,
+            "days_active": days_active,
+            "avg_per_day": round(total_uploads / max(days_active, 1), 1),
+            "sessions_with_uploads": sessions_with_uploads,
+            "idle_sessions": df_sessions.height - sessions_with_uploads,
+            "first_date": (
+                df_events["timestamp"].min().strftime("%b %d, %Y")
+                if df_events.height > 0
+                else "N/A"
+            ),
+            "last_date": (
+                df_events["timestamp"].max().strftime("%b %d, %Y")
+                if df_events.height > 0
+                else "N/A"
+            ),
+        }
+
+    def filter_sessions(self, df_sessions: pl.DataFrame, kind: str) -> pl.DataFrame:
+        """``kind`` ∈ {all, uploads, idle}."""
+        if kind == "uploads":
+            return df_sessions.filter(pl.col("files_uploaded") > 0)
+        if kind == "idle":
+            return df_sessions.filter(pl.col("files_uploaded") == 0)
+        return df_sessions
+
+    def filter_uploads(
+        self,
+        df_uploads: pl.DataFrame,
+        patient_search: str = "",
+        sva_only: bool = False,
+    ) -> pl.DataFrame:
+        """Search by patient (case-insensitive substring) and SVA-form-only flag."""
+        out = df_uploads
+        if patient_search:
+            needle = patient_search.lower()
+            out = out.filter(
+                pl.col("patient_name").is_not_null()
+                & pl.col("patient_name").str.to_lowercase().str.contains(needle)
+            )
+        if sva_only:
+            out = out.filter(pl.col("is_sva_form"))
+        return out.filter(pl.col("submission_date").is_not_null())
+
+    def patient_upload_summary(self, df_uploads: pl.DataFrame) -> pl.DataFrame:
+        """Per-patient: total uploads, first/last upload, all-SVA flag."""
+        return (
+            df_uploads.filter(pl.col("patient_name").is_not_null())
+            .group_by("patient_name")
+            .agg(
+                pl.len().alias("total_uploads"),
+                pl.col("timestamp").min().dt.strftime("%Y-%m-%d").alias("first_upload"),
+                pl.col("timestamp").max().dt.strftime("%Y-%m-%d").alias("last_upload"),
+                pl.col("is_sva_form").all().alias("all_sva_format"),
+            )
+            .sort("total_uploads", descending=True)
+        )
+
+    def session_health(self, df_sessions: pl.DataFrame) -> dict:
+        return {
+            "auth_failures": df_sessions.filter(~pl.col("auth_succeeded")).height,
+            "dirty_disconnects": df_sessions.filter(
+                ~pl.col("disconnected_cleanly")
+            ).height,
+        }
+
     def source_breakdown(self, final_list: pl.DataFrame) -> list[dict]:
         """SVA-only / BAR-only / both / total counts as a list-of-dicts table."""
         sva = final_list.filter(pl.col("sources").str.contains("SVA")).height
