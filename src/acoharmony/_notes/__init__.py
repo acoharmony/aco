@@ -22,6 +22,7 @@ from ._quality import QualityPlugins
 from ._reach import ReachPlugins
 from ._setup import SetupPlugins
 from ._sva import SvaPlugins
+from ._tparc import TparcPlugins
 from ._ui import UIPlugins
 from ._utils import UtilityPlugins
 from .config import NotebookConfig
@@ -41,6 +42,7 @@ provider = ProviderPlugins()
 quality = QualityPlugins()
 reach = ReachPlugins()
 sva = SvaPlugins()
+tparc = TparcPlugins()
 
 __all__ = [
     "NotebookGenerator",
@@ -60,6 +62,7 @@ __all__ = [
     "QualityPlugins",
     "ReachPlugins",
     "SvaPlugins",
+    "TparcPlugins",
     "setup",
     "ui",
     "data",
@@ -74,4 +77,5 @@ __all__ = [
     "quality",
     "reach",
     "sva",
+    "tparc",
 ]
