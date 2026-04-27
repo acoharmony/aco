@@ -17,6 +17,7 @@ from ._cite import CitePlugins
 from ._crosswalk import CrosswalkPlugins
 from ._data import DataPlugins
 from ._hedr import HedrPlugins
+from ._home_visit import HomeVisitPlugins
 from ._identity import IdentityPlugins
 from ._panels import PanelPlugins
 from ._pfs import PfsPlugins
@@ -43,6 +44,7 @@ calendar = CalendarPlugins()
 cite = CitePlugins()
 crosswalk = CrosswalkPlugins()
 hedr = HedrPlugins()
+home_visit = HomeVisitPlugins()
 identity = IdentityPlugins()
 pfs = PfsPlugins()
 pmpm = PmpmPlugins()
@@ -67,6 +69,7 @@ __all__ = [
     "CitePlugins",
     "CrosswalkPlugins",
     "HedrPlugins",
+    "HomeVisitPlugins",
     "IdentityPlugins",
     "PfsPlugins",
     "PmpmPlugins",
@@ -86,6 +89,7 @@ __all__ = [
     "cite",
     "crosswalk",
     "hedr",
+    "home_visit",
     "identity",
     "pfs",
     "pmpm",
