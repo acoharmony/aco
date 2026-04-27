@@ -253,6 +253,40 @@ class PanelPlugins(PluginRegistry):
             )
         return self.mo.vstack(sections)
 
+    # ---- identity_timeline lookup -------------------------------------
+
+    def identity_lookup_panel(self, result: dict):
+        """Render :py:meth:`IdentityPlugins.resolve_as_of` output as HTML."""
+        if "error" in result:
+            return self.mo.md(f"⚠️ **{result['error']}**")
+        if result.get("chain_id") is None:
+            return self.mo.md(
+                f"ℹ️ MBI `{result['input_mbi']}` not found in identity_timeline."
+            )
+        opt_out_badge = (
+            "<span style='color:#DC2626;font-weight:600'>🚫 OPTED OUT "
+            f"({', '.join(result['opt_out_reasons']) or 'no reason given'})</span>"
+            if result["opted_out"]
+            else "<span style='color:#16A34A'>✓ Not opted out</span>"
+        )
+        chain_pill = " → ".join(f"<code>{m}</code>" for m in result["chain_members"])
+        return self.mo.md(
+            f"""
+            <div style="padding:1rem;background:#F9FAFB;border-left:4px solid #2563EB;margin:1rem 0;">
+                <p style="margin:0;font-size:1rem;">
+                    Input MBI: <code>{result['input_mbi']}</code><br>
+                    Canonical MBI: <strong><code>{result['canonical_mbi']}</code></strong><br>
+                    HCMPI: <code>{result['hcmpi'] or '(not mapped)'}</code><br>
+                    {opt_out_badge}
+                </p>
+                <p style="margin:0.5rem 0 0 0;font-size:0.85rem;color:#374151;">
+                    Chain (hop 0 → n): {chain_pill}<br>
+                    Last observed: {result['last_observed']} | chain_id: <code>{result['chain_id']}</code>
+                </p>
+            </div>
+            """
+        )
+
     # ---- member claims search -----------------------------------------
 
     def eligibility_panel(

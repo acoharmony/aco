@@ -11,7 +11,9 @@ into these directly — keep notebooks declarative; put logic here.
 
 from ._analysis import AnalysisPlugins
 from ._base import PluginRegistry
+from ._crosswalk import CrosswalkPlugins
 from ._data import DataPlugins
+from ._identity import IdentityPlugins
 from ._panels import PanelPlugins
 from ._setup import SetupPlugins
 from ._ui import UIPlugins
@@ -25,6 +27,8 @@ data = DataPlugins()
 analysis = AnalysisPlugins()
 utils = UtilityPlugins()
 panels = PanelPlugins(ui)
+crosswalk = CrosswalkPlugins()
+identity = IdentityPlugins()
 
 __all__ = [
     "NotebookGenerator",
@@ -36,10 +40,14 @@ __all__ = [
     "AnalysisPlugins",
     "UtilityPlugins",
     "PanelPlugins",
+    "CrosswalkPlugins",
+    "IdentityPlugins",
     "setup",
     "ui",
     "data",
     "analysis",
     "utils",
     "panels",
+    "crosswalk",
+    "identity",
 ]
