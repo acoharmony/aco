@@ -14,6 +14,7 @@ from ._analysis import AnalysisPlugins
 from ._base import PluginRegistry
 from ._calendar import CalendarPlugins
 from ._cite import CitePlugins
+from ._consolidated_alignments import ConsolidatedAlignmentsPlugins
 from ._crosswalk import CrosswalkPlugins
 from ._data import DataPlugins
 from ._gc_notifications import GcNotificationsPlugins
@@ -50,6 +51,7 @@ panels = PanelPlugins(ui)
 acr = AcrPlugins()
 calendar = CalendarPlugins()
 cite = CitePlugins()
+consolidated_alignments = ConsolidatedAlignmentsPlugins()
 crosswalk = CrosswalkPlugins()
 gc_notifications = GcNotificationsPlugins()
 gift_card = GiftCardPlugins()
@@ -83,6 +85,7 @@ __all__ = [
     "AcrPlugins",
     "CalendarPlugins",
     "CitePlugins",
+    "ConsolidatedAlignmentsPlugins",
     "CrosswalkPlugins",
     "GcNotificationsPlugins",
     "GiftCardPlugins",
@@ -111,6 +114,7 @@ __all__ = [
     "acr",
     "calendar",
     "cite",
+    "consolidated_alignments",
     "crosswalk",
     "gc_notifications",
     "gift_card",
