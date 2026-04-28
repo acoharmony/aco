@@ -422,10 +422,15 @@ class TestAnalyzeDuplicates:
                 "last_name": ["X", "X"],
                 "address_line_1": ["1 Main", "1 Main"],
                 "city": ["Detroit", "Lansing"],
+                # Constant non-key column → exercises the False branch of
+                # `if max_distinct is not None and max_distinct > 1` (833→825)
+                "state": ["MI", "MI"],
             }
         )
         summary, details = GiftCardPlugins().analyze_duplicates(df)
         assert details.height == 2
+        # Only `city` varies within the duplicate group; `state` does not
+        assert "Columns That Vary" in summary["Metric"].to_list()[-1]
 
 
 class TestFormatDirectDelivery:
@@ -446,6 +451,76 @@ class TestFormatDirectDelivery:
         out = GiftCardPlugins().format_direct_delivery(df)
         assert "First Name" in out.columns
         assert out["Card Name"][0] == "Visa"
+
+
+class TestGiftCardDistribution:
+    @pytest.mark.unit
+    def test_full_pipeline(self, tmp_path: Path) -> None:
+        """End-to-end gift_card_distribution → gift_card_mailing_list (lines 579-794)."""
+        from unittest.mock import patch
+
+        _gcm_df().write_parquet(tmp_path / "gcm.parquet")
+        # Explicit Null dtypes are required so polars knows how to filter on
+        # patient_dod.is_null() and bene_address_line_2 etc.
+        pl.DataFrame(
+            {
+                "bene_mbi": ["M1", "M2"],
+                "bene_date_of_death": pl.Series([None, None], dtype=pl.Date),
+                "start_date": [date(2024, 1, 1)] * 2,
+                "end_date": pl.Series([None, None], dtype=pl.Date),
+                "bene_first_name": ["A", "B"],
+                "bene_last_name": ["X", "Y"],
+                "bene_address_line_1": ["1 Main St", "2 Oak St"],
+                "bene_address_line_2": pl.Series([None, None], dtype=pl.Utf8),
+                "bene_city": ["Detroit", "Lansing"],
+                "bene_state": ["MI", "MI"],
+                "bene_zip_5": ["48226", "48933"],
+                "file_date": [date(2024, 6, 1)] * 2,
+                "source_filename": ["P.D0259.ALGC25.RP.D250601"] * 2,
+            }
+        ).write_parquet(tmp_path / "bar.parquet")
+        pl.DataFrame(
+            {
+                "mbi": ["M1", "M2"],
+                "patient_dod": pl.Series([None, None], dtype=pl.Date),
+                "most_recent_awv_date": [date(2024, 6, 1), date(2024, 4, 1)],
+                "enrollment_status": ["active"] * 2,
+                "last_em_visit": [date(2024, 5, 1), date(2024, 3, 1)],
+                "patient_first_name": ["A", "B"],
+                "patient_last_name": ["X", "Y"],
+                "patient_address": ["1 Main St", "2 Oak St"],
+                "patient_city": ["Detroit", "Lansing"],
+                "patient_state": ["MI", "MI"],
+                "patient_zip": ["48226", "48933"],
+                "file_date": [date(2024, 6, 1)] * 2,
+            }
+        ).write_parquet(tmp_path / "hdai_reach.parquet")
+        pl.DataFrame(
+            {
+                "bene_mbi_id": ["M2", "M3"],
+                "file_date": [date(2024, 6, 1)] * 2,
+                "bene_line_1_adr": ["2 Oak St", "3 Pine St"],
+                "bene_line_2_adr": pl.Series([None, None], dtype=pl.Utf8),
+                "bene_city": ["Lansing", "Ann Arbor"],
+                "bene_state": ["MI", "MI"],
+                "bene_zip": ["48933", "48104"],
+            }
+        ).write_parquet(tmp_path / "cclf8.parquet")
+
+        with patch(
+            "acoharmony._expressions._current_reach.build_current_reach_with_bar_expr",
+            return_value=pl.lit(True),
+        ):
+            distro = GiftCardPlugins().gift_card_distribution(tmp_path)
+            gcm_enriched, mailing = GiftCardPlugins().gift_card_mailing_list(tmp_path)
+        # Distribution covers all GCM rows
+        assert distro.height >= 1
+        # Mailing list filters to BAR-aligned with valid address
+        assert mailing.height >= 1
+        assert "hcmpi" in mailing.columns
+        assert "address_line_1" in mailing.columns
+        # Source-status column is populated
+        assert "data_source_status" in distro.columns
 
 
 class TestMailingListSummary:

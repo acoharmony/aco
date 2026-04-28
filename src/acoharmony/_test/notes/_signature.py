@@ -105,6 +105,25 @@ class TestCrosswalk:
         assert out["mbi_map"]["M1"] == "M1"
         assert out["mbi_history_count"]["M1"] == 0
 
+    @pytest.mark.unit
+    def test_row_skipped_when_either_null(self) -> None:
+        # Both null → loop iteration skips both `if crnt and prvs:` and
+        # the standalone-crnt fixup (line 49→43 branch).
+        plugin = SignaturePlugins()
+        crosswalk = pl.LazyFrame(
+            {
+                "prvs_num": [None],
+                "crnt_num": [None],
+                "hcmpi": [None],
+            }
+        )
+        with patch(
+            "acoharmony._transforms._identity_timeline.current_mbi_with_hcmpi_lookup_lazy",
+            return_value=crosswalk,
+        ):
+            out = plugin.load_crosswalk(Path("/tmp"))
+        assert out["mbi_map"] == {}
+
 
 # ---------------------------------------------------------------------------
 # raw loaders
@@ -143,6 +162,22 @@ class TestLoaders:
         assert out["valid_combos"] == {("T1", "N1")}
 
     @pytest.mark.unit
+    def test_load_provider_list_skips_null_pre_strip(self, tmp_path: Path) -> None:
+        # NULL tin/npi → `if tin and npi` is False, loop skips the strip path
+        # (line 102→89 branch — early-out without entering the strip block).
+        pl.DataFrame(
+            {
+                "base_provider_tin": [None, "T1"],
+                "individual_npi": ["N1", None],
+                "individual_first_name": ["F", "G"],
+                "individual_last_name": ["L", "M"],
+                "provider_class": ["Participant Provider"] * 2,
+            }
+        ).write_parquet(tmp_path / "participant_list.parquet")
+        out = SignaturePlugins().load_provider_list(tmp_path)
+        assert out["valid_combos"] == set()
+
+    @pytest.mark.unit
     def test_load_sva_with_pbvar(self, tmp_path: Path) -> None:
         _sva_df().write_parquet(tmp_path / "sva.parquet")
         pl.DataFrame(
@@ -157,6 +192,22 @@ class TestLoaders:
         assert out["pending"].height == 2
         assert out["approved"].height == 1
         assert out["most_recent_pbvar"] == date(2024, 6, 30)
+
+    @pytest.mark.unit
+    def test_load_sva_empty_pbvar(self, tmp_path: Path) -> None:
+        # PBVAR file exists but empty → most_recent_pbvar stays None
+        # (line 125→128 branch — `if pbvar.height > 0:` False)
+        _sva_df().write_parquet(tmp_path / "sva.parquet")
+        pl.DataFrame(
+            {"bene_mbi": [], "file_date": []},
+            schema={"bene_mbi": pl.Utf8, "file_date": pl.Date},
+        ).write_parquet(tmp_path / "pbvar.parquet")
+        mbi_map = {"M1": "M1", "M2": "M2", "M4": "M4"}
+        out = SignaturePlugins().load_sva(tmp_path, mbi_map)
+        # No PBVAR data → all SVA rows treated as approved
+        assert out["pending"].is_empty()
+        assert out["approved"].height == 3
+        assert out["most_recent_pbvar"] is None
 
     @pytest.mark.unit
     def test_load_sva_no_pbvar(self, tmp_path: Path) -> None:
@@ -687,6 +738,15 @@ class TestSvaValidation:
             tmp_path / "sva.parquet"
         )
         out = SignaturePlugins().most_recent_sva_date(tmp_path)
+        assert out is None
+
+    @pytest.mark.unit
+    def test_most_recent_pbvar_date_empty_file(self, tmp_path: Path) -> None:
+        # Cover line 654 — empty PBVAR file → None
+        pl.DataFrame({"file_date": []}, schema={"file_date": pl.Date}).write_parquet(
+            tmp_path / "pbvar.parquet"
+        )
+        out = SignaturePlugins().most_recent_pbvar_date(tmp_path)
         assert out is None
 
     @pytest.mark.unit

@@ -106,6 +106,18 @@ class TestLivingFilter:
         # Falls back to lit(True) when schema introspection fails
         assert pl.LazyFrame({"x": [1]}).filter(out).collect().height == 1
 
+    @pytest.mark.unit
+    def test_with_bene_death_date(self) -> None:
+        # Cover line 57 — `bene_death_date` column branch
+        df = pl.LazyFrame(
+            {
+                "x": [1, 2],
+                "bene_death_date": [None, date(2024, 1, 1)],
+            }
+        )
+        out = ConsolidatedAlignmentsPlugins().living_filter(df)
+        assert df.filter(out).collect().height == 1
+
 
 class TestExtractYearMonths:
     @pytest.mark.unit

@@ -545,6 +545,38 @@ class TestPanelBalancing:
         assert out == {}
 
     @pytest.mark.unit
+    def test_primary_state_but_primary_provider_unselected(self) -> None:
+        # State has a primary in PRIMARY_PROVIDERS_BY_STATE (NJ → 1376709493),
+        # but the selected providers don't include that primary, so
+        # `primary_match.height > 0` is False (line 653→655 branch).
+        # Falls through to the lowest-panel-size fallback.
+        valid = pl.DataFrame(
+            {
+                "mbi": ["M1"],
+                "state": ["NJ"],
+                "signature_date_parsed": [date(2024, 6, 1)],
+            }
+        )
+        # Provider for NJ but NOT the primary (1376709493 → Rupen)
+        providers = pl.DataFrame(
+            {
+                "prvdr_npi": ["1356607881"],
+                "prvdr_tin": ["T1"],
+                "provider_state": ["NJ"],
+                "provider_name": ["Eunice"],
+                "earliest_effective_date": [None],
+                "current_panel": [10],
+            }
+        )
+        bar = pl.DataFrame({"bene_mbi": ["M1"], "bene_state": ["NJ"]})
+        selected = {("1356607881", "T1", "NJ")}  # Eunice, not Rupen
+        out = SvaSubmissionsPlugins().panel_balancing_recommendations(
+            valid, providers, selected, bar
+        )
+        # Primary not available → fallback assigns to whichever provider serves NJ
+        assert out["M1"]["npi"] == "1356607881"
+
+    @pytest.mark.unit
     def test_no_primary_fallback_to_lowest_panel(self) -> None:
         # Bene state has no primary in PRIMARY_PROVIDERS_BY_STATE
         # (e.g., "AZ" — not in the map) → fallback path (line 656)
