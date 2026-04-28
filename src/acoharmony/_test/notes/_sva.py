@@ -119,6 +119,44 @@ class TestConsolidate:
         assert as_dict["C"]["sources"] == "BAR"
         assert as_dict["B"]["latest_date"] == date(2024, 7, 1)
 
+    @pytest.mark.unit
+    def test_pbvar_appears_in_sources(self) -> None:
+        # C is in BAR; D is PBVAR-only; B is in both BAR + SVA + PBVAR.
+        # Without PBVAR in consolidate, C and D would look like "BAR" / missing,
+        # masking the fact that they have voluntary-alignment history via CMS responses.
+        pbvar = pl.DataFrame(
+            {
+                "mbi": ["B", "C", "D"],
+                "pbvar_response_codes": ["A1", "A2", "A3"],
+                "pbvar_file_date": [
+                    date(2024, 8, 1),
+                    date(2024, 8, 1),
+                    date(2024, 8, 1),
+                ],
+            }
+        )
+        out = SvaPlugins().consolidate(_sva_rows(), _bar_rows(), pbvar)
+        as_dict = {row["mbi"]: row for row in out.iter_rows(named=True)}
+        assert as_dict["A"]["sources"] == "SVA"
+        assert as_dict["B"]["sources"] == "BAR, PBVAR, SVA"
+        # The bug we fixed: C used to read "BAR" only despite having a PBVAR response.
+        assert as_dict["C"]["sources"] == "BAR, PBVAR"
+        assert as_dict["D"]["sources"] == "PBVAR"
+        assert as_dict["D"]["latest_date"] == date(2024, 8, 1)
+
+    @pytest.mark.unit
+    def test_empty_pbvar_treated_as_none(self) -> None:
+        empty_pbvar = pl.DataFrame(
+            schema={
+                "mbi": pl.Utf8,
+                "pbvar_response_codes": pl.Utf8,
+                "pbvar_file_date": pl.Date,
+            }
+        )
+        out = SvaPlugins().consolidate(_sva_rows(), _bar_rows(), empty_pbvar)
+        as_dict = {row["mbi"]: row for row in out.iter_rows(named=True)}
+        assert "PBVAR" not in as_dict["B"]["sources"]
+
 
 class TestEnrich:
     @pytest.mark.unit

@@ -103,8 +103,15 @@ class SvaPlugins(PluginRegistry):
         self,
         sva_rows: pl.DataFrame,
         bar_rows: pl.DataFrame,
+        pbvar: pl.DataFrame | None = None,
     ) -> pl.DataFrame:
-        """Union SVA + BAR MBIs with their source labels and latest date."""
+        """Union SVA + BAR + PBVAR MBIs with their source labels and latest date.
+
+        PBVAR is CMS's response feed for ALL voluntary alignment activity, so a
+        bene with PBVAR responses but no recent SVA submission still has
+        voluntary-alignment history — including PBVAR in the source labels
+        prevents these benes from looking like "BAR only" downstream.
+        """
         sva_part = sva_rows.select(
             pl.col("mbi"),
             pl.lit("SVA").alias("source"),
@@ -115,7 +122,15 @@ class SvaPlugins(PluginRegistry):
             pl.lit("BAR").alias("source"),
             pl.col("file_date").alias("source_date"),
         )
-        combined = pl.concat([sva_part, bar_part], how="diagonal")
+        parts = [sva_part, bar_part]
+        if pbvar is not None and not pbvar.is_empty():
+            pbvar_part = pbvar.select(
+                pl.col("mbi"),
+                pl.lit("PBVAR").alias("source"),
+                pl.col("pbvar_file_date").alias("source_date"),
+            )
+            parts.append(pbvar_part)
+        combined = pl.concat(parts, how="diagonal")
         return (
             combined.group_by("mbi")
             .agg(
@@ -131,7 +146,12 @@ class SvaPlugins(PluginRegistry):
         pbvar: pl.DataFrame,
         silver_path: Path,
     ) -> pl.DataFrame:
-        """Add HCMPI from identity_timeline + PBVAR fields to a consolidated list."""
+        """Add HCMPI + PBVAR response columns to the consolidated list.
+
+        ``consolidate`` already labels PBVAR-only benes via the ``sources``
+        column; this step just attaches the response code + file_date for
+        every row that has a PBVAR record (regardless of source label).
+        """
         from acoharmony._transforms._identity_timeline import (
             current_mbi_with_hcmpi_lookup_lazy,
         )
