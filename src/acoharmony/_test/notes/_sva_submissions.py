@@ -74,6 +74,47 @@ class TestLoadSources:
         out = SvaSubmissionsPlugins().load_sources(tmp_path)
         assert out["palmr"].height == 1
 
+    @pytest.mark.unit
+    def test_empty_submissions_archive(self, tmp_path: Path) -> None:
+        # Empty archive → df_submissions falls back to the raw archive (line 81)
+        empty = pl.DataFrame(
+            schema={
+                "mbi": pl.Utf8,
+                "file_date": pl.Date,
+            }
+        )
+        empty.write_parquet(tmp_path / "sva_submissions.parquet")
+        out = SvaSubmissionsPlugins().load_sources(tmp_path)
+        assert out["submissions"].is_empty()
+
+    @pytest.mark.unit
+    def test_with_identity_timeline(self, tmp_path: Path) -> None:
+        # identity_timeline.parquet exists → exercises the xwalk import branch
+        from unittest.mock import patch
+
+        (tmp_path / "identity_timeline.parquet").touch()
+        with patch(
+            "acoharmony._transforms._identity_timeline.current_mbi_lookup_lazy",
+            return_value=pl.LazyFrame({"prvs_num": ["M1"], "crnt_num": ["M1_NEW"]}),
+        ):
+            out = SvaSubmissionsPlugins().load_sources(tmp_path)
+        assert "prvs_num" in out["xwalk"].columns
+
+    @pytest.mark.unit
+    def test_palmr_with_file_date_archive(self, tmp_path: Path) -> None:
+        # PALMR has file_date — exercise the most-recent filter branch
+        pl.DataFrame(
+            {
+                "prvdr_npi": ["N1", "N2"],
+                "prvdr_tin": ["T1", "T2"],
+                "bene_mbi": ["M1", "M2"],
+                "file_date": [date(2024, 1, 1), date(2024, 6, 1)],
+            }
+        ).write_parquet(tmp_path / "palmr.parquet")
+        out = SvaSubmissionsPlugins().load_sources(tmp_path)
+        # Latest file_date kept → only one row
+        assert out["palmr"].height == 1
+
 
 # ---------------------------------------------------------------------------
 # Date helpers
@@ -97,6 +138,21 @@ class TestDateHelpers:
         out = SvaSubmissionsPlugins().parse_dates(_submissions_df())
         assert "created_date" in out.columns
         assert out["created_date"][0] == date(2024, 6, 1)
+
+    @pytest.mark.unit
+    def test_parse_dates_signature_already_datetime(self) -> None:
+        # signature_date typed as Datetime → take the cast-to-datetime branch (line 134)
+        from datetime import datetime
+
+        df = pl.DataFrame(
+            {
+                "created_at": ["June 01, 2024, 09:00 AM"],
+                "signature_date": [datetime(2024, 6, 1, 9, 0)],
+                "mbi": ["M1"],
+            }
+        )
+        out = SvaSubmissionsPlugins().parse_dates(df)
+        assert out["signature_date_parsed"][0] == date(2024, 6, 1)
 
     @pytest.mark.unit
     def test_filter_date_range(self) -> None:
@@ -153,6 +209,33 @@ class TestPipelineTransforms:
         )
         assert "filtered" in out
         assert "valid" in out
+
+    @pytest.mark.unit
+    def test_valid_export_excludes_already_submitted(self) -> None:
+        # df_sva.height > 0 → exercise the anti-join path that strips
+        # already-submitted (mbi, signature_date) pairs (lines 302-306).
+        # M1 has two Completed rows in the fixture (sig 2024-06-01 and 2024-06-20).
+        # Anti-joining on the 2024-06-20 row leaves the 2024-06-01 row to survive.
+        plugin = SvaSubmissionsPlugins()
+        df_sva = pl.DataFrame(
+            {
+                "bene_mbi": ["M1"],
+                "sva_signature_date": [date(2024, 6, 20)],
+            }
+        )
+        out = plugin.apply_pipeline(
+            _submissions_df(),
+            df_sva,
+            pl.DataFrame(),
+            pl.DataFrame(),
+            pl.DataFrame(),
+            date(2024, 1, 1),
+            date(2024, 12, 31),
+        )
+        # The 2024-06-20 Completed row was removed; the 2024-06-01 row remains
+        m1_rows = out["valid"].filter(pl.col("mbi") == "M1")
+        assert m1_rows.height == 1
+        assert m1_rows["signature_date_parsed"][0] == date(2024, 6, 1)
 
 
 # ---------------------------------------------------------------------------
@@ -379,6 +462,116 @@ class TestPanelBalancing:
         )
         assert out["M1"]["npi"] == "1376709493"
 
+    @pytest.mark.unit
+    def test_panels_filter_empties_out(self) -> None:
+        # Selected provider doesn't match any provider-state combo in providers
+        # → panels.is_empty() short-circuit (line 624)
+        valid = pl.DataFrame(
+            {
+                "mbi": ["M1"],
+                "state": ["NJ"],
+                "signature_date_parsed": [date(2024, 6, 1)],
+            }
+        )
+        providers = pl.DataFrame(
+            {
+                "prvdr_npi": ["OTHER"],
+                "prvdr_tin": ["T1"],
+                "provider_state": ["NJ"],
+                "provider_name": ["X"],
+                "earliest_effective_date": [None],
+                "current_panel": [10],
+            }
+        )
+        bar = pl.DataFrame({"bene_mbi": ["M1"], "bene_state": ["NJ"]})
+        selected = {("MISSING_NPI", "T1", "NJ")}
+        out = SvaSubmissionsPlugins().panel_balancing_recommendations(
+            valid, providers, selected, bar
+        )
+        assert out == {}
+
+    @pytest.mark.unit
+    def test_no_state_skips_bene(self) -> None:
+        # final_state is null → continue (line 638)
+        valid = pl.DataFrame(
+            {
+                "mbi": ["M1"],
+                "state": [None],
+                "signature_date_parsed": [date(2024, 6, 1)],
+            }
+        )
+        providers = pl.DataFrame(
+            {
+                "prvdr_npi": ["1376709493"],
+                "prvdr_tin": ["T1"],
+                "provider_state": ["NJ"],
+                "provider_name": ["Rupen"],
+                "earliest_effective_date": [None],
+                "current_panel": [10],
+            }
+        )
+        bar = pl.DataFrame({"bene_mbi": ["M1"], "bene_state": [None]})
+        selected = {("1376709493", "T1", "NJ")}
+        out = SvaSubmissionsPlugins().panel_balancing_recommendations(
+            valid, providers, selected, bar
+        )
+        assert out == {}
+
+    @pytest.mark.unit
+    def test_no_state_match_skips_bene(self) -> None:
+        # bene state is "OK" but no provider serves OK → state_match.is_empty() (line 646)
+        valid = pl.DataFrame(
+            {
+                "mbi": ["M1"],
+                "state": ["OK"],
+                "signature_date_parsed": [date(2024, 6, 1)],
+            }
+        )
+        providers = pl.DataFrame(
+            {
+                "prvdr_npi": ["1376709493"],
+                "prvdr_tin": ["T1"],
+                "provider_state": ["NJ"],
+                "provider_name": ["Rupen"],
+                "earliest_effective_date": [None],
+                "current_panel": [10],
+            }
+        )
+        bar = pl.DataFrame({"bene_mbi": ["M1"], "bene_state": ["OK"]})
+        selected = {("1376709493", "T1", "NJ")}
+        out = SvaSubmissionsPlugins().panel_balancing_recommendations(
+            valid, providers, selected, bar
+        )
+        assert out == {}
+
+    @pytest.mark.unit
+    def test_no_primary_fallback_to_lowest_panel(self) -> None:
+        # Bene state has no primary in PRIMARY_PROVIDERS_BY_STATE
+        # (e.g., "AZ" — not in the map) → fallback path (line 656)
+        valid = pl.DataFrame(
+            {
+                "mbi": ["M1"],
+                "state": ["AZ"],
+                "signature_date_parsed": [date(2024, 6, 1)],
+            }
+        )
+        providers = pl.DataFrame(
+            {
+                "prvdr_npi": ["1356607881"],  # Eunice (allowed but not state-primary)
+                "prvdr_tin": ["T1"],
+                "provider_state": ["AZ"],
+                "provider_name": ["Eunice"],
+                "earliest_effective_date": [None],
+                "current_panel": [5],
+            }
+        )
+        bar = pl.DataFrame({"bene_mbi": ["M1"], "bene_state": ["AZ"]})
+        selected = {("1356607881", "T1", "AZ")}
+        out = SvaSubmissionsPlugins().panel_balancing_recommendations(
+            valid, providers, selected, bar
+        )
+        assert out["M1"]["npi"] == "1356607881"
+
 
 class TestCmsExport:
     @pytest.mark.unit
@@ -410,6 +603,76 @@ class TestCmsExport:
         )
         assert out.height == 1
         assert out["aco_id"][0] == "D0259"
+
+    @pytest.mark.unit
+    def test_with_recommendations_and_bar(self) -> None:
+        # recommendations populated → exercises the recommendation join branch
+        # (lines 697-730) and bar_data join (line 738 negative path)
+        valid = pl.DataFrame(
+            {
+                "mbi": ["M1"],
+                "beneficiary_first_name": ["A"],
+                "beneficiary_last_name": ["X"],
+                "address_primary_line": ["1 Main"],
+                "city": ["Detroit"],
+                "state": ["MI"],
+                "zip": ["48226"],
+                "provider_name": ["Doc"],
+                "provider_npi": ["N1"],
+                "tin": ["T1"],
+                "signature_date_parsed": [date(2024, 6, 1)],
+            }
+        )
+        providers_enriched = pl.DataFrame(
+            {
+                "prvdr_npi": ["N2"],
+                "prvdr_tin": ["T2"],
+                "provider_name": ["Better Doc"],
+            }
+        )
+        bar = pl.DataFrame(
+            {
+                "bene_mbi": ["M1"],
+                "bene_state": ["MI"],
+                "bene_city": ["Detroit"],
+                "bene_address_line_1": ["100 BAR Way"],
+                "bene_zip_5": ["48226"],
+            }
+        )
+        recommendations = {"M1": {"npi": "N2", "tin": "T2"}}
+        out = SvaSubmissionsPlugins().cms_sva_export(
+            valid, recommendations, providers_enriched, bar, today=date(2024, 7, 1)
+        )
+        assert out.height == 1
+        # Recommended NPI/TIN flowed through
+        assert out["sva_npi"][0] == "N2"
+        assert out["sva_tin"][0] == "T2"
+
+    @pytest.mark.unit
+    def test_with_recommendations_no_providers(self) -> None:
+        # recommendations populated, providers_enriched empty → final_provider_name
+        # falls back to provider_name (covers the providers_enriched.is_empty() branch)
+        valid = pl.DataFrame(
+            {
+                "mbi": ["M1"],
+                "beneficiary_first_name": ["A"],
+                "beneficiary_last_name": ["X"],
+                "address_primary_line": ["1 Main"],
+                "city": ["Detroit"],
+                "state": ["MI"],
+                "zip": ["48226"],
+                "provider_name": ["Doc"],
+                "provider_npi": ["N1"],
+                "tin": ["T1"],
+                "signature_date_parsed": [date(2024, 6, 1)],
+            }
+        )
+        recommendations = {"M1": {"npi": "N2", "tin": "T2"}}
+        out = SvaSubmissionsPlugins().cms_sva_export(
+            valid, recommendations, pl.DataFrame(), pl.DataFrame(), today=date(2024, 7, 1)
+        )
+        assert out.height == 1
+        assert out["provider_name"][0] == "Doc"
 
 
 # ---------------------------------------------------------------------------

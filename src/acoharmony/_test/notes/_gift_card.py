@@ -111,6 +111,18 @@ class TestGetMostRecentData:
         out = GiftCardPlugins().get_most_recent_data(lf).collect()
         assert out["x"].to_list() == [20]
 
+    @pytest.mark.unit
+    def test_file_date_no_mbi(self) -> None:
+        # file_date filtered but no mbi column → skip dedup branch (line 71→79)
+        lf = pl.LazyFrame(
+            {
+                "x": [1, 2],
+                "file_date": [date(2024, 1, 1), date(2024, 6, 1)],
+            }
+        )
+        out = GiftCardPlugins().get_most_recent_data(lf).collect()
+        assert out["x"].to_list() == [2]
+
 
 # ---------------------------------------------------------------------------
 # Source loaders + overlap
@@ -363,6 +375,23 @@ class TestApplyAddressParsing:
         )
         out = GiftCardPlugins()._apply_address_parsing(df)
         assert out["address_line_1"][0] is None
+
+    @pytest.mark.unit
+    def test_addr2_empty_triggers_parse(self) -> None:
+        # addr2 is empty/null but addr1 has content → parse_address is called
+        # (line 749 path) — parse falls through usaddress import error to
+        # return (input, None)
+        df = pl.DataFrame(
+            {
+                "address_line_1": ["123 Main St"],
+                "address_line_2": [None],
+            },
+            schema={"address_line_1": pl.Utf8, "address_line_2": pl.Utf8},
+        )
+        out = GiftCardPlugins()._apply_address_parsing(df)
+        # No usaddress installed → parse returns ("123 Main St", None)
+        assert out["address_line_1"][0] == "123 Main St"
+        assert out["address_line_2"][0] is None
 
 
 class TestAnalyzeDuplicates:

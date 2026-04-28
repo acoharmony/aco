@@ -90,6 +90,22 @@ class TestLivingFilter:
         out = ConsolidatedAlignmentsPlugins().living_filter(df)
         assert df.filter(out).collect().is_empty()
 
+    @pytest.mark.unit
+    def test_none_input(self) -> None:
+        # `df is None` early-exits to lit(True) without touching schema
+        out = ConsolidatedAlignmentsPlugins().living_filter(None)
+        assert pl.LazyFrame({"x": [1]}).filter(out).collect().height == 1
+
+    @pytest.mark.unit
+    def test_collect_schema_raises(self) -> None:
+        from unittest.mock import MagicMock
+
+        bad = MagicMock()
+        bad.collect_schema.side_effect = RuntimeError("boom")
+        out = ConsolidatedAlignmentsPlugins().living_filter(bad)
+        # Falls back to lit(True) when schema introspection fails
+        assert pl.LazyFrame({"x": [1]}).filter(out).collect().height == 1
+
 
 class TestExtractYearMonths:
     @pytest.mark.unit

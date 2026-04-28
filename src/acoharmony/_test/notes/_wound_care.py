@@ -164,6 +164,44 @@ class TestFilteredClaims:
         assert out.height == 1
 
     @pytest.mark.unit
+    def test_hdai_cohort_filter_applied(self, tmp_path: Path) -> None:
+        # HDAI source + reach_ever cohort → covers line 130 (hdai cohort filter)
+        pl.DataFrame(
+            {
+                "current_mbi": ["M1"],
+                "observable_end": [date(2025, 6, 30)],
+                "ym_202506_reach": [True],
+                "ever_reach": [True],
+            }
+        ).write_parquet(tmp_path / "consolidated_alignment.parquet")
+        with patch(
+            "acoharmony._notes._wound_care.pl.read_excel",
+            return_value=pl.DataFrame(
+                {
+                    "MBI NUM": ["M1", "OTHER"],
+                    "Claim ID": ["C1", "C2"],
+                    "Claim Through Date": [date(2025, 1, 1), date(2025, 1, 1)],
+                    "HCPCS Code": ["A1", "A1"],
+                    "Line Payment Amount": [100.0, 200.0],
+                    "Rendering Provider NPI": ["N1", "N2"],
+                    "Claim Status": ["Adjudicated"] * 2,
+                }
+            ),
+        ):
+            out = WoundCarePlugins().filtered_claims(
+                "skin_substitute",
+                "2025",
+                "reach_ever",
+                "hdai",
+                tmp_path,
+                tmp_path,
+                skin_substitute_codes=["A1"],
+            )
+        assert out is not None
+        # Cohort filter drops "OTHER", keeps M1
+        assert out.height == 1
+
+    @pytest.mark.unit
     def test_matched(self, tmp_path: Path) -> None:
         _cclf_df().head(1).write_parquet(tmp_path / "skin_substitute_claims.parquet")
         with patch(

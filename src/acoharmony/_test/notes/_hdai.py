@@ -344,6 +344,23 @@ class TestSaveDiscussedStateAtomic:
         leftovers = list(tmp_path.glob(".hdai_reach_discussed.*.tmp"))
         assert leftovers == []
 
+    @pytest.mark.unit
+    def test_replace_failure_tmp_already_gone(self, tmp_path: Path) -> None:
+        # Cover the branch where the tmp file was already removed before
+        # the cleanup path runs (177→179 path skipped: os.path.exists False)
+        from unittest.mock import patch
+
+        path = tmp_path / "state.json"
+        with patch(
+            "acoharmony._notes._hdai.os.replace",
+            side_effect=RuntimeError("fail"),
+        ), patch(
+            "acoharmony._notes._hdai.os.path.exists",
+            return_value=False,
+        ):
+            with pytest.raises(RuntimeError):
+                HdaiPlugins().save_discussed_state(path, {"M1": {}})
+
 
 class TestDiscussedStateFile:
     @pytest.mark.unit

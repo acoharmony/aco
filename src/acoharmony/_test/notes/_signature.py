@@ -127,6 +127,22 @@ class TestLoaders:
         assert out["npi_to_name"]["N1"] == "First1 Last1"
 
     @pytest.mark.unit
+    def test_load_provider_list_skips_blank_after_strip(self, tmp_path: Path) -> None:
+        # Whitespace-only TIN/NPI fields should be skipped (line 99 path)
+        pl.DataFrame(
+            {
+                "base_provider_tin": ["T1", " ", "T9"],
+                "individual_npi": ["N1", "N2", " "],
+                "individual_first_name": ["F"] * 3,
+                "individual_last_name": ["L"] * 3,
+                "provider_class": ["Participant Provider"] * 3,
+            }
+        ).write_parquet(tmp_path / "participant_list.parquet")
+        out = SignaturePlugins().load_provider_list(tmp_path)
+        # Only T1+N1 survives the post-strip non-empty check
+        assert out["valid_combos"] == {("T1", "N1")}
+
+    @pytest.mark.unit
     def test_load_sva_with_pbvar(self, tmp_path: Path) -> None:
         _sva_df().write_parquet(tmp_path / "sva.parquet")
         pl.DataFrame(
@@ -223,6 +239,20 @@ class TestSignatureHistory:
             }
         )
         sva = pl.DataFrame({"normalized_mbi": ["M2"], "x": [1]})
+        out = SignaturePlugins().combine_signatures(pbvar, sva)
+        assert out.height == 2
+
+    @pytest.mark.unit
+    def test_combine_signatures_sva_categorical_cast(self) -> None:
+        # SVA-side categorical cast (line 199 path)
+        pbvar = pl.DataFrame({"normalized_mbi": ["M1"], "y": [1]})
+        sva = pl.DataFrame(
+            {
+                "normalized_mbi": pl.Series(["M2"], dtype=pl.Categorical),
+                "status": pl.Series(["Active"], dtype=pl.Categorical),
+                "x": [1],
+            }
+        )
         out = SignaturePlugins().combine_signatures(pbvar, sva)
         assert out.height == 2
 
@@ -638,6 +668,26 @@ class TestSvaValidation:
         assert out is not None
         assert out.height == 1
         assert invalid.is_empty()  # M4's combo (T3, N3) is valid
+
+    @pytest.mark.unit
+    def test_validate_tin_npi_finds_invalid(self, tmp_path: Path) -> None:
+        # Cover line 670 — an actual invalid combo gets recorded
+        _sva_df().write_parquet(tmp_path / "sva.parquet")
+        out, invalid = SignaturePlugins().validate_sva_tin_npi(tmp_path, set())
+        assert out is not None
+        assert invalid.height >= 1
+        # Schema includes the expected fields
+        assert "bene_mbi" in invalid.columns
+        assert "sva_tin" in invalid.columns
+
+    @pytest.mark.unit
+    def test_most_recent_sva_date_empty_file(self, tmp_path: Path) -> None:
+        # Cover line 644 — empty SVA file → None
+        pl.DataFrame({"file_date": []}, schema={"file_date": pl.Date}).write_parquet(
+            tmp_path / "sva.parquet"
+        )
+        out = SignaturePlugins().most_recent_sva_date(tmp_path)
+        assert out is None
 
     @pytest.mark.unit
     def test_validate_status_empty(self) -> None:
