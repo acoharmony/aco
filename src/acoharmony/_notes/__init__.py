@@ -16,6 +16,7 @@ from ._calendar import CalendarPlugins
 from ._cite import CitePlugins
 from ._crosswalk import CrosswalkPlugins
 from ._data import DataPlugins
+from ._gc_notifications import GcNotificationsPlugins
 from ._gift_card import GiftCardPlugins
 from ._hdai import HdaiPlugins
 from ._hedr import HedrPlugins
@@ -50,6 +51,7 @@ acr = AcrPlugins()
 calendar = CalendarPlugins()
 cite = CitePlugins()
 crosswalk = CrosswalkPlugins()
+gc_notifications = GcNotificationsPlugins()
 gift_card = GiftCardPlugins()
 hdai = HdaiPlugins()
 hedr = HedrPlugins()
@@ -82,6 +84,7 @@ __all__ = [
     "CalendarPlugins",
     "CitePlugins",
     "CrosswalkPlugins",
+    "GcNotificationsPlugins",
     "GiftCardPlugins",
     "HdaiPlugins",
     "HedrPlugins",
@@ -109,6 +112,7 @@ __all__ = [
     "calendar",
     "cite",
     "crosswalk",
+    "gc_notifications",
     "gift_card",
     "hdai",
     "hedr",
