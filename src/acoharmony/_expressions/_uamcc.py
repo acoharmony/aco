@@ -320,18 +320,6 @@ class UamccExpression:
             ]
         )
 
-        # Map procedure (hcpcs_code) to CCS
-        px_ccs = value_sets["ccs_icd10_pcs"].select(
-            [
-                pl.col("icd_10_pcs").alias("hcpcs_code"),
-                pl.col("ccs_category").alias("px_ccs_category"),
-            ]
-        )
-
-        claims_with_ccs = base_claims.join(
-            dx_ccs, on="diagnosis_code_1", how="left"
-        ).join(px_ccs, on="hcpcs_code", how="left")
-
         # PAA1: always-planned procedure CCS categories
         paa1_set = (
             value_sets["paa1"]
@@ -370,15 +358,65 @@ class UamccExpression:
             .to_list()
         )
 
-        # Coerce nulls (claims whose dx/px aren't in the CCS map) to False so
-        # downstream OR/AND chains produce concrete booleans instead of nulls.
-        # Without this ``is_planned`` propagates null and ``~is_excluded``
-        # filters every otherwise-eligible admission out of the numerator.
+        # Map ICD-10-PCS → CCS for procedure flags. Inpatient claims
+        # carry institutional procedures in ``procedure_code_1..25``
+        # (not ``hcpcs_code``, which is empty on inpatient and only
+        # populated on outpatient/Part B). Unpivot and aggregate so a
+        # claim is flagged if *any* of its procedures hit PAA1/PAA3.
+        proc_cols = [c for c in claims.collect_schema().names() if c.startswith("procedure_code_")]
+        px_ccs_map = value_sets["ccs_icd10_pcs"].select(
+            [
+                pl.col("icd_10_pcs").alias("normalized_pcs"),
+                pl.col("ccs_category").alias("px_ccs_category"),
+            ]
+        )
+        if proc_cols:
+            unpivoted = pl.concat(
+                [
+                    base_claims.select(
+                        [
+                            pl.col("claim_id"),
+                            pl.col(c).alias("normalized_pcs"),
+                        ]
+                    ).filter(
+                        pl.col("normalized_pcs").is_not_null()
+                        & (pl.col("normalized_pcs") != "")
+                    )
+                    for c in proc_cols
+                ]
+            )
+            claim_px_flags = (
+                unpivoted.join(px_ccs_map, on="normalized_pcs", how="inner")
+                .group_by("claim_id")
+                .agg(
+                    [
+                        pl.col("px_ccs_category").is_in(paa1_set).any().alias("rule1_flag"),
+                        pl.col("px_ccs_category").is_in(paa3_set).any().alias("paa3_flag"),
+                    ]
+                )
+            )
+        else:
+            claim_px_flags = base_claims.select("claim_id").with_columns(
+                [
+                    pl.lit(False).alias("rule1_flag"),
+                    pl.lit(False).alias("paa3_flag"),
+                ]
+            )
+
+        claims_with_ccs = base_claims.join(
+            dx_ccs, on="diagnosis_code_1", how="left"
+        ).join(claim_px_flags, on="claim_id", how="left")
+
+        # Coerce nulls (claims whose dx isn't in the CCS map, or which
+        # had no procedure-CCS hit) to False so downstream OR/AND chains
+        # produce concrete booleans. Without this ``is_planned``
+        # propagates null and ``~is_excluded`` filters every
+        # otherwise-eligible admission out of the numerator.
         return claims_with_ccs.with_columns(
             [
-                pl.col("px_ccs_category").is_in(paa1_set).fill_null(False).alias("rule1_flag"),
+                pl.col("rule1_flag").fill_null(False),
+                pl.col("paa3_flag").fill_null(False),
                 pl.col("dx_ccs_category").is_in(paa2_set).fill_null(False).alias("rule2_flag"),
-                pl.col("px_ccs_category").is_in(paa3_set).fill_null(False).alias("paa3_flag"),
                 pl.col("dx_ccs_category").is_in(paa4_set).fill_null(False).alias("paa4_flag"),
             ]
         ).with_columns(
