@@ -165,40 +165,54 @@ class TestClassifyPlannedAdmissions:
 
 
 class TestApplyOutcomeExclusions:
-    """Cover apply_outcome_exclusions lines 358-399."""
+    """Verify exclusion flags set correctly across all three categories."""
 
     @pytest.mark.unit
     def test_exclusion_flags(self):
         import polars as pl
 
         planned = pl.DataFrame({
-            "claim_id": ["C1", "C2", "C3"],
-            "person_id": ["P1", "P1", "P1"],
-            "admission_date": ["2025-03-01", "2025-06-01", "2025-09-01"],
-            "diagnosis_code_1": ["A01", "B02", "C03"],
-            "dx_ccs_category": ["CCS100", "CCS145", "CCS2601"],
-            "is_planned": [True, False, False],
-            "planned_rule": ["RULE1", None, None],
+            "claim_id": ["C1", "C2", "C3", "C4", "C5"],
+            "person_id": ["P1"] * 5,
+            "admission_date": [
+                "2025-03-01", "2025-06-01", "2025-09-01",
+                "2025-10-01", "2025-11-01",
+            ],
+            "diagnosis_code_1": ["A01", "B02", "C03", "U07.1", "Z99"],
+            "dx_ccs_category": ["CCS100", "CCS145", "CCS2601", "CCS999", "CCS999"],
+            "is_planned": [True, False, False, False, False],
+            "planned_rule": ["RULE1", None, None, None, None],
         }).lazy()
 
+        # Mirrors the real value-set schema: per-PY rows, code_type splits CCS
+        # categories from ICD-10 codes (e.g. COVID U07.1).
         value_sets = {
             "exclusions": pl.DataFrame({
                 "exclusion_category": [
                     "Complications of procedures or surgeries",
-                    "Injury",
+                    "Accidents or injuries",
+                    "COVID-19 diagnosis",
+                    "Complications of procedures or surgeries",  # off-year, must be ignored
                 ],
-                "category_or_code": ["CCS145", "CCS2601"],
+                "code_type": ["CCS", "CCS", "ICD-10-CM", "CCS"],
+                "category_or_code": ["CCS145", "CCS2601", "U07.1", "CCS999"],
+                "performance_year": [2025, 2025, 2025, 2024],
             }).lazy(),
         }
+        config = {"performance_year": 2025}
 
-        result = UamccExpression.apply_outcome_exclusions(planned, value_sets).collect()
+        result = UamccExpression.apply_outcome_exclusions(
+            planned, value_sets, config
+        ).collect()
         assert "is_excluded" in result.columns
-        # C1: planned → excluded
+        # C1: planned, C2: complication CCS, C3: injury CCS, C4: COVID ICD-10
         assert result.filter(pl.col("claim_id") == "C1")["is_excluded"][0] is True
-        # C2: complication → excluded
         assert result.filter(pl.col("claim_id") == "C2")["is_excluded"][0] is True
-        # C3: injury → excluded
         assert result.filter(pl.col("claim_id") == "C3")["is_excluded"][0] is True
+        assert result.filter(pl.col("claim_id") == "C4")["is_excluded"][0] is True
+        # C5: nothing matches, off-year exclusion ignored, dx_ccs_category=CCS999
+        # only appears in 2024 row which the PY filter drops
+        assert result.filter(pl.col("claim_id") == "C5")["is_excluded"][0] is False
 
 
 class TestCalculatePersonTime:
@@ -276,7 +290,9 @@ class TestCalculateUamccMeasure:
             "paa4": pl.DataFrame({"category_or_code": pl.Series([], dtype=pl.Utf8), "code_type": pl.Series([], dtype=pl.Utf8)}).lazy(),
             "exclusions": pl.DataFrame({
                 "exclusion_category": ["Complications of procedures or surgeries"],
+                "code_type": ["CCS"],
                 "category_or_code": ["CCS_EXCL"],
+                "performance_year": [2025],
             }).lazy(),
         }
 

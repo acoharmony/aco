@@ -349,20 +349,31 @@ class UamccExpression:
     def apply_outcome_exclusions(
         planned_admissions: pl.LazyFrame,
         value_sets: dict[str, pl.LazyFrame],
+        config: dict[str, Any],
     ) -> pl.LazyFrame:
         """Flag admissions excluded from numerator.
 
-        Exclusions: planned, procedure complications (CCS 145/237/238/257),
-        injuries (CCS 2601-2621).
+        Three exclusion categories (per UAMCC MIF §3.7):
+            1. Procedure complications — matched against CCS diagnosis category
+            2. Accidents or injuries — matched against CCS diagnosis category
+            3. COVID-19 diagnosis — matched against ICD-10-CM principal dx
+
+        Filters the value set to the current performance_year and to non-null
+        codes; categories #1 and #2 are scoped to ``code_type == "CCS"`` so the
+        ICD-10 COVID code doesn't leak into the CCS comparison.
         """
-        exclusion_vs = value_sets["exclusions"]
+        performance_year = int(config["performance_year"])
+        exclusion_vs = value_sets["exclusions"].filter(
+            (pl.col("performance_year") == performance_year)
+            & pl.col("category_or_code").is_not_null()
+        )
 
         complication_ccs = (
             exclusion_vs.filter(
-                pl.col("exclusion_category")
-                == "Complications of procedures or surgeries"
+                (pl.col("exclusion_category") == "Complications of procedures or surgeries")
+                & (pl.col("code_type") == "CCS")
             )
-            .select(pl.col("category_or_code"))
+            .select("category_or_code")
             .unique()
             .collect()["category_or_code"]
             .to_list()
@@ -370,10 +381,18 @@ class UamccExpression:
 
         injury_ccs = (
             exclusion_vs.filter(
-                pl.col("exclusion_category")
-                != "Complications of procedures or surgeries"
+                (pl.col("exclusion_category") == "Accidents or injuries")
+                & (pl.col("code_type") == "CCS")
             )
-            .select(pl.col("category_or_code"))
+            .select("category_or_code")
+            .unique()
+            .collect()["category_or_code"]
+            .to_list()
+        )
+
+        covid_icd10 = (
+            exclusion_vs.filter(pl.col("exclusion_category") == "COVID-19 diagnosis")
+            .select("category_or_code")
             .unique()
             .collect()["category_or_code"]
             .to_list()
@@ -387,6 +406,7 @@ class UamccExpression:
                 pl.col("dx_ccs_category")
                 .is_in(injury_ccs)
                 .alias("is_injury_or_accident"),
+                pl.col("diagnosis_code_1").is_in(covid_icd10).alias("is_covid_19"),
             ]
         ).with_columns(
             [
@@ -394,6 +414,7 @@ class UamccExpression:
                     pl.col("is_planned")
                     | pl.col("is_procedure_complication")
                     | pl.col("is_injury_or_accident")
+                    | pl.col("is_covid_19")
                 ).alias("is_excluded")
             ]
         )
@@ -516,7 +537,7 @@ class UamccExpression:
 
         # Step 4: Outcome exclusions
         outcome_exclusions = UamccExpression.apply_outcome_exclusions(
-            planned_admissions, value_sets
+            planned_admissions, value_sets, config
         )
 
         # Step 5: Person-time

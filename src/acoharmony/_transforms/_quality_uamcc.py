@@ -109,7 +109,7 @@ class AllCauseUnplannedAdmissions(QualityMeasureBase):
             claims, value_sets, config
         )
         with_exclusions = UamccExpression.apply_outcome_exclusions(
-            planned, value_sets
+            planned, value_sets, config
         )
 
         # Unplanned admissions for denominator members
