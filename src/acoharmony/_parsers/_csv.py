@@ -173,20 +173,38 @@ def parse_csv(file_path: Path, schema: Any, limit: int | None = None) -> pl.Lazy
     actual_columns = lf.collect_schema().names()
     actual_col_count = len(actual_columns)
 
+    # Decide between positional (default, legacy) and by-name mapping.
+    # Schemas opt into name mapping by passing map_by="name" to @with_parser
+    # — necessary when the same schema parses files with varying column
+    # counts (e.g. blqqr_uamcc has different columns for PY2024 vs PY2025+).
+    map_by = "position"
+    if schema and hasattr(schema, "file_format") and schema.file_format:
+        map_by = schema.file_format.get("map_by", "position")
+
     # Apply schema-driven renaming and typing
     if schema and hasattr(schema, "columns"):
-        # Build mapping by position
         rename_map = {}
         cast_exprs = []
 
-        for i, col_def in enumerate(schema.columns):
-            if i >= actual_col_count:
-                # Schema has more columns than file
-                break
+        # Pre-build lookup for by-name mode: lowercase actual header → real header.
+        # Files have UPPERCASE headers (BENE_ID), schemas have lowercase fields
+        # (bene_id); a case-insensitive match handles either side.
+        actual_by_lower = {c.lower(): c for c in actual_columns}
 
-            # Map actual column name to schema output name
-            actual_name = actual_columns[i]
+        for i, col_def in enumerate(schema.columns):
             output_name = col_def.get("output_name", col_def.get("name"))
+
+            if map_by == "name":
+                actual_name = actual_by_lower.get(output_name.lower())
+                if actual_name is None:
+                    # Field declared in schema but missing from file (e.g.
+                    # PY2025+-only columns in a PY2024 file). Skip silently.
+                    continue
+            else:
+                if i >= actual_col_count:
+                    break
+                actual_name = actual_columns[i]
+
             rename_map[actual_name] = output_name
 
             # Determine data type
