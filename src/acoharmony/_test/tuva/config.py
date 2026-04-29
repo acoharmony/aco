@@ -1231,6 +1231,8 @@ class TestTuvaDependsSetup:  # noqa: F811
 
     @pytest.mark.unit
     def test_setup_dependencies_update(self):
+        # A real clone has a .git/ marker. setup.py treats anything else as
+        # incomplete and re-clones — the test fixture must mirror that.
         import acoharmony._tuva._depends.setup as setup_mod
 
         depends_dir = Path(setup_mod.__file__).parent
@@ -1239,6 +1241,7 @@ class TestTuvaDependsSetup:  # noqa: F811
 
         repo_path = repos_dir / "tuva"
         repo_path.mkdir(parents=True, exist_ok=True)
+        (repo_path / ".git").mkdir(exist_ok=True)
 
         with (
             patch("subprocess.run") as mock_run,
@@ -1272,6 +1275,7 @@ class TestTuvaDependsSetup:  # noqa: F811
 
         repo_path = repos_dir / "tuva"
         repo_path.mkdir(parents=True, exist_ok=True)
+        (repo_path / ".git").mkdir(exist_ok=True)
 
         with (
             patch("subprocess.run") as mock_run,

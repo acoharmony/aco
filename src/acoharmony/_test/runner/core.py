@@ -463,9 +463,8 @@ class TestTransformSchemaAllBranches:
             assert result.failed
 
     @pytest.mark.unit
-    def test_no_input_source_returns_error_line139(self, tmp_path):
-        """Line 139: no input source returns error."""
-
+    def test_no_input_source_returns_skipped_line139(self, tmp_path):
+        """Line 139: no input source soft-skips (was FAILURE, now SKIPPED)."""
 
         mock_storage = MagicMock()
         mock_storage.get_path.return_value = str(tmp_path)
@@ -479,7 +478,7 @@ class TestTransformSchemaAllBranches:
             runner._has_raw_files = MagicMock(return_value=False)
 
             result = runner.transform_schema("cclf0")
-            assert result.failed
+            assert result.status == ResultStatus.SKIPPED
 
     @pytest.mark.unit
     def test_raw_files_path_line134(self, tmp_path):

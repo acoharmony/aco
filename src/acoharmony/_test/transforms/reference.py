@@ -493,11 +493,12 @@ class TestParseTuvaSeedDefinitions:
         dbt_project_yml.write_text(
             "vars:\n"
             "  custom_bucket_name: my-bucket\n"
+            "  tuva_seed_version: '1.0.0'\n"
             "seeds:\n"
             "  the_tuva_project:\n"
             "    terminology:\n"
             "      terminology__icd_10_cm:\n"
-            "        +post-hook: \"load_seed('/terminology', 'icd_10_cm.csv')\"\n"
+            "        +post-hook: \"load_versioned_seed('terminology', 'icd_10_cm.csv')\"\n"
         )
         seeds_dir = tmp_path / "seeds"
         seeds_dir.mkdir()
@@ -520,7 +521,7 @@ class TestParseTuvaSeedDefinitions:
             "    terminology:\n"
             "      sub_group:\n"
             "        terminology__sub_test:\n"
-            "          +post-hook: \"load_seed('/terminology/sub', 'sub_test.csv')\"\n"
+            "          +post-hook: \"load_versioned_seed('terminology', 'sub_test.csv')\"\n"
         )
         seeds_dir = tmp_path / "seeds"
         seeds_dir.mkdir()
@@ -558,7 +559,7 @@ class TestParseTuvaSeedDefinitions:
             "  the_tuva_project:\n"
             "    terminology:\n"
             "      terminology__codes:\n"
-            "        +post-hook: \"load_seed('/terminology', 'codes.csv')\"\n"
+            "        +post-hook: \"load_versioned_seed('terminology', 'codes.csv')\"\n"
         )
         seeds_dir = tmp_path / "seeds"
         seeds_dir.mkdir()
@@ -577,7 +578,7 @@ class TestParseTuvaSeedDefinitions:
             "  the_tuva_project:\n"
             "    terminology:\n"
             "      terminology__icd_10_cm:\n"
-            "        +post-hook: \"load_seed('/terminology', 'icd_10_cm.csv')\"\n"
+            "        +post-hook: \"load_versioned_seed('terminology', 'icd_10_cm.csv')\"\n"
         )
         seeds_dir = tmp_path / "seeds"
         seeds_dir.mkdir()
@@ -604,7 +605,7 @@ class TestParseTuvaSeedDefinitions:
             "  the_tuva_project:\n"
             "    reference:\n"
             "      simple_seed:\n"
-            "        +post-hook: \"load_seed('/reference', 'simple_seed.csv')\"\n"
+            "        +post-hook: \"load_versioned_seed('reference_data', 'simple_seed.csv')\"\n"
         )
         seeds_dir = tmp_path / "seeds"
         seeds_dir.mkdir()
@@ -624,7 +625,7 @@ class TestParseTuvaSeedDefinitions:
             "    terminology:\n"
             "      +enabled: true\n"
             "      terminology__codes:\n"
-            "        +post-hook: \"load_seed('/terminology', 'codes.csv')\"\n"
+            "        +post-hook: \"load_versioned_seed('terminology', 'codes.csv')\"\n"
         )
         seeds_dir = tmp_path / "seeds"
         seeds_dir.mkdir()
@@ -658,10 +659,11 @@ class TestDownloadReferenceStageAdditional:
 
     @pytest.mark.unit
     def test_download_without_columns(self, tmp_path):
-        """Download stage without columns uses auto-generated headers."""
+        """Stages with no schema YAML still download — modern Tuva seeds
+        carry their own headers, so the schema YAML is just a sanity-check."""
         stage = ReferenceStage(
             name="test", schema="test_schema", table="test_table",
-            s3_uri="https://example.com/test.csv",
+            s3_uri="https://example.com/test.csv.gz",
             group="reference", order=1,
             columns=[],
         )
@@ -672,7 +674,7 @@ class TestDownloadReferenceStageAdditional:
             result = download_reference_stage(stage, tmp_path, mock_logger, overwrite=False)
 
         assert result is not None
-        mock_logger.warning.assert_called()
+        assert result.exists()
 
     @pytest.mark.unit
     def test_overwrite_existing(self, tmp_path):
@@ -929,44 +931,37 @@ class TestListTuvaReferenceCategories:
 # ---------------------------------------------------------------------------
 
 
-class TestParseTuvaSeedMissingPathOrFilename:
-    """Cover branch 162→145: post-hook with load_seed but missing s3_path
-    or csv_filename causes the if-condition to be False, looping back."""
+class TestParseTuvaSeedMalformedHook:
+    """A post-hook that doesn't match the load_versioned_seed signature is
+    skipped without aborting the surrounding seed config."""
 
     @pytest.mark.unit
-    def test_post_hook_missing_csv_filename_then_valid(self, tmp_path):
-        """A post-hook where the single-quote split yields no .csv filename
-        causes `if s3_path and csv_filename` to be False (162→145), then the
-        next entry in the same config_dict is a valid seed."""
+    def test_malformed_hook_then_valid(self, tmp_path):
         dbt_project_yml = tmp_path / "dbt_project.yml"
         dbt_project_yml.write_text(
             "seeds:\n"
             "  the_tuva_project:\n"
             "    terminology:\n"
             "      terminology__bad_hook:\n"
-            "        +post-hook: \"load_seed(no_quotes_here)\"\n"
+            "        +post-hook: \"load_versioned_seed(no_quotes_here)\"\n"
             "      terminology__good_hook:\n"
-            "        +post-hook: \"load_seed('/terminology', 'codes.csv')\"\n"
+            "        +post-hook: \"load_versioned_seed('terminology', 'codes.csv')\"\n"
         )
         seeds_dir = tmp_path / "seeds"
         seeds_dir.mkdir()
         mock_logger = MagicMock()
 
         stages = parse_tuva_seed_definitions(tmp_path, mock_logger)
-        # Only the good_hook produces a stage; bad_hook is skipped
         assert len(stages) == 1
         assert stages[0].table == "good_hook"
 
 
 class TestParseTuvaSeedNonDictSchemaConfig:
-    """Cover branch 203→202: a non-dict value in seed_config causes
-    isinstance check to be False, looping back to the next entry."""
+    """A non-dict value in seed_config (e.g. `+enabled: true`) is skipped
+    rather than aborting the parse."""
 
     @pytest.mark.unit
     def test_non_dict_schema_entry_then_valid(self, tmp_path):
-        """A non-dict value (e.g. a boolean) in seed_config causes
-        `isinstance(schema_config, dict)` to be False (203→202), then the
-        loop continues to the next schema entry which is valid."""
         dbt_project_yml = tmp_path / "dbt_project.yml"
         dbt_project_yml.write_text(
             "seeds:\n"
@@ -974,14 +969,13 @@ class TestParseTuvaSeedNonDictSchemaConfig:
             "    +enabled: true\n"
             "    terminology:\n"
             "      terminology__codes:\n"
-            "        +post-hook: \"load_seed('/terminology', 'codes.csv')\"\n"
+            "        +post-hook: \"load_versioned_seed('terminology', 'codes.csv')\"\n"
         )
         seeds_dir = tmp_path / "seeds"
         seeds_dir.mkdir()
         mock_logger = MagicMock()
 
         stages = parse_tuva_seed_definitions(tmp_path, mock_logger)
-        # The +enabled entry is a bool, not a dict, so it's skipped
         assert len(stages) == 1
         assert stages[0].schema == "terminology"
 
