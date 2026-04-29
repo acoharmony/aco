@@ -96,7 +96,17 @@ class AllCauseUnplannedAdmissions(QualityMeasureBase):
         claims: pl.LazyFrame,
         value_sets: dict[str, pl.LazyFrame],
     ) -> pl.LazyFrame:
-        """Calculate numerator: patients with unplanned admissions."""
+        """Calculate numerator: count of unplanned admissions per beneficiary.
+
+        Returns one row per denominator member with:
+            count_unplanned_adm: int — number of distinct unplanned admissions
+            numerator_flag: bool — count_unplanned_adm > 0 (kept for callers
+                that only need the binary)
+
+        CMS BLQQR_UAMCC reports admissions as a count, not a flag. Earlier
+        versions of this method collapsed to a binary, which under-reported
+        the true admission count for repeat-admitters.
+        """
         measurement_year = self.config.get("measurement_year", 2025)
 
         config = {
@@ -112,35 +122,32 @@ class AllCauseUnplannedAdmissions(QualityMeasureBase):
             planned, value_sets, config
         )
 
-        # Unplanned admissions for denominator members
-        unplanned = (
+        per_person_counts = (
             with_exclusions.filter(~pl.col("is_excluded"))
             .join(
                 denominator.select("person_id"),
                 on="person_id",
                 how="inner",
             )
-            .select("person_id")
-            .unique()
+            .group_by("person_id")
+            .agg(pl.col("claim_id").n_unique().alias("count_unplanned_adm"))
         )
 
         return (
             denominator.select("person_id")
-            .join(
-                unplanned.with_columns(
-                    [pl.lit(True).alias("_has_admission")]
-                ),
-                on="person_id",
-                how="left",
-            )
+            .join(per_person_counts, on="person_id", how="left")
             .with_columns(
                 [
-                    pl.col("_has_admission")
-                    .fill_null(False)
-                    .alias("numerator_flag")
+                    pl.col("count_unplanned_adm")
+                    .fill_null(0)
+                    .cast(pl.Int64)
+                    .alias("count_unplanned_adm"),
                 ]
             )
-            .select(["person_id", "numerator_flag"])
+            .with_columns(
+                [(pl.col("count_unplanned_adm") > 0).alias("numerator_flag")]
+            )
+            .select(["person_id", "count_unplanned_adm", "numerator_flag"])
         )
 
     def calculate_exclusions(

@@ -79,14 +79,32 @@ class TestUAMCCCalculateNumerator:
         value_sets = {}
 
         with patch("acoharmony._transforms._quality_uamcc.UamccExpression") as mock_expr:
-            mock_planned = pl.DataFrame({"person_id": ["A"], "is_excluded": [False]}).lazy()
+            # Two distinct admissions for person A, one excluded for person B.
+            mock_planned = pl.DataFrame(
+                {
+                    "person_id": ["A", "A", "B"],
+                    "claim_id": ["c1", "c2", "c3"],
+                    "is_excluded": [False, False, True],
+                }
+            ).lazy()
             mock_expr.classify_planned_admissions.return_value = mock_planned
             mock_expr.apply_outcome_exclusions.return_value = mock_planned
 
             result = transform.calculate_numerator(denominator, claims, value_sets)
             collected = result.collect()
             assert "person_id" in collected.columns
+            assert "count_unplanned_adm" in collected.columns
             assert "numerator_flag" in collected.columns
+
+            by_person = dict(
+                zip(
+                    collected["person_id"].to_list(),
+                    collected["count_unplanned_adm"].to_list(),
+                    strict=False,
+                )
+            )
+            assert by_person["A"] == 2  # two unplanned admissions
+            assert by_person["B"] == 0  # only excluded admission
 
 
 class TestUAMCCCalculateExclusions:
