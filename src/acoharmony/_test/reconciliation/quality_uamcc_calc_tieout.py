@@ -88,9 +88,13 @@ def _mbi_to_person_id() -> pl.DataFrame:
     return elig.collect().unique(subset="mbi")
 
 
-def _run_our_calc(performance_year: int) -> pl.DataFrame:
-    """Execute AllCauseUnplannedAdmissions for the given PY and return
-    a per-person frame with count_unplanned_adm."""
+def _run_our_calc(performance_year: int, aco_id: str) -> pl.DataFrame:
+    """Execute AllCauseUnplannedAdmissions for the given PY/ACO and
+    return a per-person frame with count_unplanned_adm.
+
+    Gates the denominator on the PY-aligned REACH population for
+    ``aco_id`` so the cohort matches what CMS BLQQR-UAMCC reports on.
+    """
     # The calc consumes gold-tier inputs (person_id-keyed,
     # standardized column names like birth_date). silver eligibility has
     # raw bene_* names and isn't usable here.
@@ -99,7 +103,12 @@ def _run_our_calc(performance_year: int) -> pl.DataFrame:
     value_sets = UamccExpression.load_uamcc_value_sets(SILVER)
 
     transform = AllCauseUnplannedAdmissions(
-        config={"measurement_year": performance_year}
+        config={
+            "measurement_year": performance_year,
+            "program": "REACH",
+            "aco_id": aco_id,
+            "silver_path": str(SILVER),
+        }
     )
     denom = transform.calculate_denominator(claims, eligibility, value_sets)
     numer = transform.calculate_numerator(denom, claims, value_sets)
@@ -137,6 +146,10 @@ def _compare(cms: pl.DataFrame, ours: pl.DataFrame, perf_year: str) -> dict:
         how="inner",
     )
 
+    # in_both is the real recall denominator: CMS benes that survive
+    # into our calculated denom. ``cms_mapped_benes`` only checks gold
+    # presence, which silently passes when the calc filters most CMS
+    # benes out (e.g. wrong ACO scoping).
     in_both = joined.height
     cms_total_admits = (
         cms_with_pid["cms_count"].fill_null(0).sum()
@@ -173,7 +186,10 @@ def _compare(cms: pl.DataFrame, ours: pl.DataFrame, perf_year: str) -> dict:
         "cms_total_benes": cms_total_benes,
         "cms_mapped_benes": cms_mapped_benes,
         "in_both": in_both,
-        "recall": cms_mapped_benes / max(cms_total_benes, 1),
+        # Recall now measures denom-overlap (CMS benes that landed in
+        # our calculated denominator), not just MBI presence in gold.
+        "recall": in_both / max(cms_total_benes, 1),
+        "gold_presence": cms_mapped_benes / max(cms_total_benes, 1),
         "exact_match": exact_match,
         "exact_match_rate": exact_match / max(in_both, 1),
         "both_zero": both_zero,
@@ -214,7 +230,12 @@ def tieout_results(blqqr_uamcc):
         if cms.is_empty():
             continue
         py_int = int(py_str.replace("PY", ""))
-        ours = _run_our_calc(py_int)
+        # BLQQR is a single-ACO file; pull aco_id from the data so the
+        # gating helper looks up the correct alignment slice.
+        aco_ids = cms["aco_id"].drop_nulls().unique().to_list()
+        if len(aco_ids) != 1:
+            continue
+        ours = _run_our_calc(py_int, aco_ids[0])
         results[py_str] = _compare(
             cms.select("mbi", "count_unplanned_adm"), ours, py_str
         )
@@ -231,13 +252,14 @@ class TestUamccCalcTieOut:
     def test_recall_meets_threshold_per_py(self, tieout_results):
         bad = {py: r for py, r in tieout_results.items() if r["recall"] < MIN_RECALL_PER_YEAR}
         msg = "\n".join(
-            f"  [FAIL] {py}: {r['cms_mapped_benes']}/{r['cms_total_benes']} = "
-            f"{r['recall']:.2%} mapped"
+            f"  [FAIL] {py}: {r['in_both']}/{r['cms_total_benes']} = "
+            f"{r['recall']:.2%} in our denom "
+            f"(gold presence: {r['gold_presence']:.2%})"
             for py, r in tieout_results.items()
         )
         assert not bad, (
-            f"Per-PY recall (CMS benes mapped to our person_id) below "
-            f"{MIN_RECALL_PER_YEAR:.0%}:\n{msg}"
+            f"Per-PY recall (CMS benes that survive into our calculated "
+            f"denominator) below {MIN_RECALL_PER_YEAR:.0%}:\n{msg}"
         )
 
     @pytest.mark.reconciliation

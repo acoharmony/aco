@@ -67,13 +67,21 @@ class AllCauseUnplannedAdmissions(QualityMeasureBase):
         eligibility: pl.LazyFrame,
         value_sets: dict[str, pl.LazyFrame],
     ) -> pl.LazyFrame:
-        """Calculate denominator: patients with 2+ MCC groups, aged 66+."""
+        """Calculate denominator: patients with 2+ MCC groups, aged 66+.
+
+        When ``self.config`` includes ``program``, ``aco_id``, and
+        ``silver_path``, also restricts to that program's PY-aligned
+        beneficiaries (today only ``program="REACH"``).
+        """
         measurement_year = self.config.get("measurement_year", 2025)
 
         config = {
             "performance_year": measurement_year,
             "min_age": 66,
             "min_mcc_groups": 2,
+            "program": self.config.get("program"),
+            "aco_id": self.config.get("aco_id"),
+            "silver_path": self.config.get("silver_path"),
         }
 
         mcc_cohort = UamccExpression.identify_mcc_cohort(

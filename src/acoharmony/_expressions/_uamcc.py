@@ -65,6 +65,48 @@ class UamccExpression:
     @staticmethod
     @traced()
     @timeit(log_level="debug")
+    def load_aligned_population(
+        silver_path: Path,
+        program: str,
+        aco_id: str,
+        performance_year: int,
+    ) -> pl.LazyFrame:
+        """Aligned beneficiary MBIs for ``program`` / ``aco_id`` / PY.
+
+        REACH: reads ``bar.parquet`` (the BAR alignment ingest), filters
+        ``source_filename`` to ``ALG[CR]{yy}`` matching the PY for the
+        given ``aco_id``, and returns the *union* of bene_mbi across
+        every report for that PY/ACO. Union (not "latest only") because
+        a bene who was aligned mid-year and dropped at runout still
+        counts for the measure year — taking only the latest ALGR would
+        drop them and shrink recall vs CMS BLQQR.
+
+        MSSP / FFS: not yet implemented — alignment data not ingested.
+        """
+        program = program.upper()
+        if program != "REACH":
+            raise NotImplementedError(
+                f"alignment gating for program={program!r} not implemented; "
+                "only REACH is supported until MSSP/FFS alignment data is ingested"
+            )
+
+        bar_path = silver_path / "bar.parquet"
+        if not bar_path.exists():
+            return pl.LazyFrame(schema={"person_id": pl.Utf8})
+
+        py_yy = f"{performance_year % 100:02d}"
+        token_re = rf"P\.{aco_id}\.ALG[CR]{py_yy}\.RP\."
+
+        return (
+            pl.scan_parquet(bar_path)
+            .filter(pl.col("source_filename").str.contains(token_re))
+            .select(pl.col("bene_mbi").alias("person_id"))
+            .unique()
+        )
+
+    @staticmethod
+    @traced()
+    @timeit(log_level="debug")
     def load_uamcc_value_sets(silver_path: Path) -> dict[str, pl.LazyFrame]:
         """Load all UAMCC value sets from silver layer."""
         value_sets: dict[str, pl.LazyFrame] = {}
@@ -111,6 +153,13 @@ class UamccExpression:
         schema_names = claims.collect_schema().names()
         dx_cols = [c for c in schema_names if c.startswith("diagnosis_code_")]
 
+        # Use claim_start_date for cohort identification: it's populated
+        # on every claim type (100% non-null in gold), whereas
+        # admission_date is only set on inpatient/SNF facility claims
+        # (~9% of rows). CMS computes MCC from any claim line bearing a
+        # qualifying dx during the lookback — using admission_date
+        # silently restricts the search to inpatient claims and drops
+        # virtually every CMS-aligned bene from our cohort.
         frames = []
         for col in dx_cols:
             frames.append(
@@ -118,7 +167,7 @@ class UamccExpression:
                     [
                         pl.col("claim_id"),
                         pl.col("person_id"),
-                        pl.col("admission_date"),
+                        pl.col("claim_start_date").alias("service_date"),
                         pl.col(col).alias("normalized_code"),
                     ]
                 ).filter(pl.col("normalized_code").is_not_null())
@@ -137,12 +186,9 @@ class UamccExpression:
 
         all_dx = pl.concat(frames)
 
-        # Filter to lookback period — cast admission_date to Date for comparison
-        lookback_dx = all_dx.with_columns(
-            pl.col("admission_date").str.to_date("%Y-%m-%d", strict=False)
-        ).filter(
-            (pl.col("admission_date") >= pl.lit(lookback_begin).str.to_date("%Y-%m-%d"))
-            & (pl.col("admission_date") <= pl.lit(lookback_end).str.to_date("%Y-%m-%d"))
+        lookback_dx = all_dx.filter(
+            (pl.col("service_date") >= pl.lit(lookback_begin).str.to_date("%Y-%m-%d"))
+            & (pl.col("service_date") <= pl.lit(lookback_end).str.to_date("%Y-%m-%d"))
         )
 
         # Join with cohort value set
@@ -159,7 +205,7 @@ class UamccExpression:
 
         return matched.group_by(["person_id", "chronic_condition_group"]).agg(
             [
-                pl.col("admission_date").min().alias("qualifying_code_date"),
+                pl.col("service_date").min().alias("qualifying_code_date"),
                 pl.col("claim_id").n_unique().alias("claim_count"),
                 pl.col("normalized_code").first().alias("qualifying_code"),
             ]
@@ -173,10 +219,18 @@ class UamccExpression:
         eligibility: pl.LazyFrame,
         config: dict[str, Any],
     ) -> pl.LazyFrame:
-        """Build UAMCC denominator: age >= 66, 2+ MCC groups."""
+        """Build UAMCC denominator: age >= 66, 2+ MCC groups.
+
+        When ``config`` includes ``program``, ``aco_id``, and ``silver_path``,
+        also restricts to that program/ACO's PY-aligned population (today
+        ``program="REACH"`` only — see ``load_aligned_population``).
+        """
         performance_year = config.get("performance_year", 2025)
         min_age = config.get("min_age", 66)
         min_mcc_groups = config.get("min_mcc_groups", 2)
+        program = config.get("program")
+        aco_id = config.get("aco_id")
+        silver_path = config.get("silver_path")
         period_begin = pl.date(performance_year, 1, 1)
 
         condition_counts = (
@@ -209,11 +263,19 @@ class UamccExpression:
             .filter(pl.col("age_at_period_start") >= min_age)
         )
 
-        return condition_counts.join(
+        denom = condition_counts.join(
             patients_with_age.select(["person_id", "age_at_period_start"]),
             on="person_id",
             how="inner",
         )
+
+        if program and aco_id and silver_path is not None:
+            aligned = UamccExpression.load_aligned_population(
+                Path(silver_path), program, aco_id, performance_year
+            )
+            denom = denom.join(aligned, on="person_id", how="inner")
+
+        return denom
 
     @staticmethod
     @traced()
@@ -308,12 +370,16 @@ class UamccExpression:
             .to_list()
         )
 
+        # Coerce nulls (claims whose dx/px aren't in the CCS map) to False so
+        # downstream OR/AND chains produce concrete booleans instead of nulls.
+        # Without this ``is_planned`` propagates null and ``~is_excluded``
+        # filters every otherwise-eligible admission out of the numerator.
         return claims_with_ccs.with_columns(
             [
-                pl.col("px_ccs_category").is_in(paa1_set).alias("rule1_flag"),
-                pl.col("dx_ccs_category").is_in(paa2_set).alias("rule2_flag"),
-                pl.col("px_ccs_category").is_in(paa3_set).alias("paa3_flag"),
-                pl.col("dx_ccs_category").is_in(paa4_set).alias("paa4_flag"),
+                pl.col("px_ccs_category").is_in(paa1_set).fill_null(False).alias("rule1_flag"),
+                pl.col("dx_ccs_category").is_in(paa2_set).fill_null(False).alias("rule2_flag"),
+                pl.col("px_ccs_category").is_in(paa3_set).fill_null(False).alias("paa3_flag"),
+                pl.col("dx_ccs_category").is_in(paa4_set).fill_null(False).alias("paa4_flag"),
             ]
         ).with_columns(
             [
@@ -402,11 +468,16 @@ class UamccExpression:
             [
                 pl.col("dx_ccs_category")
                 .is_in(complication_ccs)
+                .fill_null(False)
                 .alias("is_procedure_complication"),
                 pl.col("dx_ccs_category")
                 .is_in(injury_ccs)
+                .fill_null(False)
                 .alias("is_injury_or_accident"),
-                pl.col("diagnosis_code_1").is_in(covid_icd10).alias("is_covid_19"),
+                pl.col("diagnosis_code_1")
+                .is_in(covid_icd10)
+                .fill_null(False)
+                .alias("is_covid_19"),
             ]
         ).with_columns(
             [
