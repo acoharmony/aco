@@ -86,7 +86,10 @@ def main():
     # Pipeline command
     pipeline_parser = subparsers.add_parser("pipeline", help="Run end-to-end data pipelines")
     pipeline_parser.add_argument(
-        "name", help="Pipeline name (e.g., medical_claim, eligibility, pharmacy_claim)"
+        "name",
+        nargs="?",
+        default="all",
+        help="Pipeline name (default: all — runs every registered pipeline in dependency order)",
     )
     pipeline_parser.add_argument(
         "--force", action="store_true", help="Force reprocessing all pipeline steps"

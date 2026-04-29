@@ -18,14 +18,21 @@ RUN apt-get update && apt-get install -y \
     coreutils \
     && rm -rf /var/lib/apt/lists/*
 
-# Add Zscaler CA certificates to system trust store
-# This fixes "unable to get local issuer certificate" error
-# when connecting through Zscaler SSL inspection proxy
+# Add Zscaler CA certificates to system trust store. Registering them
+# in ca-certificates.conf (not just dropping into /usr/local/share/...)
+# ensures they survive any later regeneration of the bundle and are
+# appended to /etc/ssl/certs/ca-certificates.crt — which is what the
+# 4icli embedded Node reads via NODE_EXTRA_CA_CERTS.
 COPY zscaler-root-ca.crt /usr/local/share/ca-certificates/
 COPY zscaler-root.crt /usr/local/share/ca-certificates/
 
-# Update CA certificates to include Zscaler certs
-RUN update-ca-certificates
+RUN update-ca-certificates --fresh && \
+    openssl crl2pkcs7 -nocrl -certfile /etc/ssl/certs/ca-certificates.crt \
+        | openssl pkcs7 -print_certs -noout \
+        | grep -q 'CN = Zscaler Root CA' && \
+    openssl crl2pkcs7 -nocrl -certfile /etc/ssl/certs/ca-certificates.crt \
+        | openssl pkcs7 -print_certs -noout \
+        | grep -q 'CN = Zscaler Intermediate Root CA'
 
 # Create care user with matching UID/GID
 RUN groupadd -g 1002 care && \

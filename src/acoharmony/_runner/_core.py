@@ -131,7 +131,7 @@ class TransformRunner:
             # Process from raw files
             df = self.file_processor.process_raw_files(schema_name, schema, tracker, force)
         else:
-            return TransformResult.transform_error("No input source defined for schema")
+            return TransformResult.skipped("No input source defined for schema")
 
         if df is None:
             return TransformResult.skipped("No data to process")

@@ -11,6 +11,7 @@ These repositories are not tracked in git (see .gitignore).
 """
 
 import argparse
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -30,13 +31,24 @@ def setup_dependencies(update: bool = False):
     for repo in config["repositories"]:
         repo_path = repos_dir / repo["name"]
 
-        if repo_path.exists():
+        # An empty directory (or one without .git) is treated as missing — a
+        # half-initialized clone fooled the previous check into reporting
+        # "already exists" while the reference_data pipeline crashed looking
+        # for dbt_project.yml.
+        is_real_clone = repo_path.is_dir() and (repo_path / ".git").exists()
+
+        if is_real_clone:
             if update:
                 print(f"Updating {repo['name']}...")
                 subprocess.run(["git", "pull"], cwd=repo_path, check=True)
             else:
                 print(f"[OK] {repo['name']} already exists (use --update to refresh)")
         else:
+            if repo_path.exists():
+                # Empty/incomplete directory — git clone refuses to write into
+                # a non-empty path, and an empty path is fine to remove first.
+                print(f"Removing incomplete {repo['name']} dir before reclone...")
+                shutil.rmtree(repo_path)
             print(f"Cloning {repo['name']}...")
             subprocess.run(
                 [

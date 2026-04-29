@@ -70,25 +70,36 @@ class PipelineExecutor:
             try:
                 results_dict = pipeline_func(self.runner, self.logger, force=force)
 
-                # Convert dict results to PipelineResult
+                # Convert dict results to PipelineResult. Pipelines that
+                # build TransformResults themselves (bronze stages, sva_log,
+                # reference_data) flow through directly. Pipelines that
+                # return dict[str, Path|LazyFrame] hit the fallback below —
+                # a None value means the stage was skipped, anything else
+                # means an output was produced.
                 stage_results = []
                 for name, result_obj in results_dict.items():
-                    # If result_obj is already a TransformResult, use it directly
                     if isinstance(result_obj, TransformResult):
                         stage_results.append(result_obj)
-                    else:
-                        # Otherwise create a success result (for backwards compatibility with LazyFrame returns)
-                        result = TransformResult(
-                            status=ResultStatus.SUCCESS,
-                            message=f"Generated {name}",
-                            records_processed=0,
-                            files_processed=0,
+                    elif result_obj is None:
+                        stage_results.append(
+                            TransformResult(
+                                status=ResultStatus.SKIPPED,
+                                message=f"{name}: skipped",
+                            )
                         )
-                        stage_results.append(result)
+                    else:
+                        stage_results.append(
+                            TransformResult(
+                                status=ResultStatus.SUCCESS,
+                                message=f"{name}: produced output ({type(result_obj).__name__})",
+                            )
+                        )
 
                 duration = (datetime.now() - start_time).total_seconds()
                 pipeline_result = PipelineResult.pipeline_ok(stage_results)
-                pipeline_result.message = f"Completed {len(results_dict)} outputs"
+                completed = pipeline_result.stages_completed
+                total = pipeline_result.stages_total
+                pipeline_result.message = f"{pipeline_name}: {completed}/{total} stages completed"
                 pipeline_result.metadata["pipeline_name"] = pipeline_name
                 pipeline_result.metadata["processing_time"] = duration
                 return pipeline_result

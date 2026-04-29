@@ -51,6 +51,7 @@ Performance Considerations
 
 """
 
+import re
 from pathlib import Path
 from typing import Any
 
@@ -101,6 +102,7 @@ class ReferenceStage:
         self.columns = columns or []
         self.description = description
         self.optional = optional
+        self.skip_reason: str | None = None
 
     @property
     def flat_name(self) -> str:
@@ -113,92 +115,104 @@ class ReferenceStage:
         return f"ReferenceStage({self.order}: {self.flat_name} [{self.group}]{cols}{opt})"
 
 
-def parse_tuva_seed_definitions(tuva_project_dir: Path, logger: Any) -> list[ReferenceStage]:
+_DATABASE_FOLDERS = {
+    "concept_library": "concept-library",
+    "reference_data": "reference-data",
+    "terminology": "terminology",
+    "value_sets": "value-sets",
+    "provider_data": "provider-data",
+    "synthetic_data": "synthetic-data",
+}
+
+
+_LOAD_VERSIONED_SEED_RE = re.compile(
+    r"load_versioned_seed\s*\(\s*['\"]([^'\"]+)['\"]\s*,\s*['\"]([^'\"]+\.csv)['\"]"
+)
+
+
+def _parse_load_versioned_seed(post_hook: str) -> tuple[str, str] | None:
+    """Extract (database, filename) from a load_versioned_seed macro call.
+
+    Tuva post-hook format:
+        "{{ load_versioned_seed('reference_data','calendar.csv') }}"
+    Returns None if the post-hook isn't a load_versioned_seed call.
     """
-    Parse dbt_project.yml to extract all seed definitions as ReferenceStage objects.
+    m = _LOAD_VERSIONED_SEED_RE.search(post_hook)
+    if not m:
+        return None
+    return m.group(1), m.group(2)
 
-        Args:
-            tuva_project_dir: Path to Tuva dbt project
-            logger: Logger instance
 
-        Returns:
-            List of ReferenceStage objects with metadata
+def parse_tuva_seed_definitions(tuva_project_dir: Path, logger: Any) -> list[ReferenceStage]:
+    """Parse dbt_project.yml into ReferenceStage objects.
+
+    Resolves the versioned-seed S3 URI scheme used by current Tuva:
+        s3://{bucket}/{folder}/{version}/{filename}.gz
+    where folder is a database-specific override (concept_library →
+    concept-library) and version comes from per-database overrides in
+    vars.tuva_seed_versions, falling back to vars.tuva_seed_version.
     """
     dbt_project_yml = tuva_project_dir / "dbt_project.yml"
 
     with open(dbt_project_yml) as f:
         config = yaml.safe_load(f)
 
-    # Extract custom_bucket_name (defaults to tuva-public-resources)
-    bucket = config.get("vars", {}).get("custom_bucket_name", "tuva-public-resources")
+    project_vars = config.get("vars", {})
+    bucket = project_vars.get("custom_bucket_name", "tuva-public-resources")
+    default_version = str(project_vars.get("tuva_seed_version", "1.0.0"))
+    version_overrides = project_vars.get("tuva_seed_versions", {}) or {}
 
-    stages = []
+    def version_for(database: str) -> str:
+        return str(version_overrides.get(database, default_version))
+
+    stages: list[ReferenceStage] = []
     seed_config = config.get("seeds", {}).get("the_tuva_project", {})
-
-    # Load seed schemas to get column names
     seed_schemas = _load_seed_schemas(tuva_project_dir, logger)
 
     def extract_seeds_recursive(parent_schema, config_dict, order_counter):
-        """Recursively extract seed definitions from nested structure."""
-        nonlocal stages
-
         for key, value in config_dict.items():
             if not isinstance(value, dict):
                 continue
 
-            # Check if this has a post-hook (it's a seed definition)
             post_hook = value.get("+post-hook")
-            if post_hook and "load_seed" in post_hook:
-                # Extract path and filename from post-hook
-                parts = post_hook.split("'")
-                s3_path = None
-                csv_filename = None
-                for part in parts:
-                    if part.startswith("/"):
-                        s3_path = part
-                    elif part.endswith(".csv"):
-                        csv_filename = part
-
-                if s3_path and csv_filename:
-                    # Determine schema from parent_schema
-                    schema = parent_schema if parent_schema else key.split("__")[0]
-
-                    # Table name: remove all prefixes
-                    if "__" in key:
-                        table = key.split("__", 1)[1]
-                    else:
-                        table = key
-
-                    # Determine group based on schema
-                    group = _categorize_schema(schema)
-
-                    # Build S3 URI (files are compressed with _0_0_0.csv.gz suffix)
-                    compressed_filename = f"{csv_filename}_0_0_0.csv.gz"
-                    s3_uri = f"https://{bucket}.s3.amazonaws.com/{s3_path.lstrip('/')}/{compressed_filename}"
-
-                    # Get columns from schema YAML if available
-                    columns = seed_schemas.get(key, [])
-
-                    stages.append(
-                        ReferenceStage(
-                            name=key,  # dbt name
-                            schema=schema,
-                            table=table,
-                            s3_uri=s3_uri,
-                            group=group,
-                            order=order_counter[0],
-                            columns=columns,
-                            description=f"{schema}.{table} reference data",
-                        )
-                    )
-                    order_counter[0] += 1
-            else:
-                # Recurse into nested structure
+            parsed = _parse_load_versioned_seed(post_hook) if post_hook else None
+            if parsed is None:
                 next_parent = f"{parent_schema}_{key}" if parent_schema else key
                 extract_seeds_recursive(next_parent, value, order_counter)
+                continue
 
-    # Start extraction from top level with order counter
-    order_counter = [1]  # Use list so it's mutable in nested function
+            database, csv_filename = parsed
+            folder = _DATABASE_FOLDERS.get(database)
+            if folder is None:
+                logger.warning(
+                    f"Skipping seed {key}: unknown database '{database}' "
+                    f"(not in {sorted(_DATABASE_FOLDERS)})"
+                )
+                continue
+
+            schema = parent_schema if parent_schema else key.split("__")[0]
+            table = key.split("__", 1)[1] if "__" in key else key
+            group = _categorize_schema(schema)
+            version = version_for(database)
+            s3_uri = (
+                f"https://{bucket}.s3.amazonaws.com/{folder}/{version}/{csv_filename}.gz"
+            )
+
+            stages.append(
+                ReferenceStage(
+                    name=key,
+                    schema=schema,
+                    table=table,
+                    s3_uri=s3_uri,
+                    group=group,
+                    order=order_counter[0],
+                    columns=seed_schemas.get(key, []),
+                    description=f"{schema}.{table} reference data",
+                )
+            )
+            order_counter[0] += 1
+
+    order_counter = [1]
     for schema_name, schema_config in seed_config.items():
         if isinstance(schema_config, dict):
             extract_seeds_recursive(schema_name, schema_config, order_counter)
@@ -315,25 +329,22 @@ def download_reference_stage(
     logger.info(f"  ↓ Downloading {stage.flat_name} from S3...")
 
     try:
-        # Download compressed CSV from S3 using HTTPS (public bucket, no auth needed)
-        # Tuva seed CSVs do NOT have headers - assign column names from schema
-        if stage.columns:
-            df = pl.read_csv(
-                stage.s3_uri,
-                has_header=False,
-                new_columns=stage.columns,
-                infer_schema_length=10000,
-                null_values=["\\N", ""],  # Tuva uses \N for nulls
-            )
-            logger.debug(f"    [OK] Assigned {len(stage.columns)} columns from schema")
-        else:
-            # No schema available, read without headers (Polars will generate column_0, column_1, etc.)
-            logger.warning(f"    ⚠ No schema found for {stage.name}, using auto-generated columns")
-            df = pl.read_csv(
-                stage.s3_uri,
-                has_header=False,
-                infer_schema_length=10000,
-                null_values=["\\N", ""],
+        # Versioned Tuva seeds ship gzipped with headers; Polars auto-detects
+        # gzip from the .gz suffix and uses the embedded column names. We
+        # disable schema inference (everything → String) because several
+        # Tuva seeds mix types within a column in ways that the first 10K
+        # rows don't reveal (e.g. ICD-9 'E0000' codes after numeric ones,
+        # E_DISABL='SS799' rows in svi_us). Silver consumers cast as needed.
+        df = pl.read_csv(
+            stage.s3_uri,
+            has_header=True,
+            infer_schema=False,
+            null_values=["\\N", ""],
+        )
+        if stage.columns and set(stage.columns) != set(df.columns):
+            logger.debug(
+                f"    schema YAML lists {len(stage.columns)} cols, "
+                f"file has {len(df.columns)}; using file headers"
             )
 
         # Write CSV to bronze WITH headers
@@ -347,6 +358,7 @@ def download_reference_stage(
     except Exception as e:  # ALLOWED: Returns None for optional stages
         if stage.optional:
             logger.warning(f"    ⚠ Optional stage skipped: {e}")
+            stage.skip_reason = str(e)
             return None
         else:
             logger.error(f"    [ERROR] Required stage failed: {e}")
@@ -406,11 +418,13 @@ def convert_reference_stage(
     logger.info(f"  → Converting {stage.flat_name} to parquet...")
 
     try:
-        # Read CSV from bronze (has headers now)
+        # Read CSV from bronze with schema inference disabled — see
+        # download_reference_stage for the rationale (Tuva seeds mix types
+        # within columns in ways the first 10K rows don't reveal).
         df = pl.read_csv(
             csv_path,
             has_header=True,
-            infer_schema_length=10000,
+            infer_schema=False,
             null_values=["\\N", ""],
         )
 
@@ -425,6 +439,7 @@ def convert_reference_stage(
     except Exception as e:  # ALLOWED: Returns None for optional stages
         if stage.optional:
             logger.warning(f"    ⚠ Optional stage skipped: {e}")
+            stage.skip_reason = str(e)
             return None
         else:
             logger.error(f"    [ERROR] Required stage failed: {e}")
@@ -524,9 +539,14 @@ def transform_all_reference_data(
                     output_path=str(csv_path),
                 )
             else:
+                msg = (
+                    f"{stage.flat_name}: {stage.skip_reason}"
+                    if stage.skip_reason
+                    else f"{stage.flat_name}: Already exists or skipped (optional)"
+                )
                 results[stage.flat_name] = TransformResult(
                     status=ResultStatus.SKIPPED,
-                    message=f"{stage.flat_name}: Already exists or skipped (optional)",
+                    message=msg,
                 )
 
         except Exception as e:  # ALLOWED: Pipeline continues with partial results
@@ -544,6 +564,11 @@ def transform_all_reference_data(
 
     logger.info("[OK] Reference Data Transformation Complete:")
     logger.info(f"  {successful} successful, {skipped} skipped, {failed} failed")
+    if skipped or failed:
+        for name, r in results.items():
+            if r.status in (ResultStatus.SKIPPED, ResultStatus.FAILURE):
+                tag = "skipped" if r.status == ResultStatus.SKIPPED else "FAILED"
+                logger.info(f"  {tag}: {name} — {r.message}")
     logger.info("=" * 80)
 
     return results

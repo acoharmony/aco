@@ -106,7 +106,6 @@ class TestInitImports:
             "acoharmony._pipes._cclf_silver",
             "acoharmony._pipes._cclf_gold",
             "acoharmony._pipes._bronze_all",
-            "acoharmony._pipes._bronze_staged",
             "acoharmony._pipes._analytics_gold",
             "acoharmony._pipes._alignment",
             "acoharmony._pipes._home_visit_gold",

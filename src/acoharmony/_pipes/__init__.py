@@ -27,9 +27,9 @@ Declarative bronze parsing stage definition.
 # Import all pipeline definitions to trigger registration
 from . import (  # noqa: F401 (imported for registration side effects)
     _alignment,
+    _all,
     _analytics_gold,
     _bronze_all,
-    _bronze_staged,
     _cclf_bronze,
     _cclf_gold,
     _cclf_silver,

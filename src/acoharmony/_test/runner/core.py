@@ -429,13 +429,14 @@ class TestTransformRunnerTransformSchemaBranches:
         runner.catalog.get_table_metadata.return_value = {"name": "test"}
         runner._has_raw_files.return_value = False
 
-        # Simulate the else branch when no raw files
+        # Simulate the else branch when no raw files — soft-skip, not error,
+        # so optional stages (e.g. zip_to_county) don't fail the pipeline.
         schema = runner.catalog.get_table_metadata("test_schema")
         if runner._has_raw_files(schema):
             pass
         else:
-            result = TransformResult.transform_error("No input source defined for schema")
-        assert result.failed
+            result = TransformResult.skipped("No input source defined for schema")
+        assert result.status == ResultStatus.SKIPPED
 
 
 # ===================== Coverage gap: _core.py lines 129, 135, 137, 139, 145, 149 =====================
