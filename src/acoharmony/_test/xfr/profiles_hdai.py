@@ -60,6 +60,8 @@ class TestHdaiProfile:
 
     @pytest.mark.unit
     def test_zip_pattern_includes_monthly_excludes_weekly(self):
+        import dataclasses
+
         import acoharmony._xfr._profiles.hdai as hdai_module
 
         importlib.reload(hdai_module)
@@ -67,8 +69,13 @@ class TestHdaiProfile:
 
         profile = resolve_profile("hdai")
         rule = profile.source_rule
-        # Pluck the literal pattern rule
+        # Pluck the literal pattern rule. Disable the date floor for this
+        # assertion: this test is about the ZCY/ZCWY glob, and the prod
+        # rule's "month_start" floor would otherwise reject the fixed
+        # sample filenames once wall-clock time advances past their
+        # D-token date.
         literal = next(r for r in rule.rules if isinstance(r, LiteralPatternRule))
+        literal = dataclasses.replace(literal, date_floor=None)
         # ZCY → match (monthly bundle)
         assert literal.matches("P.A2671.ACO.ZCY26.D260413.T1042070.zip")
         assert literal.matches("P.D0259.ACO.ZCY26.D260415.T1.zip")
