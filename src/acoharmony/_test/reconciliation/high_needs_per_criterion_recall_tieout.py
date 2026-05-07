@@ -34,6 +34,23 @@ intentional. We want to know the recall *for that criterion's
 qualifying population*, not the share of misses attributable to
 each criterion.
 
+Lazy execution
+--------------
+
+The full recall table — all (PY × letter) cells at once — is built
+as a single lazy pipeline: unpivot the four ``bar_<letter>`` flags
+to long form, left-join against ever-eligible MBIs once, then
+group_by (PY, criterion) and aggregate counts. Polars then
+materialises only the small (≤ 16-row) result frame; nothing along
+the way holds the cartesian product of BAR-benes × ever-eligible
+that an eager per-cell loop would build. An earlier eager
+implementation OOM'd on full-PY data because each cell ran two
+hash joins against the full ever-eligible frame.
+
+Missed-bene samples (for failure diagnostics) are computed
+eagerly, but only for cells that actually breach their floor — in
+the steady-state-green case zero cells, so zero extra work.
+
 Threshold mechanics
 -------------------
 
@@ -69,9 +86,9 @@ import pytest
 from .conftest import requires_data
 from .high_needs_eligibility_count_tieout import (
     MISMATCH_SAMPLE_SIZE,
-    _bar_high_needs_benes,
-    _ever_eligible_benes,
-    _latest_bar_per_py,
+    _bar_high_needs_benes_lazy,
+    _ever_eligible_benes_lazy,
+    _latest_bar_per_py_lazy,
 )
 
 
@@ -109,15 +126,7 @@ PER_CRITERION_RECALL_FLOORS: dict[tuple[int, str], float] = {
     (2026, "d"): 0.95,   # observed 0.9557
 }
 
-
-# Map from criterion letter to the BAR per-criterion flag column name
-# emitted by ``_bar_high_needs_benes``.
-_BAR_FLAG_BY_LETTER = {
-    "a": "bar_a",   # mobility_impairment_flag
-    "b": "bar_b",   # high_risk_flag
-    "c": "bar_c",   # medium_risk_unplanned_flag
-    "d": "bar_d",   # frailty_flag
-}
+_BAR_FLAG_COLS = ("bar_a", "bar_b", "bar_c", "bar_d")
 
 
 @dataclass(frozen=True)
@@ -129,48 +138,93 @@ class PerCriterionRecallResult:
     n_missed: int
     recall: float
     floor: float
-    missed_sample: pl.DataFrame
 
 
-def _recall_for_py_criterion(
+def _per_criterion_recall_table(
+    bar_high_needs: pl.LazyFrame,
+    ever_eligible: pl.LazyFrame,
+) -> pl.DataFrame:
+    """Build the full (PY × criterion) recall table in one lazy pass.
+
+    Steps, all on LazyFrames so polars can stream the join + group_by
+    without materialising the full ever-eligible × bar-bene cross:
+
+      1. Mark whether each BAR bene is in ``ever_eligible`` via a
+         left semi-join projection (``is_eligible``) — done **once**,
+         before unpivoting, so each bene's eligibility is looked up
+         exactly one time even though they may carry multiple flags.
+      2. Unpivot the four ``bar_<letter>`` boolean flag columns to
+         long form, dropping rows where the flag is False — leaves
+         one row per (resolved_mbi, PY, letter) the bene actually
+         qualifies under.
+      3. Group by (performance_year, criterion) and aggregate
+         ``n_bar_flagged`` and ``n_found_eligible``.
+
+    Returns an eager DataFrame with one row per cell; the per-cell
+    miss samples (for failure diagnostics) are computed separately
+    and only for cells that breach their floor.
+    """
+    bar_with_eligibility = bar_high_needs.join(
+        ever_eligible.select(pl.col("mbi").alias("resolved_mbi"))
+        .with_columns(pl.lit(True).alias("is_eligible")),
+        on="resolved_mbi",
+        how="left",
+    ).with_columns(pl.col("is_eligible").fill_null(False))
+
+    long = bar_with_eligibility.unpivot(
+        on=list(_BAR_FLAG_COLS),
+        index=["performance_year", "resolved_mbi", "is_eligible"],
+        variable_name="flag_col",
+        value_name="qualified",
+    ).filter(pl.col("qualified"))
+
+    return (
+        long.with_columns(
+            pl.col("flag_col").str.slice(-1, 1).alias("criterion")
+        )
+        .group_by("performance_year", "criterion")
+        .agg(
+            pl.len().alias("n_bar_flagged"),
+            pl.col("is_eligible").sum().alias("n_found_eligible"),
+        )
+        .with_columns(
+            (pl.col("n_bar_flagged") - pl.col("n_found_eligible")).alias(
+                "n_missed"
+            ),
+            (pl.col("n_found_eligible") / pl.col("n_bar_flagged")).alias(
+                "recall"
+            ),
+        )
+        .collect()
+    )
+
+
+def _missed_sample(
     py: int,
     letter: str,
-    bar_benes: pl.DataFrame,
-    ever_eligible: pl.DataFrame,
-    floor: float,
-) -> PerCriterionRecallResult:
-    """Compute recall for one (PY, criterion) cell.
-
-    Denominator: BAR-flagged benes for this PY whose ``bar_<letter>``
-    flag is True. Numerator: those who appear with
-    ``first_ever_eligible_check_date IS NOT NULL`` in our gold output.
-    """
-    flag_col = _BAR_FLAG_BY_LETTER[letter]
-    py_letter_benes = bar_benes.filter(
-        (pl.col("performance_year") == py) & pl.col(flag_col)
-    )
-    n_bar = py_letter_benes.height
-
-    hits = py_letter_benes.join(
-        ever_eligible, left_on="resolved_mbi", right_on="mbi", how="inner"
-    )
-    n_found = hits.height
-    missed = py_letter_benes.join(
-        ever_eligible, left_on="resolved_mbi", right_on="mbi", how="anti"
-    )
-    n_missed = missed.height
-
-    recall = 1.0 if n_bar == 0 else n_found / n_bar
-
-    return PerCriterionRecallResult(
-        performance_year=py,
-        criterion=letter,
-        n_bar_flagged=n_bar,
-        n_found_eligible=n_found,
-        n_missed=n_missed,
-        recall=recall,
-        floor=floor,
-        missed_sample=missed.head(MISMATCH_SAMPLE_SIZE),
+    bar_high_needs: pl.LazyFrame,
+    ever_eligible: pl.LazyFrame,
+) -> pl.DataFrame:
+    """Eagerly materialise up to ``MISMATCH_SAMPLE_SIZE`` BAR-flagged
+    misses for one (PY, letter) cell. Called only on test failure, so
+    the eager join is bounded to a single failing slice — no risk of
+    the all-cells × all-eligible memory blow-up the original
+    implementation hit."""
+    flag_col = f"bar_{letter}"
+    return (
+        bar_high_needs.filter(
+            (pl.col("performance_year") == py) & pl.col(flag_col)
+        )
+        .join(
+            ever_eligible.select(pl.col("mbi").alias("resolved_mbi"))
+            .with_columns(pl.lit(True).alias("_eligible")),
+            on="resolved_mbi",
+            how="left",
+        )
+        .filter(pl.col("_eligible").is_null())
+        .drop("_eligible")
+        .head(MISMATCH_SAMPLE_SIZE)
+        .collect()
     )
 
 
@@ -186,32 +240,54 @@ class TestHighNeedsPerCriterionRecall:
     """
 
     @pytest.fixture(scope="class")
-    def bar_high_needs(self) -> pl.DataFrame:
-        return _bar_high_needs_benes(_latest_bar_per_py())
+    def bar_high_needs(self) -> pl.LazyFrame:
+        # Fully lazy chain: silver/bar → latest-per-PY → flag filter →
+        # canonical-MBI resolve → group-by-(PY, MBI). Cached at class
+        # scope as the resulting LazyFrame plan; polars re-runs the
+        # plan each time it's collected, but in practice the recall-
+        # table call collects it once and the failure-sample calls
+        # are skipped unless something breaks.
+        return _bar_high_needs_benes_lazy(_latest_bar_per_py_lazy())
 
     @pytest.fixture(scope="class")
-    def ever_eligible(self) -> pl.DataFrame:
-        return _ever_eligible_benes()
+    def ever_eligible(self) -> pl.LazyFrame:
+        return _ever_eligible_benes_lazy()
 
     @pytest.mark.reconciliation
     def test_each_per_criterion_recall_meets_floor(
         self,
-        bar_high_needs: pl.DataFrame,
-        ever_eligible: pl.DataFrame,
+        bar_high_needs: pl.LazyFrame,
+        ever_eligible: pl.LazyFrame,
     ):
-        present_pys = set(bar_high_needs["performance_year"].unique().to_list())
-        if not present_pys:
-            pytest.skip("No BAR performance years found")
+        recall_df = _per_criterion_recall_table(bar_high_needs, ever_eligible)
+
+        # Pivot the eager result into PerCriterionRecallResult records,
+        # joined to floors. Cells with no BAR data for a PY are simply
+        # absent from recall_df and we skip them.
+        rows_by_key = {
+            (int(r["performance_year"]), r["criterion"]): r
+            for r in recall_df.iter_rows(named=True)
+        }
 
         results: list[PerCriterionRecallResult] = []
         for (py, letter), floor in sorted(PER_CRITERION_RECALL_FLOORS.items()):
-            if py not in present_pys:
+            row = rows_by_key.get((py, letter))
+            if row is None:
                 continue
             results.append(
-                _recall_for_py_criterion(
-                    py, letter, bar_high_needs, ever_eligible, floor
+                PerCriterionRecallResult(
+                    performance_year=py,
+                    criterion=letter,
+                    n_bar_flagged=int(row["n_bar_flagged"]),
+                    n_found_eligible=int(row["n_found_eligible"]),
+                    n_missed=int(row["n_missed"]),
+                    recall=float(row["recall"]),
+                    floor=floor,
                 )
             )
+
+        if not results:
+            pytest.skip("No BAR/floor cells matched")
 
         lines = ["Per-PY × per-criterion recall (ours vs. latest BAR):"]
         for r in results:
@@ -228,10 +304,13 @@ class TestHighNeedsPerCriterionRecall:
         if failures:
             detail = ["Per-criterion recall floor violations:"]
             for r in failures:
+                sample = _missed_sample(
+                    r.performance_year, r.criterion, bar_high_needs, ever_eligible
+                )
                 detail.append(
                     f"PY{r.performance_year} criterion ({r.criterion}): "
                     f"recall={r.recall:.4f} (< {r.floor:.2f}), missed "
                     f"{r.n_missed:,} / {r.n_bar_flagged:,}. Sample:"
                 )
-                detail.append(str(r.missed_sample))
+                detail.append(str(sample))
             pytest.fail("\n".join(detail))

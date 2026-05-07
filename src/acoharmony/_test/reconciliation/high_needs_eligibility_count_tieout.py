@@ -127,14 +127,8 @@ class PyRecallResult:
     missed_sample: pl.DataFrame
 
 
-def _latest_bar_per_py() -> pl.DataFrame:
-    """Collect the BAR frame, tagged with ``performance_year``, filtered
-    to the latest ``file_date`` per PY.
-
-    PY is parsed from the ALGC/ALGR source filename rather than
-    ``start_date``/``end_date``: the silver BAR parquet stores those as
-    nulls for most rows, but the filename PY suffix is always present.
-    """
+def _latest_bar_per_py_lazy() -> pl.LazyFrame:
+    """Lazy form of :func:`_latest_bar_per_py`."""
     bar = scan_silver("bar").with_columns(
         pl.col("source_filename")
         .str.extract(_BAR_PY_EXTRACT_PATTERN, 1)
@@ -146,14 +140,22 @@ def _latest_bar_per_py() -> pl.DataFrame:
     latest_per_py = bar.group_by("performance_year").agg(
         pl.col("file_date").max().alias("_latest_file_date")
     )
-    return (
-        bar.join(
-            latest_per_py,
-            left_on=["performance_year", "file_date"],
-            right_on=["performance_year", "_latest_file_date"],
-        )
-        .collect()
+    return bar.join(
+        latest_per_py,
+        left_on=["performance_year", "file_date"],
+        right_on=["performance_year", "_latest_file_date"],
     )
+
+
+def _latest_bar_per_py() -> pl.DataFrame:
+    """Collect the BAR frame, tagged with ``performance_year``, filtered
+    to the latest ``file_date`` per PY.
+
+    PY is parsed from the ALGC/ALGR source filename rather than
+    ``start_date``/``end_date``: the silver BAR parquet stores those as
+    nulls for most rows, but the filename PY suffix is always present.
+    """
+    return _latest_bar_per_py_lazy().collect()
 
 
 def _canonical_mbi_lookup() -> pl.DataFrame:
@@ -216,17 +218,21 @@ def _benes_with_any_cclf_data() -> set[str]:
     return seen
 
 
-def _bar_high_needs_benes(bar_latest: pl.DataFrame) -> pl.DataFrame:
-    """From the latest-BAR frame, keep one row per (PY, resolved_mbi)
-    with any HN flag set, plus the per-criterion flag values for
-    mismatch diagnostics. ``resolved_mbi`` is BAR's ``bene_mbi`` rotated
-    through ``identity_timeline`` to its canonical so the downstream
-    join lines up with our gold ``mbi`` key.
+def _bar_high_needs_benes_lazy(
+    bar_latest: pl.DataFrame | pl.LazyFrame,
+) -> pl.LazyFrame:
+    """Lazy form of :func:`_bar_high_needs_benes`.
 
-    Drops benes flagged ``newly_aligned_flag = Y`` whose canonical MBI
-    has no rows in any CCLF table — they are aligned in BAR but their
-    claims have not yet been delivered, and we cannot compute
-    eligibility without claims.
+    Same shape and semantics, but returns a ``LazyFrame`` so callers
+    that compose it into a larger pipeline (e.g. the per-criterion
+    recall test, which unpivots the four ``bar_<letter>`` flags and
+    joins against ``ever_eligible``) can let the polars optimizer
+    handle projection/predicate pushdown and avoid materializing the
+    full BAR-bene table once per (PY, criterion) cell.
+
+    Accepts either a ``DataFrame`` (legacy callers that already
+    materialised the latest-BAR slice) or a ``LazyFrame`` (preferred —
+    keeps the entire pipeline lazy from parquet through aggregation).
     """
     any_flag = (
         (pl.col("mobility_impairment_flag").fill_null("") == "Y")
@@ -236,8 +242,11 @@ def _bar_high_needs_benes(bar_latest: pl.DataFrame) -> pl.DataFrame:
     )
     canonical = _canonical_mbi_lookup()
     benes_with_data = _benes_with_any_cclf_data()
+    bar_lazy = (
+        bar_latest if isinstance(bar_latest, pl.LazyFrame) else bar_latest.lazy()
+    )
     return (
-        bar_latest.lazy()
+        bar_lazy
         .filter(any_flag)
         .join(canonical.lazy(), left_on="bene_mbi", right_on="mbi", how="left")
         .with_columns(
@@ -263,7 +272,31 @@ def _bar_high_needs_benes(bar_latest: pl.DataFrame) -> pl.DataFrame:
             )
         )
         .drop("newly_aligned")
-        .collect()
+    )
+
+
+def _bar_high_needs_benes(bar_latest: pl.DataFrame) -> pl.DataFrame:
+    """From the latest-BAR frame, keep one row per (PY, resolved_mbi)
+    with any HN flag set, plus the per-criterion flag values for
+    mismatch diagnostics. ``resolved_mbi`` is BAR's ``bene_mbi`` rotated
+    through ``identity_timeline`` to its canonical so the downstream
+    join lines up with our gold ``mbi`` key.
+
+    Drops benes flagged ``newly_aligned_flag = Y`` whose canonical MBI
+    has no rows in any CCLF table — they are aligned in BAR but their
+    claims have not yet been delivered, and we cannot compute
+    eligibility without claims.
+    """
+    return _bar_high_needs_benes_lazy(bar_latest).collect()
+
+
+def _ever_eligible_benes_lazy() -> pl.LazyFrame:
+    """Lazy form of :func:`_ever_eligible_benes`."""
+    return (
+        scan_gold("high_needs_eligibility")
+        .filter(pl.col("first_ever_eligible_check_date").is_not_null())
+        .select("mbi")
+        .unique()
     )
 
 
@@ -277,13 +310,7 @@ def _ever_eligible_benes() -> pl.DataFrame:
     claim feed has deeper history than the PY window a single BAR file
     is anchored to.
     """
-    return (
-        scan_gold("high_needs_eligibility")
-        .filter(pl.col("first_ever_eligible_check_date").is_not_null())
-        .select("mbi")
-        .unique()
-        .collect()
-    )
+    return _ever_eligible_benes_lazy().collect()
 
 
 def _recall_for_py(
