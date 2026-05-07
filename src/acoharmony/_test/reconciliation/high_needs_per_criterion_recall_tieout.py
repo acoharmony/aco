@@ -64,11 +64,12 @@ silently regress.
 The floors below were captured 2026-05-07 against:
   - latest BAR file in silver/bar
   - gold/high_needs_eligibility built from medical_claim with
-    criterion (a) using ONLY the inpatient branch of FOG line
-    1503 (the non-inpatient distinct-DOS branch was not yet
-    implemented). Once the pipeline regenerates against the
-    fixed criterion-a code, (a) recall is expected to jump
-    from ~0.88-0.92 to ~0.95+; ratchet (a) floors then.
+    criterion (a) using both the inpatient and the non-inpatient
+    distinct-DOS branches of FOG line 1503 (post-v0.0.29). The
+    earlier version of this dict held pre-fix (a) floors of
+    0.88-0.91; after the FOG line-1503 branch landed and gold
+    was regenerated, (a) recall jumped to 0.97-0.98 across all
+    PYs and the floors were ratcheted accordingly.
 
 Sample-on-failure behaviour mirrors the aggregate test: failures
 include a small DataFrame of missed benes plus the BAR per-
@@ -105,25 +106,25 @@ from .high_needs_eligibility_count_tieout import (
 # justifies the new level lands.
 PER_CRITERION_RECALL_FLOORS: dict[tuple[int, str], float] = {
     # PY2023 ----------------------------------------------------
-    (2023, "a"): 0.91,   # observed 0.9184 — bumps to ~0.95+ after criterion-a fix
-    (2023, "b"): 0.95,   # observed 0.9553
+    (2023, "a"): 0.97,   # observed 0.9812 (post-v0.0.29 FOG line-1503 fix)
+    (2023, "b"): 0.95,   # observed 0.9654
     (2023, "c"): 0.95,   # observed 0.9688 (denom 32 — small, noisier)
-    (2023, "d"): 0.97,   # observed 0.9746
+    (2023, "d"): 0.97,   # observed 0.9775
     # PY2024 ----------------------------------------------------
-    (2024, "a"): 0.90,   # observed 0.9087
-    (2024, "b"): 0.93,   # observed 0.9357
+    (2024, "a"): 0.97,   # observed 0.9808 (post-v0.0.29)
+    (2024, "b"): 0.93,   # observed 0.9464
     (2024, "c"): 0.95,   # observed 0.9577 (denom 71)
-    (2024, "d"): 0.96,   # observed 0.9667
+    (2024, "d"): 0.96,   # observed 0.9758
     # PY2025 ----------------------------------------------------
-    (2025, "a"): 0.89,   # observed 0.9009
-    (2025, "b"): 0.91,   # observed 0.9189
+    (2025, "a"): 0.96,   # observed 0.9744 (post-v0.0.29)
+    (2025, "b"): 0.91,   # observed 0.9304
     (2025, "c"): 0.91,   # observed 0.9192 (denom 99)
-    (2025, "d"): 0.96,   # observed 0.9644
+    (2025, "d"): 0.96,   # observed 0.9708
     # PY2026 ----------------------------------------------------
-    (2026, "a"): 0.88,   # observed 0.8824 — biggest gap, fix lands ratchets to ~0.95+
-    (2026, "b"): 0.89,   # observed 0.8962 — upstream score divergence; needs data fix
+    (2026, "a"): 0.96,   # observed 0.9727 (post-v0.0.29 — biggest gain, +9pp)
+    (2026, "b"): 0.89,   # observed 0.9088 — upstream score divergence; needs data fix
     (2026, "c"): 0.91,   # observed 0.9167 (denom 96)
-    (2026, "d"): 0.95,   # observed 0.9557
+    (2026, "d"): 0.95,   # observed 0.9655
 }
 
 _BAR_FLAG_COLS = ("bar_a", "bar_b", "bar_c", "bar_d")

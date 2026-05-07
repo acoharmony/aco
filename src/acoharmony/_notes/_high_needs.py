@@ -281,9 +281,13 @@ class HighNeedsPlugins(PluginRegistry):
                 "BAR sees them, we have no claims/demographics — cannot evaluate",
             ),
             (
-                "2. In CCLF8 but no inpatient (CCLF1) — empty dx window",
+                "2. In CCLF8 but no inpatient (CCLF1)",
                 len(cclf8_only),
-                "Score reduces to age/sex factors; no inpatient claim for criterion (a)",
+                "Demographics only, no inpatient stay. Risk score reduces toward "
+                "age/sex factors so criterion (b) is harder to meet; criterion "
+                "(a) inpatient branch cannot fire, but the non-inpatient "
+                "branch (FOG line 1503, v0.0.29+) may still qualify them off "
+                "professional/outpatient dx.",
             ),
             (
                 "3. Scored, max < 3.0 (criterion b not met)",
@@ -379,29 +383,30 @@ class HighNeedsPlugins(PluginRegistry):
         check_dates: list,
         py_table_c_window,
     ) -> pl.DataFrame:
-        """Simulate what each branch of FOG line 1503 would produce for
-        the BAR-flagged-(a) benes our pipeline misses.
+        """Bucket the BAR-flagged-(a) misses by which FOG line 1503
+        branch — if any — fires against ``gold/medical_claim``.
 
         For each missed-(a) MBI, walk the four PY check-date windows and
-        bucket the bene by which CCW branch — if any — would qualify
-        them:
+        bucket the bene:
 
             - "inpatient" : ≥ 1 institutional-inpatient (bill_type 11x)
               claim with a B.6.1 dx in window
             - "non_inpatient_2dos" : ≥ 2 non-inpatient claims with a
               B.6.1 dx on distinct service dates in window
             - "non_inpatient_1dos" : exactly 1 non-inpatient B.6.1
-              match in window (would not qualify under either branch)
+              match in window (qualifies under neither branch)
             - "no_match_in_claims" : bene has no B.6.1 dx in window
-              under any claim type
+              under any claim type — genuine data gap
 
         Returns one row per bucket with ``bucket``, ``benes``, ``share``.
         Buckets are mutually exclusive in the order above (a bene who
         qualifies under both branches lands in "inpatient").
 
-        Used by the diagnostic notebook to demonstrate, ahead of a
-        pipeline regen, how many missed benes the criterion-a fix
-        would recover.
+        Both branches are implemented in the eligibility transform as
+        of v0.0.29, so in steady state the residual misses should land
+        primarily in "no_match_in_claims". A non-trivial population in
+        either ``non_inpatient_*`` row is a regression signal — the
+        transform is no longer consuming the second branch.
 
         ``py_table_c_window`` is a callable ``(check_date) -> LookbackWindow``
         for the relevant PY. ``check_dates`` is the list of check dates
