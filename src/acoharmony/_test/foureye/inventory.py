@@ -1691,3 +1691,80 @@ class TestClientAdditional:
             result = client.download(category=DataHubCategory.CCLF)
             assert result.success
             client.state_tracker.mark_multiple_downloaded.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# Issue #48: stdout auth-error detection in _run_view_command
+# ---------------------------------------------------------------------------
+
+
+class TestRunViewCommandStdoutAuthError:
+    """4icli writes auth errors to stdout with exit code 0; we must catch them."""
+
+    @patch("subprocess.run")
+    @pytest.mark.unit
+    def test_invalid_credentials_on_stdout_returns_empty(
+        self, mock_run, make_config, mock_lw
+    ):
+        from acoharmony._4icli.inventory import InventoryDiscovery
+
+        mock_run.return_value.returncode = 0
+        mock_run.return_value.stdout = (
+            " 4icli - 4Innovation CLI\n\n"
+            " Error authenticating with client.\n"
+            " Request failed with status code 400\n"
+            " Invalid Data: Invalid client credentials\n"
+        )
+        mock_run.return_value.stderr = ""
+
+        discovery = InventoryDiscovery(
+            config=make_config, log_writer=mock_lw, request_delay=0
+        )
+        files = discovery._run_view_command(apm_id="D0259", year=2025)
+
+        assert files == []
+        # Must log the actionable error, not silently return
+        mock_lw.error.assert_called()
+        msg = mock_lw.error.call_args.args[0]
+        assert "Authentication failed" in msg
+        assert "bootstrap.sh" in msg
+
+    @patch("subprocess.run")
+    @pytest.mark.unit
+    def test_status_code_401_on_stdout_returns_empty(
+        self, mock_run, make_config, mock_lw
+    ):
+        from acoharmony._4icli.inventory import InventoryDiscovery
+
+        mock_run.return_value.returncode = 0
+        mock_run.return_value.stdout = " Request failed with status code 401\n"
+        mock_run.return_value.stderr = ""
+
+        discovery = InventoryDiscovery(
+            config=make_config, log_writer=mock_lw, request_delay=0
+        )
+        files = discovery._run_view_command(apm_id="D0259", year=2024)
+
+        assert files == []
+        mock_lw.error.assert_called()
+
+    @patch("subprocess.run")
+    @pytest.mark.unit
+    def test_clean_stdout_still_succeeds(self, mock_run, make_config, mock_lw):
+        from acoharmony._4icli.inventory import InventoryDiscovery
+
+        mock_run.return_value.returncode = 0
+        mock_run.return_value.stdout = (
+            " Found 1 files.\n"
+            " List of Files\n"
+            " 1 of 1 - some_file.zip (1 KB) Last Updated: 2025-01-01T00:00:00.000Z\n"
+        )
+        mock_run.return_value.stderr = ""
+
+        discovery = InventoryDiscovery(
+            config=make_config, log_writer=mock_lw, request_delay=0
+        )
+        files = discovery._run_view_command(apm_id="D0259", year=2025)
+
+        assert len(files) == 1
+        assert files[0]["filename"] == "some_file.zip"

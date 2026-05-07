@@ -592,3 +592,94 @@ class TestFallbackParsingComprehensive:
         filenames = [f.filename for f in result.files]
         assert "real_file.txt" in filenames
         assert len(result.files) == 1  # only the valid one
+
+
+# ---------------------------------------------------------------------------
+# Auth-error detection on stdout (issue #48)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestDetectAuthErrors:
+    """detect_auth_errors recognises 4icli auth failures emitted on stdout."""
+
+    @pytest.mark.unit
+    def test_invalid_credentials(self):
+        from acoharmony._4icli.parser import detect_auth_errors
+
+        stdout = (
+            " 4icli - 4Innovation CLI\n\n"
+            " Error authenticating with client.\n"
+            " Request failed with status code 400\n"
+            " Invalid Data: Invalid client credentials\n"
+        )
+        hits = detect_auth_errors(stdout)
+        assert len(hits) == 3
+        assert any("Error authenticating" in h for h in hits)
+        assert any("status code 400" in h for h in hits)
+        assert any("Invalid client credentials" in h for h in hits)
+
+    @pytest.mark.unit
+    def test_status_code_401(self):
+        from acoharmony._4icli.parser import detect_auth_errors
+
+        hits = detect_auth_errors("Request failed with status code 401")
+        assert hits == ["Request failed with status code 401"]
+
+    @pytest.mark.unit
+    def test_key_no_longer_active(self):
+        from acoharmony._4icli.parser import detect_auth_errors
+
+        hits = detect_auth_errors("This key is no longer active")
+        assert hits == ["This key is no longer active"]
+
+    @pytest.mark.unit
+    def test_clean_output_returns_empty(self):
+        from acoharmony._4icli.parser import detect_auth_errors
+
+        stdout = " Found 2 files.\n 1 of 2 - file.zip (1 KB)\n 2 of 2 - other.zip (2 KB)\n"
+        assert detect_auth_errors(stdout) == []
+
+    @pytest.mark.unit
+    def test_none_or_empty(self):
+        from acoharmony._4icli.parser import detect_auth_errors
+
+        assert detect_auth_errors(None) == []
+        assert detect_auth_errors("") == []
+        assert detect_auth_errors("   \n\n  \n") == []
+
+    @pytest.mark.unit
+    def test_case_insensitive(self):
+        from acoharmony._4icli.parser import detect_auth_errors
+
+        assert detect_auth_errors("error AUTHENTICATING with client") == [
+            "error AUTHENTICATING with client"
+        ]
+
+
+@pytest.mark.unit
+class TestParseDatahubOutputAuthErrors:
+    """parse_datahub_output surfaces stdout auth errors via .errors."""
+
+    @pytest.mark.unit
+    def test_auth_error_on_stdout_populates_errors(self):
+        stdout = (
+            " 4icli - 4Innovation CLI\n\n"
+            " Error authenticating with client.\n"
+            " Request failed with status code 400\n"
+            " Invalid Data: Invalid client credentials\n"
+        )
+        result = parse_datahub_output(stdout)
+        assert result.errors is not None
+        assert any("Authentication error" in e for e in result.errors)
+        assert any("Invalid client credentials" in e for e in result.errors)
+        # No files were listed in the output
+        assert result.files == []
+
+    @pytest.mark.unit
+    def test_no_auth_error_clean_output(self):
+        stdout = " Found 1 files.\n 1 of 1 - file.zip (1 KB)\n"
+        result = parse_datahub_output(stdout)
+        # errors may be None or empty list - either way, no auth markers
+        if result.errors:
+            assert not any("Authentication error" in e for e in result.errors)

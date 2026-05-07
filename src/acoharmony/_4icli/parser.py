@@ -13,6 +13,36 @@ import re
 from dataclasses import dataclass
 
 
+# 4icli writes auth errors to stdout with exit code 0, so the only way to
+# detect a failed auth is to pattern-match the output. See issue #48.
+_AUTH_ERROR_PATTERNS: tuple[re.Pattern[str], ...] = (
+    re.compile(r"Error authenticating", re.IGNORECASE),
+    re.compile(r"Request failed with status code \d{3}", re.IGNORECASE),
+    re.compile(r"Invalid client credentials", re.IGNORECASE),
+    re.compile(r"This key is no longer active", re.IGNORECASE),
+)
+
+
+def detect_auth_errors(text: str | None) -> list[str]:
+    """
+    Scan text for known 4icli authentication-error markers.
+
+        Returns the matching lines (stripped) so callers can surface them in
+        log messages and structured errors. Empty list means no auth error
+        was detected.
+    """
+    if not text:
+        return []
+    hits: list[str] = []
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if any(p.search(stripped) for p in _AUTH_ERROR_PATTERNS):
+            hits.append(stripped)
+    return hits
+
+
 def _parse_size_to_bytes(size_str: str) -> int | None:
     """
     Convert size string like '64.66 MB' to bytes.
@@ -111,6 +141,12 @@ def parse_datahub_output(stdout: str, stderr: str | None = None) -> ParsedComman
             raw_output=stdout,
             errors=["Empty stdout"],
         )
+
+    # Auth errors land on stdout with exit code 0; surface them as structured
+    # errors so callers don't mistake the empty file list for a successful run.
+    auth_hits = detect_auth_errors(stdout)
+    if auth_hits:
+        errors.extend(f"Authentication error: {hit}" for hit in auth_hits)
 
     # Extract total file count from "Found X files" line
     found_match = re.search(r"Found (\d+) files?", stdout)

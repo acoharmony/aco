@@ -25,7 +25,7 @@ from .._log import LogWriter
 from .._registry import SchemaRegistry as CentralRegistry
 from .config import FourICLIConfig, get_current_year
 from .models import DataHubCategory, FileTypeCode
-from .parser import parse_datahub_output
+from .parser import detect_auth_errors, parse_datahub_output
 
 
 def _parse_size_to_bytes(size_str: str) -> int | None:
@@ -328,6 +328,19 @@ class InventoryDiscovery:
 
             # Parse output using centralized parser
             parsed = parse_datahub_output(result.stdout, result.stderr)
+
+            # 4icli emits auth errors on stdout with exit code 0; treat them
+            # as a hard failure for this year so callers don't see a silent
+            # "0 files" success.
+            auth_hits = detect_auth_errors(result.stdout)
+            if auth_hits:
+                self.log_writer.error(
+                    f"Authentication failed for year {year}: {auth_hits[0]}. "
+                    "Refresh creds via deploy/images/4icli/bootstrap.sh after a portal rotation.",
+                    year=year,
+                    auth_errors=auth_hits,
+                )
+                return []
 
             # Convert to expected format
             files = []

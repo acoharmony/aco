@@ -1598,3 +1598,67 @@ class TestClientDownloadParsedOutputFalsy:
             # parsed_output is falsy (None), so "reported downloading" should NOT appear
             info_calls = [str(c) for c in lw.info.call_args_list]
             assert not any("reported downloading" in c for c in info_calls)
+
+
+# ---------------------------------------------------------------------------
+# Issue #48: stdout auth-error detection in _run_command
+# ---------------------------------------------------------------------------
+
+
+class TestRunCommandStdoutAuthError:
+    """4icli emits auth errors on stdout with exit code 0; raise instead of swallowing."""
+
+    @pytest.fixture
+    def client(self, tmp_path):
+        cfg = _make_config(tmp_path)
+        lw = _mock_log_writer()
+        with patch.object(cfg, "validate"):
+            from acoharmony._4icli.client import FourICLI
+
+            return FourICLI(config=cfg, log_writer=lw, enable_duplicate_detection=False)
+
+    @pytest.mark.unit
+    def test_invalid_credentials_on_stdout_raises(self, client):
+        from acoharmony._4icli.client import FourICLIError
+
+        result_mock = MagicMock()
+        result_mock.returncode = 0
+        result_mock.stdout = (
+            " 4icli - 4Innovation CLI\n\n"
+            " Error authenticating with client.\n"
+            " Request failed with status code 400\n"
+            " Invalid Data: Invalid client credentials\n"
+        )
+        result_mock.stderr = ""
+
+        with patch("subprocess.run", return_value=result_mock):
+            with pytest.raises(FourICLIError) as exc_info:
+                client._run_command(["4icli", "datahub", "-v", "-a", "D0259", "-y", "2025"])
+
+        msg = str(exc_info.value)
+        assert "authentication failed" in msg.lower()
+        assert "bootstrap.sh" in msg
+
+    @pytest.mark.unit
+    def test_clean_stdout_does_not_raise(self, client):
+        result_mock = MagicMock()
+        result_mock.returncode = 0
+        result_mock.stdout = " Found 1 files.\n 1 of 1 - file.zip (1 KB)\n"
+        result_mock.stderr = ""
+
+        with patch("subprocess.run", return_value=result_mock):
+            result = client._run_command(["4icli", "datahub", "-v"])
+            assert result.returncode == 0
+
+    @pytest.mark.unit
+    def test_status_code_401_on_stdout_raises(self, client):
+        from acoharmony._4icli.client import FourICLIError
+
+        result_mock = MagicMock()
+        result_mock.returncode = 0
+        result_mock.stdout = " Request failed with status code 401\n"
+        result_mock.stderr = ""
+
+        with patch("subprocess.run", return_value=result_mock):
+            with pytest.raises(FourICLIError):
+                client._run_command(["4icli", "datahub", "-v"])

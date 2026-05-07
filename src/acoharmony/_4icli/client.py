@@ -18,7 +18,7 @@ from .models import (
     FileInfo,
     FileTypeCode,
 )
-from .parser import parse_datahub_output
+from .parser import detect_auth_errors, parse_datahub_output
 from .state import FourICLIStateTracker
 
 
@@ -147,6 +147,18 @@ class FourICLI:
                 error_msg = f"Command failed with exit code {result.returncode}"
                 if result.stderr:
                     error_msg += f": {result.stderr}"
+                self.log_writer.error(error_msg)
+                raise FourICLIError(error_msg)
+
+            # 4icli writes auth errors to stdout with exit code 0, so a clean
+            # exit isn't proof of success. Catch them here before the parser
+            # quietly returns "0 files".
+            auth_hits = detect_auth_errors(result.stdout)
+            if auth_hits:
+                error_msg = (
+                    f"4icli authentication failed: {auth_hits[0]}. "
+                    "Refresh creds via deploy/images/4icli/bootstrap.sh after a portal rotation."
+                )
                 self.log_writer.error(error_msg)
                 raise FourICLIError(error_msg)
 
