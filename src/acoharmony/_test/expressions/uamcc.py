@@ -33,11 +33,17 @@ class TestUamccIdentifyMccCohort:
 
     @pytest.mark.unit
     def test_identify_mcc_cohort_basic(self):
+        from datetime import date
+
         import polars as pl
 
+        # claim_start_date must be a Date (polars infers from date()
+        # values) to match gold/medical_claim — identify_mcc_cohort
+        # compares the column directly against a parsed Date literal.
         claims = pl.DataFrame({
             "claim_id": ["C1", "C2", "C3"],
             "person_id": ["P1", "P1", "P2"],
+            "claim_start_date": [date(2024, 3, 15), date(2024, 6, 20), date(2024, 9, 1)],
             "admission_date": ["2024-03-15", "2024-06-20", "2024-09-01"],
             "diagnosis_code_1": ["E119", "I509", "E119"],
             "diagnosis_code_2": ["J449", None, None],
@@ -121,9 +127,20 @@ class TestClassifyPlannedAdmissions:
             "claim_id": ["C1", "C2", "C3"],
             "person_id": ["P1", "P1", "P1"],
             "admission_date": ["2025-03-01", "2025-06-01", "2025-09-01"],
+            # discharge_date / disposition / admit_source feed the
+            # spell-linking transform downstream (UAMCC MIF v4.0 §3.5).
+            # All three claims here are independent stays — no
+            # transfers — so dispositions are home (01) and admit
+            # sources are non-transfer (1).
+            "discharge_date": ["2025-03-05", "2025-06-08", "2025-09-04"],
+            "discharge_disposition_code": ["01", "01", "01"],
+            "admit_source_code": ["1", "1", "1"],
             "bill_type_code": ["111", "111", "111"],
             "diagnosis_code_1": ["A01", "B02", "C03"],
-            "hcpcs_code": ["PX100", "PX200", "PX300"],
+            # PAA1/PAA3 procedure flags now read from procedure_code_*
+            # (ICD-10-PCS columns on inpatient claims), not hcpcs_code
+            # — the latter is only populated on outpatient/Part B rows.
+            "procedure_code_1": ["PX100", "PX200", "PX300"],
         }).lazy()
 
         value_sets = {
@@ -258,8 +275,11 @@ class TestCalculateUamccMeasure:
         claims = pl.DataFrame({
             "claim_id": ["C1", "C2", "C3"],
             "person_id": ["P1", "P1", "P2"],
+            "claim_start_date": [date(2024, 3, 15), date(2024, 6, 20), date(2024, 9, 1)],
             "admission_date": ["2024-03-15", "2024-06-20", "2024-09-01"],
             "discharge_date": ["2024-03-20", "2024-06-25", "2024-09-05"],
+            "discharge_disposition_code": ["01", "01", "01"],
+            "admit_source_code": ["1", "1", "1"],
             "diagnosis_code_1": ["E119", "I509", "E119"],
             "diagnosis_code_2": ["J449", None, None],
             "hcpcs_code": ["PX100", "PX200", "PX100"],
@@ -372,11 +392,14 @@ class TestUamccIdentifyMccCohortBranches:
     @pytest.mark.unit
     def test_with_diagnosis_columns(self):
         """Branch 115->116 and 127->138: dx columns exist, frames built."""
+        from datetime import date
+
         from acoharmony._expressions._uamcc import UamccExpression
 
         claims = pl.DataFrame({
             "claim_id": ["C1", "C2"],
             "person_id": ["P1", "P2"],
+            "claim_start_date": [date(2024, 6, 1), date(2024, 7, 15)],
             "admission_date": ["2024-06-01", "2024-07-15"],
             "diagnosis_code_1": ["E11", "E10"],
         }).lazy()
@@ -389,3 +412,185 @@ class TestUamccIdentifyMccCohortBranches:
         config = {"performance_year": 2025}
         result = UamccExpression.identify_mcc_cohort(claims, cohort_vs, config).collect()
         assert "person_id" in result.columns
+
+
+class TestLinkAdmissionSpells:
+    """Collapsing contiguous inpatient stays into single spells per
+    UAMCC MIF v4.0 §3.5. Pre-link, the per-claim count over-reports the
+    UAMCC numerator vs CMS — counting transfers, same-day re-admits,
+    and chained acute stays as separate admissions.
+
+    Each test exercises one branch of the link rule plus the per-spell
+    aggregation invariants (admission_date from first stay, discharge
+    from last, planned/excluded any-True).
+    """
+
+    def _per_claim(self, rows: list[dict]) -> pl.LazyFrame:
+        from datetime import date as _date
+
+        defaults = {
+            "claim_id": [r["claim_id"] for r in rows],
+            "person_id": [r.get("person_id", "P1") for r in rows],
+            "admission_date": [
+                r["admission_date"]
+                if isinstance(r["admission_date"], _date)
+                else _date.fromisoformat(r["admission_date"])
+                for r in rows
+            ],
+            "discharge_date": [
+                r["discharge_date"]
+                if isinstance(r["discharge_date"], _date)
+                else _date.fromisoformat(r["discharge_date"])
+                for r in rows
+            ],
+            "discharge_disposition_code": [
+                r.get("discharge_disposition_code", "01") for r in rows
+            ],
+            "admit_source_code": [r.get("admit_source_code", "1") for r in rows],
+            "is_planned": [r.get("is_planned", False) for r in rows],
+            "is_excluded": [r.get("is_excluded", False) for r in rows],
+        }
+        return pl.DataFrame(defaults).lazy()
+
+    @pytest.mark.unit
+    def test_independent_stays_not_linked(self):
+        """Two stays a month apart, home discharge in between, normal
+        admit source — must remain two separate spells."""
+        per_claim = self._per_claim([
+            {"claim_id": "C1", "admission_date": "2025-02-01",
+             "discharge_date": "2025-02-05"},
+            {"claim_id": "C2", "admission_date": "2025-04-01",
+             "discharge_date": "2025-04-04"},
+        ])
+        spells = UamccExpression.link_admission_spells(per_claim).collect()
+        assert spells.height == 2
+        assert spells.sort("admission_date")["spell_id"].to_list() == ["C1", "C2"]
+        assert (spells["linked_claim_count"] == 1).all()
+
+    @pytest.mark.unit
+    def test_link_via_transfer_discharge_disposition(self):
+        """Prior discharge code 02 (transfer to short-term hospital)
+        links the next stay even when the gap is > 1 day."""
+        per_claim = self._per_claim([
+            {"claim_id": "C1", "admission_date": "2025-02-01",
+             "discharge_date": "2025-02-05",
+             "discharge_disposition_code": "02"},
+            {"claim_id": "C2", "admission_date": "2025-02-08",
+             "discharge_date": "2025-02-12",
+             "discharge_disposition_code": "01"},
+        ])
+        spells = UamccExpression.link_admission_spells(per_claim).collect()
+        from datetime import date as _date
+        assert spells.height == 1
+        row = spells.row(0, named=True)
+        assert row["spell_id"] == "C1"
+        assert row["admission_date"] == _date(2025, 2, 1)
+        assert row["discharge_date"] == _date(2025, 2, 12)
+        assert row["discharge_disposition_code"] == "01"
+        assert row["linked_claim_count"] == 2
+
+    @pytest.mark.unit
+    def test_link_via_admit_source_code(self):
+        """Next stay's admit_source_code = '4' (transfer-from-hospital)
+        links the chain regardless of prior disposition."""
+        per_claim = self._per_claim([
+            {"claim_id": "C1", "admission_date": "2025-02-01",
+             "discharge_date": "2025-02-05",
+             "discharge_disposition_code": "01"},
+            {"claim_id": "C2", "admission_date": "2025-02-10",
+             "discharge_date": "2025-02-12",
+             "admit_source_code": "4"},
+        ])
+        spells = UamccExpression.link_admission_spells(per_claim).collect()
+        assert spells.height == 1
+        assert spells.row(0, named=True)["spell_id"] == "C1"
+
+    @pytest.mark.unit
+    def test_link_via_overlap_or_same_day(self):
+        """Same-day re-admission (admission ≤ prior discharge) links the
+        chain even when both disposition and admit_source look benign."""
+        per_claim = self._per_claim([
+            {"claim_id": "C1", "admission_date": "2025-02-01",
+             "discharge_date": "2025-02-05"},
+            {"claim_id": "C2", "admission_date": "2025-02-05",
+             "discharge_date": "2025-02-08"},
+        ])
+        spells = UamccExpression.link_admission_spells(per_claim).collect()
+        assert spells.height == 1
+        assert spells.row(0, named=True)["linked_claim_count"] == 2
+
+    @pytest.mark.unit
+    def test_three_stay_chain_collapses_to_one_spell(self):
+        """A → B (transfer disposition) → C (admit-from-hospital) — all
+        three collapse to one spell. Confirms the per-person spell index
+        increments only on chain starts."""
+        per_claim = self._per_claim([
+            {"claim_id": "C1", "admission_date": "2025-02-01",
+             "discharge_date": "2025-02-04",
+             "discharge_disposition_code": "02"},
+            {"claim_id": "C2", "admission_date": "2025-02-04",
+             "discharge_date": "2025-02-07",
+             "admit_source_code": "4"},
+            {"claim_id": "C3", "admission_date": "2025-02-07",
+             "discharge_date": "2025-02-10",
+             "admit_source_code": "6"},
+        ])
+        spells = UamccExpression.link_admission_spells(per_claim).collect()
+        from datetime import date as _date
+        assert spells.height == 1
+        row = spells.row(0, named=True)
+        assert row["linked_claim_count"] == 3
+        assert row["admission_date"] == _date(2025, 2, 1)
+        assert row["discharge_date"] == _date(2025, 2, 10)
+
+    @pytest.mark.unit
+    def test_planned_and_excluded_propagate_any(self):
+        """``is_planned`` and ``is_excluded`` aggregate via OR across the
+        chain — a chain that contains a planned or excluded stay is
+        treated as planned/excluded so the numerator drops it."""
+        per_claim = self._per_claim([
+            {"claim_id": "C1", "admission_date": "2025-02-01",
+             "discharge_date": "2025-02-05",
+             "discharge_disposition_code": "02",
+             "is_planned": True, "is_excluded": False},
+            {"claim_id": "C2", "admission_date": "2025-02-05",
+             "discharge_date": "2025-02-08",
+             "is_planned": False, "is_excluded": True},
+        ])
+        spells = UamccExpression.link_admission_spells(per_claim).collect()
+        assert spells.height == 1
+        row = spells.row(0, named=True)
+        assert row["is_planned"] is True
+        assert row["is_excluded"] is True
+
+    @pytest.mark.unit
+    def test_per_person_spells_are_isolated(self):
+        """Two persons with overlapping admission windows but distinct
+        person_ids must produce independent spells. Earlier versions of
+        the rule risked cross-person leakage if the sort or .over()
+        partitioning was wrong."""
+        per_claim = self._per_claim([
+            {"claim_id": "A1", "person_id": "P1",
+             "admission_date": "2025-02-01", "discharge_date": "2025-02-05"},
+            {"claim_id": "B1", "person_id": "P2",
+             "admission_date": "2025-02-04", "discharge_date": "2025-02-08"},
+        ])
+        spells = UamccExpression.link_admission_spells(per_claim).collect()
+        assert spells.height == 2
+        by_person = dict(zip(
+            spells["person_id"].to_list(), spells["linked_claim_count"].to_list()
+        ))
+        assert by_person == {"P1": 1, "P2": 1}
+
+    @pytest.mark.unit
+    def test_first_row_has_no_prior_so_chain_starts(self):
+        """``shift(1).over(person_id)`` returns null for the first row.
+        The fill_null(False) on each link clause must keep that row as a
+        chain start rather than NULL-propagating into the OR."""
+        per_claim = self._per_claim([
+            {"claim_id": "C1", "admission_date": "2025-02-01",
+             "discharge_date": "2025-02-05"},
+        ])
+        spells = UamccExpression.link_admission_spells(per_claim).collect()
+        assert spells.height == 1
+        assert spells.row(0, named=True)["spell_id"] == "C1"

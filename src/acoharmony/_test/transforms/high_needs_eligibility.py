@@ -60,6 +60,7 @@ def seeded(tmp_path: Path):
             "bill_type_code": "111",
             "admit_type_code": "1",   # Emergency (unplanned)
             "admission_date": date(2025, 6, 1),
+            "claim_start_date": date(2025, 6, 1),
             "claim_line_start_date": date(2025, 6, 1),
             "claim_line_end_date": date(2025, 6, 10),
             "hcpcs_code": None,
@@ -71,6 +72,7 @@ def seeded(tmp_path: Path):
             "bill_type_code": "211",  # SNF
             "admit_type_code": None,
             "admission_date": date(2025, 1, 1),
+            "claim_start_date": date(2025, 1, 1),
             "claim_line_start_date": date(2025, 1, 1),
             "claim_line_end_date": date(2025, 2, 28),
             "hcpcs_code": None,
@@ -191,6 +193,7 @@ class TestExecute:
                     "bill_type_code": "111",
                     "admit_type_code": "1",
                     "admission_date": date(2022, 6, 1),
+                    "claim_start_date": date(2022, 6, 1),
                     "claim_line_start_date": date(2022, 6, 1),
                     "claim_line_end_date": date(2022, 6, 10),
                     "hcpcs_code": None,

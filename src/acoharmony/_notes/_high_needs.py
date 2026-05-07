@@ -318,6 +318,256 @@ class HighNeedsPlugins(PluginRegistry):
             ]
         )
 
+    # ---- per-criterion recall (BAR comparison) ------------------------
+
+    def per_criterion_recall(
+        self,
+        bar_high_needs: pl.DataFrame,
+        ever_eligible: pl.DataFrame,
+    ) -> pl.DataFrame:
+        """Per-PY × per-criterion recall vs. the BAR.
+
+        Inputs are the same shapes used by the reconciliation tests
+        (``acoharmony._test.reconciliation.high_needs_eligibility_count_tieout``):
+
+            ``bar_high_needs`` — one row per (performance_year,
+              resolved_mbi) carrying ``bar_a/b/c/d`` per-criterion flags.
+            ``ever_eligible`` — distinct MBIs we ever flagged eligible
+              (``first_ever_eligible_check_date IS NOT NULL``).
+
+        Output: a long-form DataFrame with columns
+
+            performance_year, criterion, n_bar_flagged,
+            n_found_eligible, n_missed, recall
+
+        The denominator is "BAR benes flagged with this criterion's
+        per-criterion flag" — a bene flagged under multiple criteria
+        contributes to every relevant denominator.
+        """
+        missed = bar_high_needs.join(
+            ever_eligible, left_on="resolved_mbi", right_on="mbi", how="anti"
+        )
+        rows = []
+        flag_by_letter = {"a": "bar_a", "b": "bar_b", "c": "bar_c", "d": "bar_d"}
+        for py in sorted(bar_high_needs["performance_year"].unique().to_list()):
+            for letter, col in flag_by_letter.items():
+                denom = bar_high_needs.filter(
+                    (pl.col("performance_year") == py) & pl.col(col)
+                ).height
+                if denom == 0:
+                    continue
+                miss = missed.filter(
+                    (pl.col("performance_year") == py) & pl.col(col)
+                ).height
+                rows.append({
+                    "performance_year": py,
+                    "criterion": letter,
+                    "n_bar_flagged": denom,
+                    "n_found_eligible": denom - miss,
+                    "n_missed": miss,
+                    "recall": (denom - miss) / denom,
+                })
+        return pl.DataFrame(rows)
+
+    # ---- criterion-a inpatient-only-vs-CCW simulation -----------------
+
+    def criterion_a_branch_simulation(
+        self,
+        missed_a_mbis: list[str],
+        medical_claim_lf: pl.LazyFrame,
+        b61_codes: pl.LazyFrame,
+        check_dates: list,
+        py_table_c_window,
+    ) -> pl.DataFrame:
+        """Simulate what each branch of FOG line 1503 would produce for
+        the BAR-flagged-(a) benes our pipeline misses.
+
+        For each missed-(a) MBI, walk the four PY check-date windows and
+        bucket the bene by which CCW branch — if any — would qualify
+        them:
+
+            - "inpatient" : ≥ 1 institutional-inpatient (bill_type 11x)
+              claim with a B.6.1 dx in window
+            - "non_inpatient_2dos" : ≥ 2 non-inpatient claims with a
+              B.6.1 dx on distinct service dates in window
+            - "non_inpatient_1dos" : exactly 1 non-inpatient B.6.1
+              match in window (would not qualify under either branch)
+            - "no_match_in_claims" : bene has no B.6.1 dx in window
+              under any claim type
+
+        Returns one row per bucket with ``bucket``, ``benes``, ``share``.
+        Buckets are mutually exclusive in the order above (a bene who
+        qualifies under both branches lands in "inpatient").
+
+        Used by the diagnostic notebook to demonstrate, ahead of a
+        pipeline regen, how many missed benes the criterion-a fix
+        would recover.
+
+        ``py_table_c_window`` is a callable ``(check_date) -> LookbackWindow``
+        for the relevant PY. ``check_dates`` is the list of check dates
+        for that PY. Pass via the imports from ``_high_needs_lookback``
+        so the notebook stays free of expression-module imports.
+        """
+        from acoharmony._expressions._high_needs_criterion_a import (
+            DIAGNOSIS_CODE_COLUMNS,
+            HOSPITAL_INPATIENT_BILL_TYPE_PREFIX,
+            _normalize_icd10_code,
+        )
+
+        codes_set = set(b61_codes.select("icd10_code").unique().collect()["icd10_code"].to_list())
+
+        inpatient_qualifies: set[str] = set()
+        non_inpatient_2dos: set[str] = set()
+        any_match: set[str] = set()
+
+        for cd in check_dates:
+            w = py_table_c_window(cd)
+            in_win = (
+                medical_claim_lf.filter(
+                    pl.col("person_id").is_in(missed_a_mbis)
+                    & pl.col("claim_start_date").cast(pl.Date, strict=False).is_between(
+                        w.begin, w.end, closed="both"
+                    )
+                )
+                .with_columns(
+                    (
+                        (pl.col("claim_type").cast(pl.String) == "institutional")
+                        & pl.col("bill_type_code")
+                        .cast(pl.String)
+                        .str.starts_with(HOSPITAL_INPATIENT_BILL_TYPE_PREFIX)
+                    ).alias("is_inpatient"),
+                )
+                .select(
+                    "person_id",
+                    "is_inpatient",
+                    pl.col("claim_start_date").cast(pl.Date, strict=False).alias("dos"),
+                    *[
+                        _normalize_icd10_code(pl.col(c).cast(pl.String, strict=False)).alias(c)
+                        for c in DIAGNOSIS_CODE_COLUMNS
+                    ],
+                )
+                .collect()
+            )
+            if in_win.height == 0:
+                continue
+            long = in_win.unpivot(
+                index=["person_id", "is_inpatient", "dos"],
+                on=list(DIAGNOSIS_CODE_COLUMNS),
+                variable_name="_pos",
+                value_name="dx",
+            ).filter(pl.col("dx").is_not_null() & (pl.col("dx").str.len_chars() > 0))
+            matched = long.filter(pl.col("dx").is_in(codes_set))
+            if matched.height == 0:
+                continue
+            any_match.update(matched["person_id"].unique().to_list())
+            inpatient_qualifies.update(
+                matched.filter(pl.col("is_inpatient"))["person_id"].unique().to_list()
+            )
+            ni_dos = (
+                matched.filter(~pl.col("is_inpatient"))
+                .group_by("person_id")
+                .agg(pl.col("dos").n_unique().alias("d"))
+                .filter(pl.col("d") >= 2)["person_id"]
+                .to_list()
+            )
+            non_inpatient_2dos.update(ni_dos)
+
+        total = len(missed_a_mbis)
+        # Mutually exclusive bucketing in order
+        b_inp = inpatient_qualifies
+        b_ni2 = non_inpatient_2dos - b_inp
+        b_ni1 = (any_match - b_inp) - non_inpatient_2dos
+        b_none = set(missed_a_mbis) - any_match
+
+        rows = [
+            ("inpatient (current branch — 1+ inpatient B.6.1 claim)", len(b_inp)),
+            ("non_inpatient_2dos (FIX adds these — 2+ DOS)", len(b_ni2)),
+            ("non_inpatient_1dos (still won't qualify after fix)", len(b_ni1)),
+            ("no_match_in_claims (data gap, no B.6.1 dx in any claim)", len(b_none)),
+        ]
+        return pl.DataFrame(
+            [
+                {
+                    "bucket": label,
+                    "benes": n,
+                    "share": round(n / total, 4) if total else 0.0,
+                }
+                for label, n in rows
+            ]
+        )
+
+    # ---- criterion-b score-distribution diagnostic --------------------
+
+    def criterion_b_score_distribution(
+        self,
+        missed_b_mbis: list[str],
+        gold_path: Path,
+        performance_year: int,
+    ) -> pl.DataFrame:
+        """For BAR-flagged-(b) benes our pipeline misses, bucket by the
+        max score we computed for them in ``performance_year``.
+
+        Buckets:
+            "scored ≥ 3.0"          — should be 0 by definition (would
+                                       have qualified). Sanity check.
+            "2.5-3.0 (within 0.5)"  — borderline; coefficient-drift
+                                       sensitive
+            "2.0-2.5"               — moderately below
+            "1.0-2.0"               — well below
+            "< 1.0"                 — far below; data sparseness story
+            "no score"              — bene not in hcc_risk_scores at all
+                                       (no claims feed for the dx window)
+        """
+        gold = Path(gold_path)
+        scores = (
+            pl.scan_parquet(gold / "hcc_risk_scores.parquet")
+            .filter(
+                pl.col("mbi").is_in(missed_b_mbis)
+                & (pl.col("performance_year") == performance_year)
+            )
+            .group_by("mbi")
+            .agg(pl.col("total_risk_score").max().alias("max_score"))
+            .collect()
+        )
+        score_lookup = dict(
+            zip(scores["mbi"].to_list(), scores["max_score"].to_list())
+        )
+
+        buckets: dict[str, int] = {
+            "scored ≥ 3.0": 0,
+            "2.5-3.0 (within 0.5)": 0,
+            "2.0-2.5": 0,
+            "1.0-2.0": 0,
+            "< 1.0": 0,
+            "no score": 0,
+        }
+        for mbi in missed_b_mbis:
+            s = score_lookup.get(mbi)
+            if s is None:
+                buckets["no score"] += 1
+            elif s >= 3.0:
+                buckets["scored ≥ 3.0"] += 1
+            elif s >= 2.5:
+                buckets["2.5-3.0 (within 0.5)"] += 1
+            elif s >= 2.0:
+                buckets["2.0-2.5"] += 1
+            elif s >= 1.0:
+                buckets["1.0-2.0"] += 1
+            else:
+                buckets["< 1.0"] += 1
+
+        total = len(missed_b_mbis)
+        return pl.DataFrame(
+            [
+                {
+                    "bucket": label,
+                    "benes": n,
+                    "share": round(n / total, 4) if total else 0.0,
+                }
+                for label, n in buckets.items()
+            ]
+        )
+
     # ---- per-MBI inspector --------------------------------------------
 
     def per_mbi_summary(

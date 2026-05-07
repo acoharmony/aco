@@ -283,6 +283,217 @@ class TestRecallResidualBuckets:
         assert bnex_only["benes"] == 1
 
 
+class TestPerCriterionRecall:
+    """``HighNeedsPlugins.per_criterion_recall`` long-form output."""
+
+    def _bar_df(self) -> pl.DataFrame:
+        # Two PYs, four BAR-flagged benes, mixed criterion flags.
+        return pl.DataFrame({
+            "performance_year": [2024, 2024, 2024, 2024, 2025, 2025],
+            "resolved_mbi":     ["X1", "X2", "X3", "X4", "X5", "X6"],
+            "bar_a":            [True,  False, True,  False, True,  True],
+            "bar_b":            [True,  True,  False, True,  False, True],
+            "bar_c":            [False, False, False, True,  False, False],
+            "bar_d":            [False, True,  False, False, False, False],
+        })
+
+    def _ever_df(self, mbis: list[str]) -> pl.DataFrame:
+        return pl.DataFrame({"mbi": mbis})
+
+    @pytest.mark.unit
+    def test_full_recall_when_all_found(self) -> None:
+        bar = self._bar_df()
+        ever = self._ever_df(["X1", "X2", "X3", "X4", "X5", "X6"])
+        out = HighNeedsPlugins().per_criterion_recall(bar, ever)
+        # Every cell should report recall 1.0 with n_missed == 0.
+        assert (out["recall"] == 1.0).all()
+        assert (out["n_missed"] == 0).all()
+
+    @pytest.mark.unit
+    def test_partial_recall_per_criterion(self) -> None:
+        bar = self._bar_df()
+        # Drop X1 — affects PY2024 (a) and (b)
+        ever = self._ever_df(["X2", "X3", "X4", "X5", "X6"])
+        out = HighNeedsPlugins().per_criterion_recall(bar, ever)
+        cell = lambda py, c: out.filter(
+            (pl.col("performance_year") == py) & (pl.col("criterion") == c)
+        ).row(0, named=True)
+        # PY2024 (a) denom 2 (X1, X3); X1 missed → 1/2
+        assert cell(2024, "a")["n_missed"] == 1
+        assert cell(2024, "a")["recall"] == 0.5
+        # PY2024 (b) denom 3 (X1, X2, X4); X1 missed → 2/3
+        assert cell(2024, "b")["n_missed"] == 1
+        # PY2024 (d) denom 1 (X2); X2 found → 1.0
+        assert cell(2024, "d")["recall"] == 1.0
+        # PY2025 unaffected — X5, X6 found
+        assert (out.filter(pl.col("performance_year") == 2025)["recall"] == 1.0).all()
+
+    @pytest.mark.unit
+    def test_zero_denom_criterion_skipped(self) -> None:
+        """A criterion with no BAR-flagged benes in a PY is omitted from
+        the output rather than emitting a divide-by-zero or recall=1.0
+        row that would mislead the reader."""
+        bar = pl.DataFrame({
+            "performance_year": [2024],
+            "resolved_mbi": ["X1"],
+            "bar_a": [True],
+            "bar_b": [False],
+            "bar_c": [False],
+            "bar_d": [False],
+        })
+        ever = self._ever_df(["X1"])
+        out = HighNeedsPlugins().per_criterion_recall(bar, ever)
+        # Only criterion (a) should appear.
+        assert out["criterion"].to_list() == ["a"]
+
+
+class TestCriterionABranchSimulation:
+    """``HighNeedsPlugins.criterion_a_branch_simulation``."""
+
+    def _make_codes(self) -> pl.LazyFrame:
+        return pl.LazyFrame({"icd10_code": ["G35", "G800"], "category": ["MS", "CP"]})
+
+    def _make_window_callable(self):
+        from acoharmony._expressions._high_needs_lookback import LookbackWindow
+        return lambda cd: LookbackWindow(begin=date(2024, 1, 1), end=date(2024, 12, 31))
+
+    @pytest.mark.unit
+    def test_inpatient_branch_dominates_combined_match(self) -> None:
+        """A bene with both an inpatient and a 2-DOS non-inpatient match
+        should land in the 'inpatient' bucket (mutually-exclusive in
+        order)."""
+        mc = pl.LazyFrame({
+            "person_id": ["A", "A", "A"],
+            "claim_type": ["institutional", "professional", "professional"],
+            "bill_type_code": ["111", None, None],
+            "claim_start_date": [date(2024, 6, 1), date(2024, 3, 1), date(2024, 8, 1)],
+            "diagnosis_code_1": ["G35", "G35", "G35"],
+            **{f"diagnosis_code_{i}": [None, None, None] for i in range(2, 26)},
+        }, schema_overrides={"claim_start_date": pl.Date})
+        out = HighNeedsPlugins().criterion_a_branch_simulation(
+            ["A"], mc, self._make_codes(),
+            check_dates=[date(2024, 1, 1)],
+            py_table_c_window=self._make_window_callable(),
+        )
+        d = {r["bucket"]: r["benes"] for r in out.to_dicts()}
+        assert d["inpatient (current branch — 1+ inpatient B.6.1 claim)"] == 1
+        assert d["non_inpatient_2dos (FIX adds these — 2+ DOS)"] == 0
+
+    @pytest.mark.unit
+    def test_non_inpatient_2dos_branch_picked_up(self) -> None:
+        mc = pl.LazyFrame({
+            "person_id": ["A", "A"],
+            "claim_type": ["professional", "professional"],
+            "bill_type_code": [None, None],
+            "claim_start_date": [date(2024, 3, 1), date(2024, 8, 15)],
+            "diagnosis_code_1": ["G35", "G800"],
+            **{f"diagnosis_code_{i}": [None, None] for i in range(2, 26)},
+        }, schema_overrides={"claim_start_date": pl.Date})
+        out = HighNeedsPlugins().criterion_a_branch_simulation(
+            ["A"], mc, self._make_codes(),
+            check_dates=[date(2024, 1, 1)],
+            py_table_c_window=self._make_window_callable(),
+        )
+        d = {r["bucket"]: r["benes"] for r in out.to_dicts()}
+        assert d["inpatient (current branch — 1+ inpatient B.6.1 claim)"] == 0
+        assert d["non_inpatient_2dos (FIX adds these — 2+ DOS)"] == 1
+
+    @pytest.mark.unit
+    def test_one_dos_lands_in_1dos_bucket(self) -> None:
+        mc = pl.LazyFrame({
+            "person_id": ["A"],
+            "claim_type": ["professional"],
+            "bill_type_code": [None],
+            "claim_start_date": [date(2024, 3, 1)],
+            "diagnosis_code_1": ["G35"],
+            **{f"diagnosis_code_{i}": [None] for i in range(2, 26)},
+        }, schema_overrides={"claim_start_date": pl.Date})
+        out = HighNeedsPlugins().criterion_a_branch_simulation(
+            ["A"], mc, self._make_codes(),
+            check_dates=[date(2024, 1, 1)],
+            py_table_c_window=self._make_window_callable(),
+        )
+        d = {r["bucket"]: r["benes"] for r in out.to_dicts()}
+        assert d["non_inpatient_1dos (still won't qualify after fix)"] == 1
+
+    @pytest.mark.unit
+    def test_no_match_at_all(self) -> None:
+        # Bene B has claims but no B.6.1 dx; bene C has no claims at all.
+        mc = pl.LazyFrame({
+            "person_id": ["B"],
+            "claim_type": ["professional"],
+            "bill_type_code": [None],
+            "claim_start_date": [date(2024, 3, 1)],
+            "diagnosis_code_1": ["Z99.0"],
+            **{f"diagnosis_code_{i}": [None] for i in range(2, 26)},
+        }, schema_overrides={"claim_start_date": pl.Date})
+        out = HighNeedsPlugins().criterion_a_branch_simulation(
+            ["B", "C"], mc, self._make_codes(),
+            check_dates=[date(2024, 1, 1)],
+            py_table_c_window=self._make_window_callable(),
+        )
+        d = {r["bucket"]: r["benes"] for r in out.to_dicts()}
+        assert d["no_match_in_claims (data gap, no B.6.1 dx in any claim)"] == 2
+
+    @pytest.mark.unit
+    def test_empty_input_returns_zero_share(self) -> None:
+        mc = pl.LazyFrame(schema={
+            "person_id": pl.String, "claim_type": pl.String,
+            "bill_type_code": pl.String, "claim_start_date": pl.Date,
+            **{f"diagnosis_code_{i}": pl.String for i in range(1, 26)},
+        })
+        out = HighNeedsPlugins().criterion_a_branch_simulation(
+            [], mc, self._make_codes(),
+            check_dates=[date(2024, 1, 1)],
+            py_table_c_window=self._make_window_callable(),
+        )
+        # All buckets should have share=0.0 when total is zero.
+        assert (out["share"] == 0.0).all()
+
+
+class TestCriterionBScoreDistribution:
+    """``HighNeedsPlugins.criterion_b_score_distribution``."""
+
+    def _seed_scores(self, tmp_path: Path) -> Path:
+        gold = tmp_path / "gold"
+        gold.mkdir()
+        pl.DataFrame({
+            "mbi":              ["M1", "M2", "M3", "M4", "M5", "M6"],
+            "performance_year": [2026] * 6,
+            "model_version":    ["cms_hcc_v24"] * 6,
+            "check_date":       [date(2026, 1, 1)] * 6,
+            "total_risk_score": [3.5, 2.7, 2.2, 1.5, 0.5, 1.0],
+            # PY2025 row for M1 should not contribute when we ask PY2026
+            "cohort":           ["AD"] * 6,
+        }).write_parquet(gold / "hcc_risk_scores.parquet")
+        return gold
+
+    @pytest.mark.unit
+    def test_buckets_each_threshold(self, tmp_path: Path) -> None:
+        gold = self._seed_scores(tmp_path)
+        # M7 has no score row → "no score"
+        out = HighNeedsPlugins().criterion_b_score_distribution(
+            ["M1", "M2", "M3", "M4", "M5", "M6", "M7"],
+            gold,
+            performance_year=2026,
+        )
+        d = {r["bucket"]: r["benes"] for r in out.to_dicts()}
+        assert d["scored ≥ 3.0"] == 1                  # M1
+        assert d["2.5-3.0 (within 0.5)"] == 1          # M2
+        assert d["2.0-2.5"] == 1                       # M3
+        assert d["1.0-2.0"] == 2                       # M4 (1.5), M6 (1.0)
+        assert d["< 1.0"] == 1                         # M5
+        assert d["no score"] == 1                      # M7
+
+    @pytest.mark.unit
+    def test_zero_input_no_division(self, tmp_path: Path) -> None:
+        gold = self._seed_scores(tmp_path)
+        out = HighNeedsPlugins().criterion_b_score_distribution(
+            [], gold, performance_year=2026,
+        )
+        assert (out["share"] == 0.0).all()
+
+
 class TestPerMbiSummary:
     @pytest.mark.unit
     def test_eligible(self) -> None:

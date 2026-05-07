@@ -129,16 +129,20 @@ class AllCauseUnplannedAdmissions(QualityMeasureBase):
         with_exclusions = UamccExpression.apply_outcome_exclusions(
             planned, value_sets, config
         )
+        # Collapse contiguous inpatient stays into one spell before
+        # counting (transfers + same-day re-admits + admit-from-acute).
+        # Counting per claim_id over-reports admissions vs CMS by ~50%.
+        spells = UamccExpression.link_admission_spells(with_exclusions)
 
         per_person_counts = (
-            with_exclusions.filter(~pl.col("is_excluded"))
+            spells.filter(~pl.col("is_excluded"))
             .join(
                 denominator.select("person_id"),
                 on="person_id",
                 how="inner",
             )
             .group_by("person_id")
-            .agg(pl.col("claim_id").n_unique().alias("count_unplanned_adm"))
+            .agg(pl.col("spell_id").n_unique().alias("count_unplanned_adm"))
         )
 
         return (

@@ -89,6 +89,18 @@ class TestUAMCCCalculateNumerator:
             ).lazy()
             mock_expr.classify_planned_admissions.return_value = mock_planned
             mock_expr.apply_outcome_exclusions.return_value = mock_planned
+            # link_admission_spells now collapses contiguous stays into
+            # single spells before the per-person count. For this test
+            # each claim is its own independent spell — pre-link
+            # behaviour — so we mock the spell frame shape directly.
+            mock_spells = pl.DataFrame(
+                {
+                    "person_id": ["A", "A", "B"],
+                    "spell_id": ["c1", "c2", "c3"],
+                    "is_excluded": [False, False, True],
+                }
+            ).lazy()
+            mock_expr.link_admission_spells.return_value = mock_spells
 
             result = transform.calculate_numerator(denominator, claims, value_sets)
             collected = result.collect()

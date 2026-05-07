@@ -73,41 +73,60 @@ class TestCriterionA:
         codes = sorted(result["icd10_code"].to_list())
         assert codes == ["G35", "G360", "G800", "G801", "G809"]
 
-    @pytest.mark.unit
-    def _medical_claim_row(
+    def _medical_claim_rows(
         self,
-        *,
-        mbi="A",
-        bill_type="111",
-        admission_date=date(2024, 6, 15),
-        diagnoses: dict[int, str | None] | None = None,
-    ):
-        """Minimal medical_claim row with the 25 diagnosis positions.
-        Pass ``diagnoses={1: 'G35', 3: 'I10'}`` to populate specific
-        positions; unspecified positions default to null."""
-        dx_map = diagnoses or {}
-        cols = {
-            "person_id": [mbi],
-            "claim_type": ["institutional"],
-            "bill_type_code": [bill_type],
-            "admission_date": [admission_date],
+        rows: list[dict],
+    ) -> pl.LazyFrame:
+        """Build a medical_claim LazyFrame from a list of row specs.
+
+        Each spec accepts: ``mbi``, ``claim_type`` ("institutional" |
+        "professional"), ``bill_type`` (UB code; only meaningful for
+        institutional), ``admission_date``, ``claim_start_date``, and
+        ``diagnoses`` (dict of position → ICD-10 code).
+        """
+        n = len(rows)
+        defaults = {
+            "person_id": [r.get("mbi", "A") for r in rows],
+            "claim_type": [r.get("claim_type", "institutional") for r in rows],
+            "bill_type_code": [r.get("bill_type", "111") for r in rows],
+            "admission_date": [r.get("admission_date") for r in rows],
+            "claim_start_date": [r.get("claim_start_date") for r in rows],
         }
         for i in range(1, 26):
-            cols[f"diagnosis_code_{i}"] = [dx_map.get(i)]
-        return pl.LazyFrame(cols)
+            defaults[f"diagnosis_code_{i}"] = [
+                r.get("diagnoses", {}).get(i) for r in rows
+            ]
+        # Cast date columns explicitly so a frame containing only nulls
+        # still has Date dtype (Polars defaults to Null otherwise).
+        return pl.LazyFrame(
+            defaults,
+            schema_overrides={
+                "admission_date": pl.Date,
+                "claim_start_date": pl.Date,
+            },
+        )
 
+    @pytest.mark.unit
     def test_single_inpatient_match_qualifies(self, b61_codes):
-        mc = self._medical_claim_row(diagnoses={1: "G35"})
+        """One inpatient claim with B.6.1 dx satisfies the inpatient
+        branch of FOG line 1503."""
+        mc = self._medical_claim_rows([
+            {"diagnoses": {1: "G35"}, "admission_date": date(2024, 6, 15)},
+        ])
         codes_lf = parse_icd10_codes_from_table_b61(b61_codes)
         window = LookbackWindow(begin=date(2024, 1, 1), end=date(2024, 12, 31))
 
-        qualifying = build_criterion_a_qualifying_claims(mc, codes_lf, window=window)
-        met = build_criterion_a_met_expr(qualifying).collect()
+        met = build_criterion_a_met_expr(
+            build_criterion_a_qualifying_claims(mc, codes_lf, window=window)
+        ).collect()
 
         assert met.height == 1
         row = met.row(0, named=True)
         assert row["criterion_a_met"] is True
-        assert row["qualifying_claim_count"] == 1
+        assert row["criterion_a_inpatient_branch_met"] is True
+        assert row["criterion_a_non_inpatient_branch_met"] is False
+        assert row["inpatient_qualifying_claim_count"] == 1
+        assert row["first_qualifying_branch"] == "inpatient"
 
     @pytest.mark.unit
     def test_secondary_diagnosis_also_qualifies(self, b61_codes):
@@ -115,38 +134,115 @@ class TestCriterionA:
         The FOG 'one inpatient claim with a diagnosis from B.6.1'
         phrasing doesn't restrict to the principal slot, so a secondary
         dx match counts."""
-        mc = self._medical_claim_row(diagnoses={1: "Z99.0", 5: "G80.1"})
+        mc = self._medical_claim_rows([
+            {"diagnoses": {1: "Z99.0", 5: "G80.1"},
+             "admission_date": date(2024, 6, 15)},
+        ])
         codes_lf = parse_icd10_codes_from_table_b61(b61_codes)
         window = LookbackWindow(begin=date(2024, 1, 1), end=date(2024, 12, 31))
 
-        qualifying = build_criterion_a_qualifying_claims(mc, codes_lf, window=window)
-        met = build_criterion_a_met_expr(qualifying).collect()
+        met = build_criterion_a_met_expr(
+            build_criterion_a_qualifying_claims(mc, codes_lf, window=window)
+        ).collect()
         assert met.height == 1
         assert met.row(0, named=True)["criterion_a_met"] is True
 
     @pytest.mark.unit
-    def test_outpatient_claim_does_not_qualify(self, b61_codes):
-        """Only hospital inpatient (bill_type_code starting ``11``)
-        counts per FOG line 1503. A 13x outpatient facility bill is
-        excluded even with a qualifying dx."""
-        mc = self._medical_claim_row(bill_type="131", diagnoses={1: "G35"})
+    def test_single_outpatient_claim_does_not_qualify(self, b61_codes):
+        """The non-inpatient branch needs ≥ 2 distinct service dates per
+        FOG line 1503. One 13x outpatient bill alone fails both branches."""
+        mc = self._medical_claim_rows([
+            {"bill_type": "131", "diagnoses": {1: "G35"},
+             "claim_start_date": date(2024, 6, 15)},
+        ])
         codes_lf = parse_icd10_codes_from_table_b61(b61_codes)
         window = LookbackWindow(begin=date(2024, 1, 1), end=date(2024, 12, 31))
-        qualifying = build_criterion_a_qualifying_claims(mc, codes_lf, window=window)
-        met = build_criterion_a_met_expr(qualifying).collect()
-        assert met.height == 0
+        met = build_criterion_a_met_expr(
+            build_criterion_a_qualifying_claims(mc, codes_lf, window=window)
+        ).collect()
+        # A single non-inpatient match still produces a row, but
+        # criterion_a_met is False.
+        assert met.height == 1
+        row = met.row(0, named=True)
+        assert row["criterion_a_met"] is False
+        assert row["criterion_a_non_inpatient_branch_met"] is False
+        assert row["non_inpatient_distinct_service_dates"] == 1
+
+    @pytest.mark.unit
+    def test_two_non_inpatient_distinct_dates_qualifies(self, b61_codes):
+        """FOG line 1503: two non-inpatient claims with B.6.1 dx on
+        different DOS satisfy criterion (a) (the CCW Other-Chronic /
+        Disabling rule). This is the branch missed by the original
+        inpatient-only implementation; it accounts for ~67% of BAR
+        recall misses on PY2026."""
+        mc = self._medical_claim_rows([
+            {"claim_type": "professional", "bill_type": None,
+             "diagnoses": {1: "G35"},
+             "claim_start_date": date(2024, 3, 1)},
+            {"claim_type": "professional", "bill_type": None,
+             "diagnoses": {1: "G80.1"},
+             "claim_start_date": date(2024, 8, 15)},
+        ])
+        codes_lf = parse_icd10_codes_from_table_b61(b61_codes)
+        window = LookbackWindow(begin=date(2024, 1, 1), end=date(2024, 12, 31))
+        met = build_criterion_a_met_expr(
+            build_criterion_a_qualifying_claims(mc, codes_lf, window=window)
+        ).collect()
+        row = met.row(0, named=True)
+        assert row["criterion_a_met"] is True
+        assert row["criterion_a_inpatient_branch_met"] is False
+        assert row["criterion_a_non_inpatient_branch_met"] is True
+        assert row["non_inpatient_distinct_service_dates"] == 2
+
+    @pytest.mark.unit
+    def test_two_non_inpatient_same_date_does_not_qualify(self, b61_codes):
+        """FOG line 1503 requires *different* dates of service. Two
+        professional lines on the same day count as one DOS."""
+        mc = self._medical_claim_rows([
+            {"claim_type": "professional", "diagnoses": {1: "G35"},
+             "claim_start_date": date(2024, 3, 1)},
+            {"claim_type": "professional", "diagnoses": {1: "G80.1"},
+             "claim_start_date": date(2024, 3, 1)},
+        ])
+        codes_lf = parse_icd10_codes_from_table_b61(b61_codes)
+        window = LookbackWindow(begin=date(2024, 1, 1), end=date(2024, 12, 31))
+        met = build_criterion_a_met_expr(
+            build_criterion_a_qualifying_claims(mc, codes_lf, window=window)
+        ).collect()
+        row = met.row(0, named=True)
+        assert row["criterion_a_met"] is False
+        assert row["non_inpatient_distinct_service_dates"] == 1
+
+    @pytest.mark.unit
+    def test_inpatient_outpatient_combo_qualifies_via_inpatient(self, b61_codes):
+        """A single inpatient B.6.1 match is sufficient even when the
+        bene also has just one outpatient match — the inpatient branch
+        wins independently."""
+        mc = self._medical_claim_rows([
+            {"diagnoses": {1: "G35"}, "admission_date": date(2024, 6, 15)},
+            {"claim_type": "professional", "diagnoses": {1: "G80.0"},
+             "claim_start_date": date(2024, 7, 1)},
+        ])
+        codes_lf = parse_icd10_codes_from_table_b61(b61_codes)
+        window = LookbackWindow(begin=date(2024, 1, 1), end=date(2024, 12, 31))
+        met = build_criterion_a_met_expr(
+            build_criterion_a_qualifying_claims(mc, codes_lf, window=window)
+        ).collect()
+        row = met.row(0, named=True)
+        assert row["criterion_a_met"] is True
+        assert row["criterion_a_inpatient_branch_met"] is True
 
     @pytest.mark.unit
     def test_out_of_window_excluded(self, b61_codes):
         """An inpatient claim before the window boundary doesn't count."""
-        mc = self._medical_claim_row(
-            admission_date=date(2023, 6, 15),
-            diagnoses={1: "G35"},
-        )
+        mc = self._medical_claim_rows([
+            {"admission_date": date(2023, 6, 15), "diagnoses": {1: "G35"}},
+        ])
         codes_lf = parse_icd10_codes_from_table_b61(b61_codes)
         window = LookbackWindow(begin=date(2024, 1, 1), end=date(2024, 12, 31))
-        qualifying = build_criterion_a_qualifying_claims(mc, codes_lf, window=window)
-        met = build_criterion_a_met_expr(qualifying).collect()
+        met = build_criterion_a_met_expr(
+            build_criterion_a_qualifying_claims(mc, codes_lf, window=window)
+        ).collect()
         assert met.height == 0
 
 

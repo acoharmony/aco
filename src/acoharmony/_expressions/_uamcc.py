@@ -301,6 +301,9 @@ class UamccExpression:
                     pl.col("admission_date")
                     .str.to_date("%Y-%m-%d", strict=False)
                     .alias("admission_date"),
+                    pl.col("discharge_date")
+                    .str.to_date("%Y-%m-%d", strict=False)
+                    .alias("discharge_date"),
                 ]
             )
             .filter(
@@ -440,6 +443,9 @@ class UamccExpression:
                 "claim_id",
                 "person_id",
                 "admission_date",
+                "discharge_date",
+                "discharge_disposition_code",
+                "admit_source_code",
                 "diagnosis_code_1",
                 "dx_ccs_category",
                 "is_planned",
@@ -526,6 +532,135 @@ class UamccExpression:
                     | pl.col("is_covid_19")
                 ).alias("is_excluded")
             ]
+        )
+
+    # Discharge-disposition codes that signal the bene was sent to
+    # *another acute care* facility — the next admission, however soon,
+    # is part of the same continuous stay. Per UFS data dictionary +
+    # UAMCC MIF v4.0 §3.5:
+    #   02 — short-term general hospital
+    #   05 — designated cancer center / children's hospital
+    #   65 — psych hospital / psych unit
+    #   66 — critical access hospital
+    #   82, 83, 86, 87, 88, 89, 90, 91, 93 — discharge/transfer-with-planned-readmission
+    #         variants of the above (CMS 2020 NUBC update)
+    _TRANSFER_DISCHARGE_CODES = (
+        "02",
+        "05",
+        "65",
+        "66",
+        "82",
+        "83",
+        "86",
+        "87",
+        "88",
+        "89",
+        "90",
+        "91",
+        "93",
+    )
+
+    # Admit-source codes that signal arrival from another acute care
+    # hospital. Per UB-04 SRC of admission codes:
+    #   4 — transfer from a hospital (different facility)
+    #   6 — transfer from another health-care facility
+    _TRANSFER_ADMIT_SOURCE_CODES = ("4", "6")
+
+    @staticmethod
+    @traced()
+    @timeit(log_level="debug")
+    def link_admission_spells(
+        per_claim: pl.LazyFrame,
+    ) -> pl.LazyFrame:
+        """Collapse contiguous inpatient claims into one continuous admission.
+
+        Per UAMCC MIF v4.0 §3.5: if a beneficiary is transferred between
+        acute facilities, or admitted to one within a day of being
+        discharged from another, those stays are a single "linked" or
+        "spell" admission. Counting them separately inflates the
+        numerator — which is exactly what was happening pre-link
+        (PY2024 over-count of +57%).
+
+        Linking rule: two adjacent stays (ordered by ``admission_date``,
+        then ``claim_id`` as tiebreak) are linked when ANY of these are
+        true:
+          1. the prior discharge disposition is a transfer-to-acute
+             code (see ``_TRANSFER_DISCHARGE_CODES``);
+          2. the next stay's admit_source signals "from-another-hospital"
+             (see ``_TRANSFER_ADMIT_SOURCE_CODES``);
+          3. the next admission_date is on or before the prior
+             discharge_date (overlap or same-day).
+
+        The linked spell inherits:
+          * ``admission_date`` from the first stay,
+          * ``discharge_date`` from the last,
+          * ``discharge_disposition_code`` from the last,
+          * ``is_planned`` = ``any(is_planned)`` across the chain
+            (planned-anywhere wins; conservative — a chain that includes
+            any planned stay is treated as a planned spell).
+          * ``is_excluded`` = ``any(is_excluded)`` for the same reason,
+          * a stable ``spell_id`` of ``"{first_claim_id}"``.
+        """
+        sentinel_disp = pl.lit(list(UamccExpression._TRANSFER_DISCHARGE_CODES))
+        sentinel_src = pl.lit(list(UamccExpression._TRANSFER_ADMIT_SOURCE_CODES))
+
+        ordered = per_claim.sort(["person_id", "admission_date", "claim_id"])
+
+        with_lags = ordered.with_columns(
+            [
+                pl.col("discharge_date")
+                .shift(1)
+                .over("person_id")
+                .alias("_prior_discharge"),
+                pl.col("discharge_disposition_code")
+                .shift(1)
+                .over("person_id")
+                .alias("_prior_disposition"),
+            ]
+        )
+
+        with_link = with_lags.with_columns(
+            [
+                (
+                    pl.col("_prior_disposition").is_in(sentinel_disp).fill_null(False)
+                    | pl.col("admit_source_code").is_in(sentinel_src).fill_null(False)
+                    | (
+                        pl.col("_prior_discharge").is_not_null()
+                        & (pl.col("admission_date") <= pl.col("_prior_discharge"))
+                    )
+                ).alias("_linked_to_prior")
+            ]
+        ).with_columns(
+            [
+                # is_chain_start = NOT linked to prior. The cumulative sum
+                # of chain starts gives a dense per-person spell index.
+                (~pl.col("_linked_to_prior")).cast(pl.Int32).alias("_chain_start"),
+            ]
+        ).with_columns(
+            [
+                pl.col("_chain_start").cum_sum().over("person_id").alias("_spell_idx"),
+            ]
+        )
+
+        # Aggregate per (person_id, spell_idx). Sort by admission_date
+        # so .first()/.last() pick true chronological endpoints.
+        return (
+            with_link.sort(["person_id", "_spell_idx", "admission_date", "claim_id"])
+            .group_by(["person_id", "_spell_idx"], maintain_order=True)
+            .agg(
+                [
+                    pl.col("claim_id").first().alias("spell_id"),
+                    pl.col("admission_date").first().alias("admission_date"),
+                    pl.col("discharge_date").last().alias("discharge_date"),
+                    pl.col("discharge_disposition_code")
+                    .last()
+                    .alias("discharge_disposition_code"),
+                    pl.col("is_planned").any().alias("is_planned"),
+                    pl.col("is_excluded").any().alias("is_excluded"),
+                    pl.col("claim_id").n_unique().alias("linked_claim_count"),
+                ]
+            )
+            .drop("_spell_idx")
         )
 
     @staticmethod
