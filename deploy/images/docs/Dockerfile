@@ -31,7 +31,11 @@ ENV NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt
 # in a non-TTY container). COREPACK_ENABLE_DOWNLOAD_PROMPT=0 forces
 # auto-accept if corepack does ever need to fetch something at runtime.
 ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
-RUN corepack enable pnpm && corepack prepare pnpm@latest --activate
+# Pin pnpm: starting in v11 pnpm hard-fails on packages with ignored
+# build scripts (e.g. core-js postinstall) unless they're pre-approved
+# via `pnpm.onlyBuiltDependencies` in package.json. docs/ is gitignored
+# so we can't ship that approval in the repo; pin to the last v10 instead.
+RUN corepack enable pnpm && corepack prepare pnpm@10.18.3 --activate
 
 # Copy manifest first so the install layer is cached independently of
 # any downstream source edits.
@@ -65,8 +69,9 @@ ENV NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt
 # Pre-fetch pnpm so `pnpm start` never tries to resolve the package manager
 # version at container start time. COREPACK_ENABLE_DOWNLOAD_PROMPT=0 keeps
 # corepack from blocking on a TTY prompt if it does hit the network.
+# Same pnpm version as the builder stage — see comment there.
 ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
-RUN corepack enable pnpm && corepack prepare pnpm@latest --activate
+RUN corepack enable pnpm && corepack prepare pnpm@10.18.3 --activate
 
 WORKDIR /home/care/acoharmony/docs
 
