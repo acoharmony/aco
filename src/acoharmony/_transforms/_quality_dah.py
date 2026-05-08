@@ -261,6 +261,25 @@ class DaysAtHome(QualityMeasureBase):
                 "drift expected."
             )
 
+        # Criterion 5: aligned to a participating REACH ACO.
+        # Source: §3.3.2 p15 ('The measure includes eligible beneficiaries
+        # who are aligned to a participating REACH ACO, as determined by
+        # the model.') The mx_validate pipeline injects the per-PY
+        # REACH-aligned bene list under value_sets['reach_aligned_persons']
+        # (one column: person_id), derived from
+        # gold/consolidated_alignment.parquet using the alignment-eligible-
+        # month rule from §3 p11.
+        reach = value_sets.get("reach_aligned_persons")
+        if reach is not None:
+            base = base.join(reach.select("person_id"), on="person_id", how="inner")
+        else:
+            logger.warning(
+                "DAH denominator: value_sets['reach_aligned_persons'] not "
+                "provided; REACH alignment criterion (§3.3.2 p15 #5) NOT "
+                "enforced. Tieout drift expected — denominator will include "
+                "the full claims-derived bene pool."
+            )
+
         return base.select("person_id").unique().with_columns(
             pl.lit(True).alias("denominator_flag")
         )

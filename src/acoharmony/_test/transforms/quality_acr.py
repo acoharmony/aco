@@ -132,6 +132,27 @@ class TestAcrDenominator:
             assert "person_id" in collected.columns
             assert "denominator_flag" in collected.columns
 
+    @pytest.mark.unit
+    def test_reach_aligned_filter_narrows_denominator(self):
+        """value_sets['reach_aligned_persons'] inner-joins to narrow denominator."""
+        m = AllConditionReadmission(config={"measurement_year": 2025})
+        mock_admissions = pl.DataFrame({
+            "person_id": ["P1", "P2", "P3"],
+            "claim_id": ["C1", "C2", "C3"],
+            "exclusion_flag": [False, False, False],
+        }).lazy()
+        # Only P1 and P2 are REACH-aligned per CMS alignment table.
+        reach = pl.LazyFrame({"person_id": ["P1", "P2"]})
+        with patch.object(
+            AcrReadmissionExpression, "identify_index_admissions",
+            return_value=mock_admissions,
+        ):
+            result = m.calculate_denominator(
+                self._make_claims(), self._make_eligibility(),
+                {"reach_aligned_persons": reach},
+            ).collect()
+        assert sorted(result["person_id"].to_list()) == ["P1", "P2"]
+
 
 class TestAcrNumerator:
     """Tests for AllConditionReadmission.calculate_numerator."""

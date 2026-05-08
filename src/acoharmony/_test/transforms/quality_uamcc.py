@@ -61,6 +61,24 @@ class TestUAMCCCalculateDenominator:
             assert "person_id" in collected.columns
             assert "denominator_flag" in collected.columns
 
+    @pytest.mark.unit
+    def test_reach_aligned_filter_narrows_denominator(self):
+        """value_sets['reach_aligned_persons'] inner-joins to narrow denominator."""
+        transform = AllCauseUnplannedAdmissions.__new__(AllCauseUnplannedAdmissions)
+        transform.config = {"measurement_year": 2025}
+
+        with patch("acoharmony._transforms._quality_uamcc.UamccExpression") as mock_expr:
+            mock_expr.identify_mcc_cohort.return_value = pl.DataFrame({"person_id": ["A", "B", "C"]}).lazy()
+            mock_expr.build_denominator.return_value = pl.DataFrame({"person_id": ["A", "B", "C"]}).lazy()
+
+            reach = pl.LazyFrame({"person_id": ["A", "B"]})
+            result = transform.calculate_denominator(
+                pl.LazyFrame(), pl.LazyFrame(),
+                {"cohort": pl.DataFrame().lazy(), "reach_aligned_persons": reach},
+            ).collect()
+
+        assert sorted(result["person_id"].to_list()) == ["A", "B"]
+
 
 class TestUAMCCCalculateNumerator:
     """Test calculate_numerator method (lines 102-129)."""

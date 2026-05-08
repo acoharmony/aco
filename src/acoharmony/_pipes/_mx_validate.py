@@ -237,12 +237,37 @@ def _scope_output_name(measure: str, py: int, quarter: int) -> str:
     return f"mx_validate_{measure}_PY{py}_Q{quarter}.parquet"
 
 
+def _reach_aligned_persons_for_py(
+    alignment: pl.LazyFrame, py: int
+) -> pl.LazyFrame:
+    """
+    Project ``consolidated_alignment`` to the set of REACH-aligned beneficiary
+    person_ids for a given performance year.
+
+    Per CMS PY2025 QMMR §3 p11: 'Aligned beneficiaries with one or more
+    alignment-eligible months during this performance period will be included
+    in the Quality Measure calculations if they meet the Quality Measure
+    inclusion criteria.' We therefore include any bene with REACH alignment in
+    *any* month of the PY (not just within the report quarter).
+
+    The alignment table keys on ``current_mbi``, which equals ``person_id`` in
+    this codebase (CCLF-sourced gold/eligibility uses MBI as person_id).
+    """
+    months = [f"ym_{py}{m:02d}_reach" for m in range(1, 13)]
+    return (
+        alignment.filter(pl.any_horizontal([pl.col(m) for m in months]))
+        .select(pl.col("current_mbi").alias("person_id"))
+        .unique()
+    )
+
+
 def compute_scope(
     scope: ScopeRow,
     claims: pl.LazyFrame,
     eligibility: pl.LazyFrame,
     hcc_scores: pl.LazyFrame | None = None,
     silver_path: Any = None,
+    alignment: pl.LazyFrame | None = None,
 ) -> pl.LazyFrame:
     """
     Run the registered measure for one scope and return the per-bene result.
@@ -258,6 +283,13 @@ def compute_scope(
         from silver/value_sets_*.parquet. The set of files per measure
         is defined in _VALUE_SET_FILES; ``silver_path`` must be passed
         so we can locate them.
+      - All measures get value_sets['reach_aligned_persons'] when
+        ``alignment`` is provided. This is the per-PY REACH-alignment list
+        derived from gold/consolidated_alignment.parquet (CMS PY2025 QMMR
+        §3 p11). Each measure's calculate_denominator inner-joins on it
+        to enforce 'aligned to a participating REACH ACO' — without this
+        filter, mx_validate computes against the entire claims-derived
+        bene pool, which is 4-45× the BLQQR ref population.
     """
     from .._transforms._quality_measure_base import MeasureFactory
 
@@ -278,6 +310,10 @@ def compute_scope(
     if hcc_scores is not None:
         value_sets["hcc_scores"] = hcc_scores.filter(
             pl.col("performance_year") == (scope.py - 1)
+        )
+    if alignment is not None:
+        value_sets["reach_aligned_persons"] = _reach_aligned_persons_for_py(
+            alignment, scope.py
         )
     if silver_path is not None:
         value_sets.update(_load_value_sets(silver_path, scope.measure))
@@ -341,11 +377,18 @@ def _ref_value_for_scope(
         pl.scan_parquet(silver_path / f"blqqr_{scope.measure}.parquet")
         .filter(pl.col("source_filename") == scope.source_filename)
     )
-    # ref join key is (aco_id, bene_id); computed key is person_id, which
-    # in this codebase equals bene_id from CCLF. Surface bene_id as person_id.
+    # BLQQR carries TWO bene identifiers per row:
+    #   - bene_id: 4Innovation internal numeric ID (e.g. "1256948")
+    #   - mbi:     Medicare Beneficiary Identifier (e.g. "2KE1YY9RW38")
+    # Computed-side person_id is the MBI (CCLF/eligibility uses MBI as
+    # person_id). Join MUST use mbi, not bene_id — those are different
+    # identifier spaces. Earlier versions joined on bene_id which produced
+    # a 0% true overlap masquerading as ~80% agreement (the matched count
+    # was matching different ID spaces by string-equality coincidence —
+    # zero in reality).
     ref = ref.select(
         [
-            pl.col("bene_id").alias("person_id"),
+            pl.col("mbi").alias("person_id"),
             pl.col(ref_col).cast(pl.Int64, strict=False).alias("ref_value"),
         ]
     )
@@ -458,6 +501,22 @@ def apply_mx_validate_pipeline(
     # the DAH transform logs a warning.
     hcc_scores_path = gold_path / "hcc_risk_scores.parquet"
     hcc_scores = pl.scan_parquet(hcc_scores_path) if hcc_scores_path.exists() else None
+
+    # REACH alignment for ALL measures (CMS PY2025 QMMR §3 p11):
+    # 'Aligned beneficiaries with one or more alignment-eligible months
+    # during this performance period will be included in the Quality Measure
+    # calculations'. Without this filter, mx_validate computes every measure
+    # over the entire claims-derived bene pool — 4-45× the BLQQR ref count.
+    alignment_path = gold_path / "consolidated_alignment.parquet"
+    alignment = pl.scan_parquet(alignment_path) if alignment_path.exists() else None
+    if alignment is None:
+        logger.warning(
+            "consolidated_alignment.parquet not found; REACH alignment filter "
+            "(CMS PY2025 QMMR §3 p11) will NOT be enforced. Tieout drift "
+            "expected — denominators will include the full claims-derived "
+            "bene pool instead of just CMS-aligned beneficiaries."
+        )
+
     written: list[str] = []
     for scope in ready:
         out_file = silver_path / _scope_output_name(scope.measure, scope.py, scope.quarter)
@@ -469,6 +528,7 @@ def apply_mx_validate_pipeline(
             frame = compute_scope(
                 scope, claims, eligibility,
                 hcc_scores=hcc_scores, silver_path=silver_path,
+                alignment=alignment,
             )
             frame.collect(streaming=True).write_parquet(out_file)
             written.append(out_file.name)

@@ -27,13 +27,24 @@ def _write_blqqr_ref(
     """
     Write a synthetic silver/blqqr_<measure>.parquet that mimics the real
     schema closely enough for the scope enumerator and tieout to work.
+
+    BLQQR carries both bene_id (4i internal numeric ID) and mbi (Medicare
+    Beneficiary Identifier). The tieout join uses mbi. If a fixture row
+    omits mbi, we synthesize one from bene_id so the existing tests don't
+    need rewriting — the value is irrelevant when the fixture doesn't
+    care about a particular bene matching computed output.
     """
     silver.mkdir(parents=True, exist_ok=True)
     if source_filenames is None:
         source_filenames = [f"REACH.D0259.BLQQR.Q1.PY2024.{measure.upper()}.csv"] * len(rows)
+    keys = list(rows[0])
+    if "mbi" not in keys and "bene_id" in keys:
+        keys.append("mbi")
+        for r in rows:
+            r.setdefault("mbi", f"MBI_{r['bene_id']}")
     df = pl.DataFrame(
         {
-            **{k: [r[k] for r in rows] for k in rows[0]},
+            **{k: [r[k] for r in rows] for k in keys},
             "source_filename": source_filenames,
         }
     )
@@ -332,6 +343,30 @@ class TestLoadValueSets:
 
 
 @pytest.mark.unit
+class TestReachAlignedPersonsForPy:
+    """_reach_aligned_persons_for_py implements §3 p11 alignment-eligible-month rule."""
+
+    def test_includes_bene_aligned_in_any_month_of_py(self):
+        # Two benes, two PYs of monthly REACH flags
+        cols = {
+            "current_mbi": ["A", "B"],
+        }
+        for m in range(1, 13):
+            cols[f"ym_2024{m:02d}_reach"] = [m == 7, False]   # A aligned in July only
+            cols[f"ym_2025{m:02d}_reach"] = [False, m >= 6]    # B aligned Jun-Dec
+        df = pl.LazyFrame(cols)
+        assert mxv._reach_aligned_persons_for_py(df, 2024).collect()["person_id"].to_list() == ["A"]
+        assert mxv._reach_aligned_persons_for_py(df, 2025).collect()["person_id"].to_list() == ["B"]
+
+    def test_excludes_bene_with_no_alignment_in_py(self):
+        cols = {"current_mbi": ["X"]}
+        for m in range(1, 13):
+            cols[f"ym_2024{m:02d}_reach"] = [False]
+        df = pl.LazyFrame(cols)
+        assert mxv._reach_aligned_persons_for_py(df, 2024).collect().height == 0
+
+
+@pytest.mark.unit
 class TestRefValueForScope:
     def test_loads_correct_column_per_measure(self, tmp_path):
         silver = tmp_path / "silver"
@@ -356,7 +391,9 @@ class TestRefValueForScope:
         )
         out = mxv._ref_value_for_scope(silver, scope).collect()
         assert set(out.columns) == {"person_id", "ref_value"}
-        assert sorted(out["person_id"].to_list()) == ["B1", "B2"]
+        # _write_blqqr_ref synthesizes mbi as f"MBI_{bene_id}" when not given,
+        # and _ref_value_for_scope aliases mbi → person_id for the join.
+        assert sorted(out["person_id"].to_list()) == ["MBI_B1", "MBI_B2"]
         assert sorted(out["ref_value"].to_list()) == [0, 3]
 
 
@@ -382,6 +419,8 @@ class TestPipelineEndToEnd:
 
         # One DAH scope only — keeps the test deterministic and fast.
         # 2024 is a leap year → eligible_days = 366.
+        # mbi must match the eligibility person_id so the tieout join
+        # produces a row (mbi-keyed join, see _ref_value_for_scope).
         _write_blqqr_ref(
             silver,
             "dah",
@@ -389,6 +428,7 @@ class TestPipelineEndToEnd:
                 {
                     "aco_id": "D0259",
                     "bene_id": "B1",
+                    "mbi": "B1",
                     "survival_days": "366",
                     "observed_dah": 366,
                     "observed_dic": 0,
@@ -622,6 +662,114 @@ class TestComputeScopeAcr:
 # ---------------------------------------------------------------------------
 # Pipeline branch coverage: skipped scope log + missing compute file
 # ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestPipelineWithAlignmentFile:
+    """Cover the branch where consolidated_alignment.parquet IS present."""
+
+    def test_alignment_file_loaded_and_passed_through(self, tmp_path):
+        import importlib
+        from acoharmony._pipes import _mx_validate as m
+
+        importlib.reload(m)
+
+        bronze = tmp_path / "bronze"
+        silver = tmp_path / "silver"
+        gold = tmp_path / "gold"
+        for p in (bronze, silver, gold):
+            p.mkdir()
+
+        _write_blqqr_ref(
+            silver,
+            "dah",
+            [
+                {
+                    "aco_id": "D0259",
+                    "bene_id": "B1",
+                    "survival_days": "366",
+                    "observed_dah": 366,
+                    "observed_dic": 0,
+                }
+            ],
+            source_filenames=["REACH.D0259.BLQQR.Q1.PY2024.DAH.csv"],
+        )
+
+        # Eligibility passes all DAH criteria.
+        pl.DataFrame(
+            {
+                "person_id": ["B1"],
+                "birth_date": ["1950-01-01"],
+                "death_date": [None],
+                "enrollment_start_date": ["2022-01-01"],
+                "enrollment_end_date": ["2024-12-31"],
+            }
+        ).with_columns(
+            [
+                pl.col("birth_date").str.to_date(),
+                pl.col("death_date").cast(pl.Date),
+                pl.col("enrollment_start_date").str.to_date(),
+                pl.col("enrollment_end_date").str.to_date(),
+            ]
+        ).write_parquet(gold / "eligibility.parquet")
+
+        # HCC ≥ 2.0
+        pl.DataFrame(
+            {
+                "mbi": ["B1"],
+                "performance_year": [2023],
+                "model_version": ["v28"],
+                "total_risk_score": [3.5],
+            },
+            schema={
+                "mbi": pl.Utf8, "performance_year": pl.Int64,
+                "model_version": pl.Utf8, "total_risk_score": pl.Float64,
+            },
+        ).write_parquet(gold / "hcc_risk_scores.parquet")
+
+        # consolidated_alignment with B1 REACH-aligned in 2024.
+        align_cols = {"current_mbi": ["B1"]}
+        for mo in range(1, 13):
+            align_cols[f"ym_2024{mo:02d}_reach"] = [True]
+        pl.DataFrame(align_cols).write_parquet(gold / "consolidated_alignment.parquet")
+
+        pl.DataFrame(
+            {c: [] for c in (
+                "claim_id", "person_id", "bill_type_code",
+                "admission_date", "discharge_date",
+                "claim_start_date", "claim_end_date",
+                "claim_line_start_date",
+                "revenue_center_code", "hcpcs_code", "diagnosis_code_1",
+            )},
+            schema={
+                "claim_id": pl.Utf8, "person_id": pl.Utf8, "bill_type_code": pl.Utf8,
+                "admission_date": pl.Date, "discharge_date": pl.Date,
+                "claim_start_date": pl.Date, "claim_end_date": pl.Date,
+                "claim_line_start_date": pl.Date,
+                "revenue_center_code": pl.Utf8, "hcpcs_code": pl.Utf8,
+                "diagnosis_code_1": pl.Utf8,
+            },
+        ).write_parquet(gold / "medical_claim.parquet")
+
+        executor = MagicMock()
+        from acoharmony.medallion import MedallionLayer
+        executor.storage_config.get_path.side_effect = lambda layer: {
+            MedallionLayer.BRONZE: bronze,
+            MedallionLayer.SILVER: silver,
+            MedallionLayer.GOLD: gold,
+        }[layer]
+        logger = MagicMock()
+        m.apply_mx_validate_pipeline(executor, logger, force=True)
+
+        # No "consolidated_alignment.parquet not found" warning was emitted
+        warn_calls = [
+            str(c) for c in logger.warning.call_args_list
+            if "consolidated_alignment" in str(c) and "not found" in str(c)
+        ]
+        assert warn_calls == []
+        # Compute file exists with the aligned bene
+        compute_df = pl.read_parquet(silver / "mx_validate_dah_PY2024_Q1.parquet")
+        assert "B1" in compute_df["person_id"].to_list()
 
 
 @pytest.mark.unit

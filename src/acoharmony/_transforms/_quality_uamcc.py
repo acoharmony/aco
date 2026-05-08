@@ -92,9 +92,29 @@ class AllCauseUnplannedAdmissions(QualityMeasureBase):
             mcc_cohort, eligibility, config
         )
 
-        return denominator.select("person_id").with_columns(
+        result = denominator.select("person_id").with_columns(
             [pl.lit(True).alias("denominator_flag")]
         )
+
+        # REACH alignment filter — CMS PY2025 QMMR §3.2.2 p13 UAMCC
+        # denominator inclusion requirement: 'aligned beneficiaries who
+        # are 66 years of age or older at the start of the measurement
+        # period.' Alignment is the implicit prefix of every denominator
+        # statement; the mx_validate pipeline injects the per-PY
+        # REACH-aligned bene list under value_sets['reach_aligned_persons']
+        # (one column: person_id), built from
+        # gold/consolidated_alignment.parquet using the alignment-eligible-
+        # month rule (§3 p11). Without this filter UAMCC over-counts the
+        # denominator by ~45× the BLQQR ref.
+        reach = value_sets.get("reach_aligned_persons")
+        if reach is not None:
+            result = result.join(
+                reach.select("person_id"), on="person_id", how="inner"
+            )
+        # No warning when absent — the existing program/aco_id config-driven
+        # path can also restrict the cohort; we don't want duplicate alerts.
+
+        return result
 
     @traced()
     @timeit(log_level="debug")

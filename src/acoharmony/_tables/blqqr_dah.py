@@ -39,14 +39,25 @@ from acoharmony._validators.field_validators import MBI
 )
 @dataclass
 class BlqqrDah:
-    """Beneficiary-level Days at Home (DAH) quality measure data."""
+    """Beneficiary-level Days at Home (DAH) quality measure data.
+
+    Field order matches the actual BLQQR DAH CSV header exactly:
+        ACO_ID, BENE_ID, SURVIVAL_DAYS, OBSERVED_DAH, OBSERVED_DIC,
+        NH_TRANS_DT, DOB, DOD, MBI
+
+    Earlier versions had MBI in position 3 (between bene_id and
+    survival_days), which shifted every value from position 3 onward by one
+    column at parse time — survival_days landed in mbi, observed_dah landed
+    in survival_days, etc. Caught when mx_validate's mbi-keyed tieout
+    found 0 overlap with computed person_ids.
+    """
 
     aco_id: str = Field(description="ACO identifier")
     bene_id: str = Field(description="Beneficiary internal ID")
-    mbi: str = MBI(description="Medicare Beneficiary Identifier")
     survival_days: str = Field(description="Number of survival days in measurement period")
     observed_dah: str = Field(description="Observed days at home")
     observed_dic: str = Field(description="Observed days in care (institutional)")
     nh_trans_dt: date | None = Field(default=None, description="Nursing home transition date")
     dob: date | None = Field(default=None, description="Date of birth")
     dod: str | None = Field(default=None, description="Date of death")
+    mbi: str = MBI(description="Medicare Beneficiary Identifier")

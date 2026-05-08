@@ -308,6 +308,36 @@ class TestDaysAtHomeDenominator:
         ).collect()
         assert denom["person_id"].to_list() == ["PERSON_X"]
 
+    def test_reach_aligned_filter_narrows_denominator(self):
+        """value_sets['reach_aligned_persons'] enforces §3.3.2 p15 #5."""
+        elig = _elig(
+            [
+                {
+                    "person_id": "ALIGNED",
+                    "birth_date": date(1950, 1, 1),
+                    "death_date": None,
+                    "enrollment_start_date": date(2022, 1, 1),
+                    "enrollment_end_date": date(2024, 12, 31),
+                },
+                {
+                    "person_id": "UNALIGNED",
+                    "birth_date": date(1950, 1, 1),
+                    "death_date": None,
+                    "enrollment_start_date": date(2022, 1, 1),
+                    "enrollment_end_date": date(2024, 12, 31),
+                },
+            ]
+        )
+        # Both pass eligibility; only ALIGNED is in the REACH list.
+        reach = pl.LazyFrame({"person_id": ["ALIGNED"]})
+        m = DaysAtHome(config={"performance_year": 2024})
+        denom = m.calculate_denominator(
+            pl.LazyFrame(),
+            elig,
+            {"reach_aligned_persons": reach},
+        ).collect()
+        assert denom["person_id"].to_list() == ["ALIGNED"]
+
 
 # ---------------------------------------------------------------------------
 # Numerator — §3.3.2 p15

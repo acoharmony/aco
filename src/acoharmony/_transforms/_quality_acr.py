@@ -88,6 +88,27 @@ class AllConditionReadmission(QualityMeasureBase):
             .with_columns([pl.lit(True).alias("denominator_flag")])
         )
 
+        # REACH alignment filter — CMS PY2025 QMMR §3.1.2 p11 ACR
+        # denominator inclusion criterion #2: 'Patient is actively aligned
+        # to a REACH ACO.' The mx_validate pipeline injects the per-PY
+        # REACH-aligned bene list under value_sets['reach_aligned_persons']
+        # (one column: person_id), built from
+        # gold/consolidated_alignment.parquet using the alignment-eligible-
+        # month rule (§3 p11). When absent, log and skip; the denominator
+        # then includes the full claims-derived pool, with predictable
+        # tieout drift.
+        reach = value_sets.get("reach_aligned_persons")
+        if reach is not None:
+            denominator = denominator.join(
+                reach.select("person_id"), on="person_id", how="inner"
+            )
+        else:
+            logger.warning(
+                "ACR denominator: value_sets['reach_aligned_persons'] not "
+                "provided; REACH alignment criterion (§3.1.2 p11 #2) NOT "
+                "enforced."
+            )
+
         return denominator
 
     @traced()
