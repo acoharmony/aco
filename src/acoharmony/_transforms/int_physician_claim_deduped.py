@@ -100,8 +100,12 @@ def execute(executor) -> pl.LazyFrame:
             .then(None)
             .otherwise(pl.col("clm_line_thru_dt"))
             .alias("claim_line_end_date"),
-            pl.lit(None).cast(pl.String).alias("admission_date"),
-            pl.lit(None).cast(pl.String).alias("discharge_date"),
+            # Always-null in physician claims (no inpatient concept).
+            # Typed as Date (not String) so the union with institutional
+            # in gold/medical_claim aligns; the prior String typing forced
+            # admission_date/discharge_date to String across all consumers.
+            pl.lit(None).cast(pl.Date).alias("admission_date"),
+            pl.lit(None).cast(pl.Date).alias("discharge_date"),
             pl.lit(None).cast(pl.String).alias("admit_source_code"),
             pl.lit(None).cast(pl.String).alias("admit_type_code"),
             pl.lit(None).cast(pl.String).alias("discharge_disposition_code"),

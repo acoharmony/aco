@@ -174,17 +174,6 @@ class AcrReadmissionExpression:
         period_begin = _date(performance_year, 1, 1)
         period_end = _date(performance_year, 12, 31)
 
-        # Coerce admission/discharge dates — gold/medical_claim stores
-        # them as String in this codebase, but downstream comparisons and
-        # interval math require Date. strict=False so unparseable values
-        # become NULL rather than raising.
-        claims = claims.with_columns(
-            [
-                pl.col("admission_date").cast(pl.Date, strict=False),
-                pl.col("discharge_date").cast(pl.Date, strict=False),
-            ]
-        )
-
         # Filter to acute inpatient admissions in performance period
         inpatient = claims.filter(
             (pl.col("bill_type_code").cast(pl.Utf8).str.starts_with("11"))
@@ -443,15 +432,6 @@ class AcrReadmissionExpression:
             LazyFrame with readmission pairs and classification flags
         """
         lookback_days = config.get("lookback_days", 30)
-
-        # Coerce admission/discharge dates from String → Date (gold stores
-        # them as String in this codebase). strict=False → unparseable → NULL.
-        claims = claims.with_columns(
-            [
-                pl.col("admission_date").cast(pl.Date, strict=False),
-                pl.col("discharge_date").cast(pl.Date, strict=False),
-            ]
-        )
 
         # Index discharges
         index_discharges = index_admissions.filter(

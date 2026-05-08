@@ -139,13 +139,19 @@ def execute(executor) -> pl.LazyFrame:
             .then(None)
             .otherwise(pl.col("clm_line_thru_dt"))
             .alias("claim_line_end_date"),
+            # Date, not String. clm_from_dt and clm_thru_dt are already Date
+            # in silver; the prior version cast both to Utf8 here, which made
+            # admission_date/discharge_date the only String date columns on
+            # the table. That broke every downstream date arithmetic
+            # consumer (ACR, DAH, mx_validate). Match the typing convention
+            # of claim_start_date/claim_end_date (a few lines above).
             pl.when(pl.col("clm_from_dt").cast(pl.Utf8).is_in(["1000-01-01", "9999-12-31"]))
             .then(None)
-            .otherwise(pl.col("clm_from_dt").cast(pl.Utf8))
+            .otherwise(pl.col("clm_from_dt"))
             .alias("admission_date"),
             pl.when(pl.col("clm_thru_dt").cast(pl.Utf8).is_in(["1000-01-01", "9999-12-31"]))
             .then(None)
-            .otherwise(pl.col("clm_thru_dt").cast(pl.Utf8))
+            .otherwise(pl.col("clm_thru_dt"))
             .alias("discharge_date"),
             pl.col("clm_admsn_src_cd").alias("admit_source_code"),
             pl.col("clm_admsn_type_cd").alias("admit_type_code"),

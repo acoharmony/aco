@@ -8,6 +8,7 @@ from acoharmony._test._import_magic import auto_import
 class _:
     pass  # noqa: E701
 
+from datetime import date
 from pathlib import Path
 
 import pytest
@@ -44,7 +45,7 @@ class TestUamccIdentifyMccCohort:
             "claim_id": ["C1", "C2", "C3"],
             "person_id": ["P1", "P1", "P2"],
             "claim_start_date": [date(2024, 3, 15), date(2024, 6, 20), date(2024, 9, 1)],
-            "admission_date": ["2024-03-15", "2024-06-20", "2024-09-01"],
+            "admission_date": [date(2024, 3, 15), date(2024, 6, 20), date(2024, 9, 1)],
             "diagnosis_code_1": ["E119", "I509", "E119"],
             "diagnosis_code_2": ["J449", None, None],
         }).lazy()
@@ -72,7 +73,7 @@ class TestUamccIdentifyMccCohort:
         claims = pl.DataFrame({
             "claim_id": ["C1"],
             "person_id": ["P1"],
-            "admission_date": ["2024-03-15"],
+            "admission_date": [date(2024, 3, 15)],
             "other_col": ["X"],
         }).lazy()
         cohort_vs = pl.DataFrame({
@@ -126,13 +127,13 @@ class TestClassifyPlannedAdmissions:
         claims = pl.DataFrame({
             "claim_id": ["C1", "C2", "C3"],
             "person_id": ["P1", "P1", "P1"],
-            "admission_date": ["2025-03-01", "2025-06-01", "2025-09-01"],
+            "admission_date": [date(2025, 3, 1), date(2025, 6, 1), date(2025, 9, 1)],
             # discharge_date / disposition / admit_source feed the
             # spell-linking transform downstream (UAMCC MIF v4.0 §3.5).
             # All three claims here are independent stays — no
             # transfers — so dispositions are home (01) and admit
             # sources are non-transfer (1).
-            "discharge_date": ["2025-03-05", "2025-06-08", "2025-09-04"],
+            "discharge_date": [date(2025, 3, 5), date(2025, 6, 8), date(2025, 9, 4)],
             "discharge_disposition_code": ["01", "01", "01"],
             "admit_source_code": ["1", "1", "1"],
             "bill_type_code": ["111", "111", "111"],
@@ -192,8 +193,8 @@ class TestApplyOutcomeExclusions:
             "claim_id": ["C1", "C2", "C3", "C4", "C5"],
             "person_id": ["P1"] * 5,
             "admission_date": [
-                "2025-03-01", "2025-06-01", "2025-09-01",
-                "2025-10-01", "2025-11-01",
+                date(2025, 3, 1), date(2025, 6, 1), date(2025, 9, 1),
+                date(2025, 10, 1), date(2025, 11, 1),
             ],
             "diagnosis_code_1": ["A01", "B02", "C03", "U07.1", "Z99"],
             "dx_ccs_category": ["CCS100", "CCS145", "CCS2601", "CCS999", "CCS999"],
@@ -246,8 +247,8 @@ class TestCalculatePersonTime:
         claims = pl.DataFrame({
             "claim_id": ["C1", "C2"],
             "person_id": ["P1", "P1"],
-            "admission_date": ["2025-01-10", "2025-03-01"],
-            "discharge_date": ["2025-01-15", "2025-03-05"],
+            "admission_date": [date(2025, 1, 10), date(2025, 3, 1)],
+            "discharge_date": [date(2025, 1, 15), date(2025, 3, 5)],
             "bill_type_code": ["111", "111"],
         }).lazy()
 
@@ -276,8 +277,8 @@ class TestCalculateUamccMeasure:
             "claim_id": ["C1", "C2", "C3"],
             "person_id": ["P1", "P1", "P2"],
             "claim_start_date": [date(2024, 3, 15), date(2024, 6, 20), date(2024, 9, 1)],
-            "admission_date": ["2024-03-15", "2024-06-20", "2024-09-01"],
-            "discharge_date": ["2024-03-20", "2024-06-25", "2024-09-05"],
+            "admission_date": [date(2024, 3, 15), date(2024, 6, 20), date(2024, 9, 1)],
+            "discharge_date": [date(2024, 3, 20), date(2024, 6, 25), date(2024, 9, 5)],
             "discharge_disposition_code": ["01", "01", "01"],
             "admit_source_code": ["1", "1", "1"],
             "diagnosis_code_1": ["E119", "I509", "E119"],
@@ -376,7 +377,7 @@ class TestUamccIdentifyMccCohortBranches:
         claims = pl.DataFrame({
             "claim_id": ["C1"],
             "person_id": ["P1"],
-            "admission_date": ["2024-06-01"],
+            "admission_date": [date(2024, 6, 1)],
         }).lazy()
 
         cohort_vs = pl.DataFrame({
@@ -400,7 +401,7 @@ class TestUamccIdentifyMccCohortBranches:
             "claim_id": ["C1", "C2"],
             "person_id": ["P1", "P2"],
             "claim_start_date": [date(2024, 6, 1), date(2024, 7, 15)],
-            "admission_date": ["2024-06-01", "2024-07-15"],
+            "admission_date": [date(2024, 6, 1), date(2024, 7, 15)],
             "diagnosis_code_1": ["E11", "E10"],
         }).lazy()
 

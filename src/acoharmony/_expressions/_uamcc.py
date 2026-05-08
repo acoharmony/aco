@@ -294,19 +294,13 @@ class UamccExpression:
         """
         performance_year = config.get("performance_year", 2025)
 
-        # Deduplicate claims to claim-level, cast dates
+        # Deduplicate claims to claim-level. admission_date and discharge_date
+        # are already Date in gold/medical_claim — no string-to-date coercion
+        # needed. (Earlier they were String, hence the prior .str.to_date()
+        # calls; that source bug was fixed in
+        # int_{dme,physician,institutional}_claim_deduped.py.)
         base_claims = (
-            claims.with_columns(
-                [
-                    pl.col("admission_date")
-                    .str.to_date("%Y-%m-%d", strict=False)
-                    .alias("admission_date"),
-                    pl.col("discharge_date")
-                    .str.to_date("%Y-%m-%d", strict=False)
-                    .alias("discharge_date"),
-                ]
-            )
-            .filter(
+            claims.filter(
                 pl.col("bill_type_code").cast(pl.Utf8).str.starts_with("11")
                 & pl.col("admission_date").is_not_null()
                 & (pl.col("admission_date") >= pl.date(performance_year, 1, 1))
@@ -680,19 +674,11 @@ class UamccExpression:
         # 365 days for non-leap, 366 for leap
         total_days = 366 if performance_year % 4 == 0 else 365
 
-        # Institutional days from inpatient claims
+        # Institutional days from inpatient claims. admission_date and
+        # discharge_date are already Date in gold/medical_claim (see comment
+        # above); no string coercion required.
         institutional = (
-            claims.with_columns(
-                [
-                    pl.col("admission_date")
-                    .str.to_date("%Y-%m-%d", strict=False)
-                    .alias("admission_date"),
-                    pl.col("discharge_date")
-                    .str.to_date("%Y-%m-%d", strict=False)
-                    .alias("discharge_date"),
-                ]
-            )
-            .filter(
+            claims.filter(
                 pl.col("bill_type_code").cast(pl.Utf8).str.starts_with("11")
                 & pl.col("admission_date").is_not_null()
             )
