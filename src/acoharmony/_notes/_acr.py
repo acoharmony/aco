@@ -70,10 +70,9 @@ class AcrPlugins(PluginRegistry):
         if claims_lf is None or eligibility_lf is None:
             return pl.DataFrame()
 
-        inpatient = claims_lf.with_columns(
-            pl.col("admission_date").str.to_date("%Y-%m-%d", strict=False).alias("admission_date"),
-            pl.col("discharge_date").str.to_date("%Y-%m-%d", strict=False).alias("discharge_date"),
-        ).filter(
+        # admission_date / discharge_date are already Date in gold/medical_claim
+        # (silver dedup typing fix landed in commit d27f678). No string coercion.
+        inpatient = claims_lf.filter(
             pl.col("bill_type_code").cast(pl.Utf8).str.starts_with("11")
             & pl.col("admission_date").is_not_null()
             & pl.col("discharge_date").is_not_null()
@@ -299,12 +298,9 @@ class AcrPlugins(PluginRegistry):
             pl.col("discharge_date").alias("index_discharge_date"),
         ).lazy()
 
+        # admission_date / discharge_date are already Date (see comment above).
         candidate_admits = (
-            claims_lf.with_columns(
-                pl.col("admission_date").str.to_date("%Y-%m-%d", strict=False).alias("admission_date"),
-                pl.col("discharge_date").str.to_date("%Y-%m-%d", strict=False).alias("discharge_date"),
-            )
-            .filter(
+            claims_lf.filter(
                 pl.col("bill_type_code").cast(pl.Utf8).str.starts_with("11")
                 & pl.col("admission_date").is_not_null()
             )
