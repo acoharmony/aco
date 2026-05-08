@@ -82,6 +82,12 @@ COPY --from=builder --chown=1002:1002 /app/node_modules ./node_modules
 # these at runtime for hot-reload during development; baking them in also
 # lets the image run standalone (e.g. for `docs-builder` production builds).
 COPY --chown=1002:1002 docs/package.json ./
+# Pin pnpm via the packageManager field so runtime corepack (running as
+# user 1002, with no access to root's prepared shim from above) honors
+# the same v10 we prepared at build time. Without this, corepack auto-
+# resolves latest (v11), which hard-fails on ignored build scripts.
+RUN node -e "const f='/home/care/acoharmony/docs/package.json'; const p=require(f); p.packageManager='pnpm@10.18.3'; require('fs').writeFileSync(f, JSON.stringify(p, null, 2));" \
+    && chown 1002:1002 package.json
 COPY --chown=1002:1002 docs/docusaurus.config.ts docs/sidebars.ts \
      docs/babel.config.js docs/tsconfig.json ./
 COPY --chown=1002:1002 docs/docs ./docs
