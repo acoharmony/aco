@@ -360,6 +360,7 @@ class TestPipelineEndToEnd:
             p.mkdir()
 
         # One DAH scope only — keeps the test deterministic and fast.
+        # 2024 is a leap year → eligible_days = 366.
         _write_blqqr_ref(
             silver,
             "dah",
@@ -367,22 +368,23 @@ class TestPipelineEndToEnd:
                 {
                     "aco_id": "D0259",
                     "bene_id": "B1",
-                    "survival_days": "365",
-                    "observed_dah": 365,
+                    "survival_days": "366",
+                    "observed_dah": 366,
                     "observed_dic": 0,
                 }
             ],
             source_filenames=["REACH.D0259.BLQQR.Q1.PY2024.DAH.csv"],
         )
 
-        # Tiny gold inputs. Eligibility: B1 enrolled all year, no death.
-        # Claims: empty (so no institutional days → observed_dic=0 → dah=365).
+        # Gold inputs satisfying the spec-correct DAH denominator
+        # (CMS PY2025 QMMR §3.3.2 p15): adult ≥18, alive on PY start,
+        # ≥12-month prior FFS lookback, continuous through PY end.
         pl.DataFrame(
             {
                 "person_id": ["B1"],
                 "birth_date": ["1950-01-01"],
                 "death_date": [None],
-                "enrollment_start_date": ["2024-01-01"],
+                "enrollment_start_date": ["2022-01-01"],  # ≥12-mo prior to PY2024
                 "enrollment_end_date": ["2024-12-31"],
             }
         ).with_columns(
@@ -394,20 +396,43 @@ class TestPipelineEndToEnd:
             ]
         ).write_parquet(gold / "eligibility.parquet")
 
+        # HCC scores for year-before-PY (criterion 4: avg ≥ 2.0).
         pl.DataFrame(
             {
-                "claim_id": [],
-                "person_id": [],
-                "bill_type_code": [],
-                "admission_date": [],
-                "discharge_date": [],
+                "mbi": ["B1"],
+                "performance_year": [2023],
+                "model_version": ["v28"],
+                "total_risk_score": [3.5],
             },
+            schema={
+                "mbi": pl.Utf8,
+                "performance_year": pl.Int64,
+                "model_version": pl.Utf8,
+                "total_risk_score": pl.Float64,
+            },
+        ).write_parquet(gold / "hcc_risk_scores.parquet")
+
+        # Empty medical_claim with the full DAH-relevant schema.
+        pl.DataFrame(
+            {c: [] for c in (
+                "claim_id", "person_id", "bill_type_code",
+                "admission_date", "discharge_date",
+                "claim_start_date", "claim_end_date",
+                "claim_line_start_date",
+                "revenue_center_code", "hcpcs_code", "diagnosis_code_1",
+            )},
             schema={
                 "claim_id": pl.Utf8,
                 "person_id": pl.Utf8,
                 "bill_type_code": pl.Utf8,
                 "admission_date": pl.Date,
                 "discharge_date": pl.Date,
+                "claim_start_date": pl.Date,
+                "claim_end_date": pl.Date,
+                "claim_line_start_date": pl.Date,
+                "revenue_center_code": pl.Utf8,
+                "hcpcs_code": pl.Utf8,
+                "diagnosis_code_1": pl.Utf8,
             },
         ).write_parquet(gold / "medical_claim.parquet")
 

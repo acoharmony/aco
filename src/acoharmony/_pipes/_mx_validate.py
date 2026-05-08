@@ -199,12 +199,19 @@ def compute_scope(
     scope: ScopeRow,
     claims: pl.LazyFrame,
     eligibility: pl.LazyFrame,
+    hcc_scores: pl.LazyFrame | None = None,
 ) -> pl.LazyFrame:
     """
     Run the registered measure for one scope and return the per-bene result.
 
     Output columns: person_id, denom_flag, num_flag, plus the measure's
     tieout column under its computed name (see _COMPUTED_TIEOUT_COLUMN).
+
+    For DAH (REACH_DAH), the spec requires a year-before-PY HCC composite
+    risk score ≥ 2.0 (CMS PY2025 QMMR §3.3.2 p15). When ``hcc_scores`` is
+    provided we filter it to ``performance_year == scope.py - 1`` and
+    inject it under value_sets['hcc_scores']; the DAH transform handles
+    the average + threshold.
     """
     from .._transforms._quality_measure_base import MeasureFactory
 
@@ -213,9 +220,12 @@ def compute_scope(
         config={"performance_year": scope.py, "quarter": scope.quarter},
     )
 
-    # value_sets is the measure-class extension point. We pass eligibility
-    # under a known key so DAH (which needs dob/dod) can pick it up.
+    # value_sets is the measure-class extension point.
     value_sets: dict[str, pl.LazyFrame] = {"eligibility": eligibility}
+    if hcc_scores is not None:
+        value_sets["hcc_scores"] = hcc_scores.filter(
+            pl.col("performance_year") == (scope.py - 1)
+        )
 
     denom = measure.calculate_denominator(claims, eligibility, value_sets)
     num = measure.calculate_numerator(denom, claims, value_sets)
@@ -387,6 +397,12 @@ def apply_mx_validate_pipeline(
     silver_path.mkdir(parents=True, exist_ok=True)
     claims = pl.scan_parquet(gold_path / "medical_claim.parquet")
     eligibility = pl.scan_parquet(gold_path / "eligibility.parquet")
+    # HCC scores are required for DAH denominator (CMS PY2025 QMMR §3.3.2 p15:
+    # avg HCC composite risk score ≥ 2.0 in the year before the PY). Optional
+    # for measures that don't need it; if the file is absent we pass None and
+    # the DAH transform logs a warning.
+    hcc_scores_path = gold_path / "hcc_risk_scores.parquet"
+    hcc_scores = pl.scan_parquet(hcc_scores_path) if hcc_scores_path.exists() else None
     written: list[str] = []
     for scope in ready:
         out_file = silver_path / _scope_output_name(scope.measure, scope.py, scope.quarter)
@@ -395,7 +411,7 @@ def apply_mx_validate_pipeline(
             written.append(out_file.name)
             continue
         try:
-            frame = compute_scope(scope, claims, eligibility)
+            frame = compute_scope(scope, claims, eligibility, hcc_scores=hcc_scores)
             frame.collect(streaming=True).write_parquet(out_file)
             written.append(out_file.name)
             logger.info(f"[compute] {out_file.name}")
