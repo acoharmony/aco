@@ -114,6 +114,123 @@ class AllCauseUnplannedAdmissions(QualityMeasureBase):
         # No warning when absent — the existing program/aco_id config-driven
         # path can also restrict the cohort; we don't want duplicate alerts.
 
+        result = self._apply_spec_denominator_exclusions(
+            result, claims, eligibility, int(measurement_year)
+        )
+
+        return result
+
+    @staticmethod
+    def _apply_spec_denominator_exclusions(
+        denom: pl.LazyFrame,
+        claims: pl.LazyFrame,
+        eligibility: pl.LazyFrame,
+        py: int,
+    ) -> pl.LazyFrame:
+        """Apply CMS PY2025 QMMR §3.2.2 p13 denominator exclusions to UAMCC.
+
+        Source: ACO REACH Model PY2025 Quality Measurement Methodology Report
+        (https://www.cms.gov/files/document/py25-reach-qual-meas-meth-report.pdf),
+        §3.2.2 p13 UAMCC Denominator Exclusions.
+
+        Implements the three exclusions we have data for:
+
+          (1) <12 months continuous Medicare A+B in the year before the
+              measurement year. Spec rationale: 'to ensure adequate claims
+              data to identify beneficiaries.'
+          (2) <12 months continuous Medicare A+B during the measurement
+              year. Spec note: beneficiaries who die or enter hospice
+              during the measurement period are NOT excluded if they are
+              continuously enrolled until death/hospice (the 12-month
+              requirement is relaxed for these).
+          (3) Patients enrolled in hospice during the year before the
+              measurement year OR at the start of the measurement year.
+
+        Three other spec exclusions are NOT applied here, with reason:
+          (4) 'No PCQ E&M visit with attributed REACH provider' — needs
+              provider attribution data not currently in this layer.
+          (5) 'Not at risk for hospitalization at any time during the
+              measurement year' — not derivable from claims alone.
+          (6) 'Non-claims-based-aligned voluntarily aligned after Jan 1
+              2025' — needs voluntary-alignment metadata.
+
+        Each unimplemented exclusion is a separate ticket; their absence
+        will surface as continued denominator over-broadness in the
+        mx_validate tieout, which is the spec's intent for this matrix.
+        """
+        from datetime import date as _date
+
+        py_start = _date(py, 1, 1)
+        py_end = _date(py, 12, 31)
+        prior_year_start = _date(py - 1, 1, 1)
+
+        # Per-bene enrollment window collapsed to (min_start, max_end, dod).
+        bene_enroll = (
+            eligibility.select(
+                [
+                    "person_id",
+                    pl.col("enrollment_start_date").cast(pl.Date, strict=False),
+                    pl.col("enrollment_end_date").cast(pl.Date, strict=False),
+                    pl.col("death_date").cast(pl.Date, strict=False).alias("dod"),
+                ]
+            )
+            .group_by("person_id")
+            .agg(
+                [
+                    pl.col("enrollment_start_date").min().alias("enroll_start"),
+                    pl.col("enrollment_end_date").max().alias("enroll_end"),
+                    pl.col("dod").min().alias("dod"),
+                ]
+            )
+        )
+
+        # Hospice enrollment timing: any hospice TOB 81x claim with
+        # claim_start_date <= py_start counts as 'enrolled in hospice during
+        # the year before the measurement year OR at the start of the
+        # measurement year' per §3.2.2 p13 #3.
+        # TOB encoding note: codebase strips the leading 0 (so '811',
+        # '813' instead of '0811'/'0813'). Match first 2 chars of the
+        # leading-zero-stripped TOB.
+        cols_present = claims.collect_schema().names()
+        if "claim_start_date" in cols_present and "bill_type_code" in cols_present:
+            hospice_pre_py = (
+                claims.filter(
+                    pl.col("bill_type_code")
+                    .cast(pl.Utf8)
+                    .str.strip_prefix("0")
+                    .str.slice(0, 2)
+                    == "81"
+                )
+                .filter(pl.col("claim_start_date").cast(pl.Date, strict=False) <= pl.lit(py_start))
+                .select("person_id")
+                .unique()
+            )
+        else:
+            hospice_pre_py = pl.LazyFrame(
+                {"person_id": []}, schema={"person_id": pl.Utf8}
+            )
+
+        # Apply the three exclusions via inner-join keep-set.
+        keep = bene_enroll.filter(
+            # Exclusion (1): full prior-year continuous A+B.
+            (pl.col("enroll_start") <= pl.lit(prior_year_start))
+            # Exclusion (2): full PY continuous A+B, OR continuous up to
+            # death/hospice during the PY.
+            & (
+                pl.col("enroll_end").is_null()
+                | (pl.col("enroll_end") >= pl.lit(py_end))
+                | (
+                    pl.col("dod").is_not_null()
+                    & (pl.col("enroll_end") >= pl.col("dod"))
+                )
+            )
+        ).select("person_id")
+
+        result = denom.join(keep, on="person_id", how="inner")
+
+        # Exclusion (3): drop hospice-pre-PY benes.
+        result = result.join(hospice_pre_py, on="person_id", how="anti")
+
         return result
 
     @traced()
