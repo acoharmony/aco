@@ -261,6 +261,34 @@ def _reach_aligned_persons_for_py(
     )
 
 
+def _reach_aligned_monthly(
+    alignment: pl.LazyFrame, py: int
+) -> pl.LazyFrame:
+    """
+    Long (person_id, year_month) frame of REACH-aligned bene-months for the PY.
+
+    Used by ACR (and any other admission-level measure) to enforce
+    'actively aligned to a REACH ACO' (CMS PY2025 QMMR §3.1.2 p11 #2)
+    at the level of the individual admission's month — strictly tighter
+    than the bene-level any-month-of-PY filter, which over-includes
+    benes who were aligned in some other month than the admission month.
+
+    year_month is the 6-char string 'YYYYMM' (e.g. '202404') matching
+    Polars' ``.dt.strftime('%Y%m')`` output.
+    """
+    months = [f"ym_{py}{m:02d}_reach" for m in range(1, 13)]
+    pieces = []
+    for col in months:
+        yyyymm = col.replace("ym_", "").replace("_reach", "")
+        pieces.append(
+            alignment.filter(pl.col(col)).select(
+                pl.col("current_mbi").alias("person_id"),
+                pl.lit(yyyymm).alias("year_month"),
+            )
+        )
+    return pl.concat(pieces).unique()
+
+
 def compute_scope(
     scope: ScopeRow,
     claims: pl.LazyFrame,
@@ -313,6 +341,12 @@ def compute_scope(
         )
     if alignment is not None:
         value_sets["reach_aligned_persons"] = _reach_aligned_persons_for_py(
+            alignment, scope.py
+        )
+        # ACR (and future admission-level measures) want month-of-admit
+        # alignment, not just any-month-of-PY. Provided alongside the
+        # bene-level set so each measure can pick the appropriate granularity.
+        value_sets["reach_aligned_monthly"] = _reach_aligned_monthly(
             alignment, scope.py
         )
     if silver_path is not None:

@@ -212,6 +212,44 @@ class TestIdentifyIndexAdmissions:
         ).lazy()
 
     @pytest.mark.unit
+    def test_reach_aligned_monthly_filters_admissions_in_aligned_months(self):
+        """value_sets['reach_aligned_monthly'] keeps only admissions whose
+        month-of-admission is in the (person_id, year_month) set."""
+        # Two admissions for P001: March (aligned) and August (not aligned).
+        claims = pl.DataFrame(
+            {
+                "claim_id": ["C_MAR", "C_AUG"],
+                "person_id": ["P001", "P001"],
+                "admission_date": [date(2025, 3, 15), date(2025, 8, 10)],
+                "discharge_date": [date(2025, 3, 20), date(2025, 8, 15)],
+                "diagnosis_code_1": ["A01", "A01"],
+                "bill_type_code": ["111", "111"],
+                "facility_npi": ["NPI001", "NPI001"],
+                "discharge_status_code": ["01", "01"],
+            }
+        ).lazy()
+        vs = _empty_vs()
+        vs["reach_aligned_monthly"] = pl.LazyFrame(
+            {"person_id": ["P001"], "year_month": ["202503"]}
+        )
+        result = AcrReadmissionExpression.identify_index_admissions(
+            claims, self._base_eligibility(), vs, _config()
+        ).collect()
+        # Only March admission should survive
+        assert result["claim_id"].to_list() == ["C_MAR"]
+
+    @pytest.mark.unit
+    def test_no_reach_aligned_monthly_keeps_all_admissions(self):
+        """When value_sets['reach_aligned_monthly'] is absent, no filter applied."""
+        result = AcrReadmissionExpression.identify_index_admissions(
+            self._base_claims(),
+            self._base_eligibility(),
+            _empty_vs(),
+            _config(),
+        ).collect()
+        assert "C001" in result["claim_id"].to_list()
+
+    @pytest.mark.unit
     def test_with_ccs_mapping_populated(self):
         """203->204: ccs_mapping not None and height > 0 -> join."""
         vs = _empty_vs()

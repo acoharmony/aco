@@ -133,15 +133,20 @@ class TestAcrDenominator:
             assert "denominator_flag" in collected.columns
 
     @pytest.mark.unit
-    def test_reach_aligned_filter_narrows_denominator(self):
-        """value_sets['reach_aligned_persons'] inner-joins to narrow denominator."""
+    def test_alignment_enforced_upstream_not_in_calculate_denominator(self):
+        """REACH alignment is enforced inside identify_index_admissions
+        (admission-month granularity), not at calculate_denominator. So
+        passing value_sets['reach_aligned_persons'] here is a no-op —
+        the test mocks the upstream call and asserts no further narrowing
+        happens at the calculate_denominator layer."""
         m = AllConditionReadmission(config={"measurement_year": 2025})
         mock_admissions = pl.DataFrame({
             "person_id": ["P1", "P2", "P3"],
             "claim_id": ["C1", "C2", "C3"],
             "exclusion_flag": [False, False, False],
         }).lazy()
-        # Only P1 and P2 are REACH-aligned per CMS alignment table.
+        # Even with a restrictive bene-level set in value_sets,
+        # calculate_denominator should pass all three through.
         reach = pl.LazyFrame({"person_id": ["P1", "P2"]})
         with patch.object(
             AcrReadmissionExpression, "identify_index_admissions",
@@ -151,7 +156,7 @@ class TestAcrDenominator:
                 self._make_claims(), self._make_eligibility(),
                 {"reach_aligned_persons": reach},
             ).collect()
-        assert sorted(result["person_id"].to_list()) == ["P1", "P2"]
+        assert sorted(result["person_id"].to_list()) == ["P1", "P2", "P3"]
 
 
 class TestAcrNumerator:

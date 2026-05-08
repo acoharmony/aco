@@ -367,6 +367,34 @@ class TestReachAlignedPersonsForPy:
 
 
 @pytest.mark.unit
+class TestReachAlignedMonthly:
+    """_reach_aligned_monthly emits one row per (person_id, year_month) pair."""
+
+    def test_long_format_one_row_per_aligned_month(self):
+        cols = {"current_mbi": ["A", "B"]}
+        for m in range(1, 13):
+            # A aligned Jan-Mar; B aligned Jul-Aug
+            cols[f"ym_2024{m:02d}_reach"] = [m in (1, 2, 3), m in (7, 8)]
+        df = pl.LazyFrame(cols)
+        out = mxv._reach_aligned_monthly(df, 2024).collect().sort(["person_id", "year_month"])
+        assert out.height == 5  # 3 + 2
+        assert out["person_id"].to_list() == ["A", "A", "A", "B", "B"]
+        assert out["year_month"].to_list() == ["202401", "202402", "202403", "202407", "202408"]
+
+    def test_excludes_other_pys(self):
+        cols = {"current_mbi": ["A"]}
+        # A aligned in 2024 every month, but NOT in 2025
+        for m in range(1, 13):
+            cols[f"ym_2024{m:02d}_reach"] = [True]
+            cols[f"ym_2025{m:02d}_reach"] = [False]
+        df = pl.LazyFrame(cols)
+        out_2024 = mxv._reach_aligned_monthly(df, 2024).collect()
+        out_2025 = mxv._reach_aligned_monthly(df, 2025).collect()
+        assert out_2024.height == 12
+        assert out_2025.height == 0
+
+
+@pytest.mark.unit
 class TestRefValueForScope:
     def test_loads_correct_column_per_measure(self, tmp_path):
         silver = tmp_path / "silver"

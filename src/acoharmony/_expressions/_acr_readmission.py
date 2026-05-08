@@ -183,6 +183,28 @@ class AcrReadmissionExpression:
             & (pl.col("admission_date") <= pl.lit(period_end))
         )
 
+        # Per-admission REACH alignment filter — CMS PY2025 QMMR §3.1.2 p11
+        # criterion #2: 'Patient is actively aligned to a REACH ACO.' The
+        # right reading of 'actively' for an admission-level outcome is
+        # the bene's alignment in the month the admission occurred — a
+        # bene-level any-month-of-PY filter both over- and under-counts
+        # (over: includes admissions when the bene wasn't aligned; under:
+        # excludes admissions where alignment kicked in later in the PY
+        # but our snapshot didn't see it).
+        # The mx_validate pipeline injects value_sets['reach_aligned_monthly']
+        # as a long (person_id, year_month) frame from
+        # gold/consolidated_alignment.parquet (see _mx_validate.py
+        # _reach_aligned_monthly).
+        align_monthly = value_sets.get("reach_aligned_monthly")
+        if align_monthly is not None:
+            inpatient = inpatient.with_columns(
+                pl.col("admission_date").dt.strftime("%Y%m").alias("_admit_year_month")
+            ).join(
+                align_monthly.rename({"year_month": "_admit_year_month"}),
+                on=["person_id", "_admit_year_month"],
+                how="inner",
+            ).drop("_admit_year_month")
+
         # Join with eligibility for age calculation
         with_age = inpatient.join(
             eligibility.select(
