@@ -78,6 +78,48 @@ _COMPUTED_TIEOUT_COLUMN: dict[str, str] = {
     "dah": "observed_dah",
 }
 
+# Per-measure value-set parquet filenames (in silver/) keyed by the short
+# names the transform expects in value_sets[]. Matches the dicts in
+# _expressions/_acr_readmission.py and _expressions/_uamcc.py.
+_VALUE_SET_FILES: dict[str, dict[str, str]] = {
+    "acr": {
+        "ccs_icd10_cm": "value_sets_acr_ccs_icd10_cm.parquet",
+        "exclusions": "value_sets_acr_exclusions.parquet",
+        "cohort_icd10": "value_sets_acr_cohort_icd10.parquet",
+        "cohort_ccs": "value_sets_acr_cohort_ccs.parquet",
+        "paa2": "value_sets_acr_paa2.parquet",
+    },
+    "uamcc": {
+        "cohort": "value_sets_uamcc_value_set_cohort.parquet",
+        "ccs_icd10_cm": "value_sets_uamcc_value_set_ccs_icd10_cm.parquet",
+        "ccs_icd10_pcs": "value_sets_uamcc_value_set_ccs_icd10_pcs.parquet",
+        "exclusions": "value_sets_uamcc_value_set_exclusions.parquet",
+        "paa1": "value_sets_uamcc_value_set_paa1.parquet",
+        "paa2": "value_sets_uamcc_value_set_paa2.parquet",
+        "paa3": "value_sets_uamcc_value_set_paa3.parquet",
+        "paa4": "value_sets_uamcc_value_set_paa4.parquet",
+    },
+    # DAH carries no value-sets; spec uses claim attributes directly.
+    "dah": {},
+}
+
+
+def _load_value_sets(silver_path: Any, measure: str) -> dict[str, pl.LazyFrame]:
+    """Load all silver value-set parquets for a measure into a {key: LazyFrame} dict.
+
+    Missing files are silently skipped — the transform is responsible for
+    handling absent value sets (e.g. ACR falls back to no readmit-CCS join).
+    """
+    from pathlib import Path
+
+    silver_path = Path(silver_path)
+    out: dict[str, pl.LazyFrame] = {}
+    for key, fname in _VALUE_SET_FILES.get(measure, {}).items():
+        f = silver_path / fname
+        if f.exists():
+            out[key] = pl.scan_parquet(f)
+    return out
+
 
 # ---------------------------------------------------------------------------
 # Stage 1: scope discovery
@@ -200,6 +242,7 @@ def compute_scope(
     claims: pl.LazyFrame,
     eligibility: pl.LazyFrame,
     hcc_scores: pl.LazyFrame | None = None,
+    silver_path: Any = None,
 ) -> pl.LazyFrame:
     """
     Run the registered measure for one scope and return the per-bene result.
@@ -207,17 +250,27 @@ def compute_scope(
     Output columns: person_id, denom_flag, num_flag, plus the measure's
     tieout column under its computed name (see _COMPUTED_TIEOUT_COLUMN).
 
-    For DAH (REACH_DAH), the spec requires a year-before-PY HCC composite
-    risk score ≥ 2.0 (CMS PY2025 QMMR §3.3.2 p15). When ``hcc_scores`` is
-    provided we filter it to ``performance_year == scope.py - 1`` and
-    inject it under value_sets['hcc_scores']; the DAH transform handles
-    the average + threshold.
+    Per-measure value-set wiring:
+      - DAH (REACH_DAH) gets value_sets['hcc_scores'] pre-filtered to
+        ``performance_year == scope.py - 1`` (CMS PY2025 QMMR §3.3.2 p15
+        criterion 4). DAH carries no codeset value-sets.
+      - ACR (NQF1789) and UAMCC (NQF2888) need codeset value-sets loaded
+        from silver/value_sets_*.parquet. The set of files per measure
+        is defined in _VALUE_SET_FILES; ``silver_path`` must be passed
+        so we can locate them.
     """
     from .._transforms._quality_measure_base import MeasureFactory
 
+    # Different measure classes consult different config keys for the year:
+    # ACR/DAH read 'performance_year', UAMCC reads 'measurement_year'.
+    # Pass both so the matrix is invariant to the convention.
     measure = MeasureFactory.create(
         scope.transform_class,
-        config={"performance_year": scope.py, "quarter": scope.quarter},
+        config={
+            "performance_year": scope.py,
+            "measurement_year": scope.py,
+            "quarter": scope.quarter,
+        },
     )
 
     # value_sets is the measure-class extension point.
@@ -226,6 +279,8 @@ def compute_scope(
         value_sets["hcc_scores"] = hcc_scores.filter(
             pl.col("performance_year") == (scope.py - 1)
         )
+    if silver_path is not None:
+        value_sets.update(_load_value_sets(silver_path, scope.measure))
 
     denom = measure.calculate_denominator(claims, eligibility, value_sets)
     num = measure.calculate_numerator(denom, claims, value_sets)
@@ -411,7 +466,10 @@ def apply_mx_validate_pipeline(
             written.append(out_file.name)
             continue
         try:
-            frame = compute_scope(scope, claims, eligibility, hcc_scores=hcc_scores)
+            frame = compute_scope(
+                scope, claims, eligibility,
+                hcc_scores=hcc_scores, silver_path=silver_path,
+            )
             frame.collect(streaming=True).write_parquet(out_file)
             written.append(out_file.name)
             logger.info(f"[compute] {out_file.name}")

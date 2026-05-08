@@ -163,19 +163,35 @@ class AcrReadmissionExpression:
         Returns:
             LazyFrame with index admissions and exclusion flags
         """
-        performance_year = config.get("performance_year", 2025)
+        performance_year = int(config.get("performance_year", 2025))
         min_age = config.get("min_age", 65)
 
-        period_begin = f"{performance_year}-01-01"
-        period_end = f"{performance_year}-12-31"
+        # Build native date literals — pl.lit("YYYY-MM-DD").str.to_date()
+        # silently broke in current polars (the .str accessor is no longer
+        # exposed inside a literal-then-method chain during query planning).
+        from datetime import date as _date
+
+        period_begin = _date(performance_year, 1, 1)
+        period_end = _date(performance_year, 12, 31)
+
+        # Coerce admission/discharge dates — gold/medical_claim stores
+        # them as String in this codebase, but downstream comparisons and
+        # interval math require Date. strict=False so unparseable values
+        # become NULL rather than raising.
+        claims = claims.with_columns(
+            [
+                pl.col("admission_date").cast(pl.Date, strict=False),
+                pl.col("discharge_date").cast(pl.Date, strict=False),
+            ]
+        )
 
         # Filter to acute inpatient admissions in performance period
         inpatient = claims.filter(
             (pl.col("bill_type_code").cast(pl.Utf8).str.starts_with("11"))
             & pl.col("admission_date").is_not_null()
             & pl.col("discharge_date").is_not_null()
-            & (pl.col("admission_date") >= pl.lit(period_begin).str.to_date("%Y-%m-%d"))
-            & (pl.col("admission_date") <= pl.lit(period_end).str.to_date("%Y-%m-%d"))
+            & (pl.col("admission_date") >= pl.lit(period_begin))
+            & (pl.col("admission_date") <= pl.lit(period_end))
         )
 
         # Join with eligibility for age calculation
@@ -236,14 +252,24 @@ class AcrReadmissionExpression:
             [pl.col("exclusion_flag").fill_null(False)]
         )
 
-        # Select index admission fields
+        # Select index admission fields. The CCLF-sourced gold/medical_claim
+        # uses 'discharge_disposition_code' (UB-04 patient discharge status,
+        # FL17). Older fixtures used 'discharge_status_code' for the same
+        # field — accept either to keep the existing test suite green while
+        # working against real production claims.
+        cols_present = with_age.collect_schema().names()
+        disch_status_col = (
+            "discharge_status_code"
+            if "discharge_status_code" in cols_present
+            else "discharge_disposition_code"
+        )
         index_admissions = with_age.select(
             [
                 pl.col("claim_id"),
                 pl.col("person_id"),
                 pl.col("admission_date"),
                 pl.col("discharge_date"),
-                pl.col("discharge_status_code"),
+                pl.col(disch_status_col).alias("discharge_status_code"),
                 pl.col("facility_npi").alias("facility_id"),
                 pl.col("diagnosis_code_1").alias("principal_diagnosis_code"),
                 pl.col("ccs_diagnosis_category"),
@@ -417,6 +443,15 @@ class AcrReadmissionExpression:
             LazyFrame with readmission pairs and classification flags
         """
         lookback_days = config.get("lookback_days", 30)
+
+        # Coerce admission/discharge dates from String → Date (gold stores
+        # them as String in this codebase). strict=False → unparseable → NULL.
+        claims = claims.with_columns(
+            [
+                pl.col("admission_date").cast(pl.Date, strict=False),
+                pl.col("discharge_date").cast(pl.Date, strict=False),
+            ]
+        )
 
         # Index discharges
         index_discharges = index_admissions.filter(

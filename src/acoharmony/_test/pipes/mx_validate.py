@@ -311,6 +311,27 @@ class TestTieoutScope:
 
 
 @pytest.mark.unit
+class TestLoadValueSets:
+    def test_dah_returns_empty_dict(self, tmp_path):
+        """DAH carries no codeset value-sets — _VALUE_SET_FILES['dah'] = {}."""
+        out = mxv._load_value_sets(tmp_path, "dah")
+        assert out == {}
+
+    def test_skips_missing_files(self, tmp_path):
+        """For uamcc, with no parquets present, all keys silently absent."""
+        out = mxv._load_value_sets(tmp_path, "uamcc")
+        assert out == {}
+
+    def test_loads_present_files_only(self, tmp_path):
+        """Loads the parquets that exist, skips the rest."""
+        # Create one of the expected uamcc files
+        f = tmp_path / "value_sets_uamcc_value_set_paa1.parquet"
+        pl.DataFrame({"x": [1]}).write_parquet(f)
+        out = mxv._load_value_sets(tmp_path, "uamcc")
+        assert set(out.keys()) == {"paa1"}
+
+
+@pytest.mark.unit
 class TestRefValueForScope:
     def test_loads_correct_column_per_measure(self, tmp_path):
         silver = tmp_path / "silver"

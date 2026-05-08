@@ -106,6 +106,16 @@ class AllConditionReadmission(QualityMeasureBase):
         """
         self.config.get("measurement_year", 2025)
 
+        # Coerce admission/discharge dates from String → Date (gold stores
+        # them as String in this codebase). Done at the top so all
+        # downstream date arithmetic operates on Date.
+        claims = claims.with_columns(
+            [
+                pl.col("admission_date").cast(pl.Date, strict=False),
+                pl.col("discharge_date").cast(pl.Date, strict=False),
+            ]
+        )
+
         # We need eligibility for index admission identification but
         # the base class doesn't pass it to calculate_numerator.
         # Use claims-only logic to identify readmission pairs.
