@@ -21,7 +21,13 @@ import acoharmony
 
 
 def _make_provider_df(**overrides):
-    """Create a minimal provider_list DataFrame."""
+    """Create a minimal provider_list DataFrame.
+
+    Includes the tracking columns (``source_filename``, ``file_date``,
+    ``processed_at``) that the silver tier always carries, so fixtures
+    can flow through filters like
+    ``FileVersionExpression.keep_only_most_recent_file``.
+    """
     defaults = {
         "base_provider_tin": ["TIN001", "TIN002", "TIN003"],
         "individual_npi": ["NPI001", "NPI002", ""],
@@ -38,6 +44,8 @@ def _make_provider_df(**overrides):
         "performance_year": ["2024", "2024", "2024"],
         "specialty": ["Internal Medicine", "Cardiology", "Radiology"],
         "source_filename": ["Report - 01-15-24 10.00.00.xlsx"] * 3,
+        "file_date": ["2024-01-15"] * 3,
+        "processed_at": ["2024-01-16T08:00:00"] * 3,
     }
     defaults.update(overrides)
     return pl.DataFrame(defaults).lazy()
@@ -194,6 +202,8 @@ class TestApplyTransformProviderAlignment:
             "performance_year": ["2024"],
             "specialty": ["General"],
             "source_filename": ["Report - 01-15-24 10.00.00.xlsx"],
+            "file_date": ["2024-01-15"],
+            "processed_at": ["2024-01-16T08:00:00"],
         }).lazy()
 
         catalog = MagicMock()
@@ -217,6 +227,8 @@ class TestApplyTransformProviderAlignment:
             "performance_year": ["2024"],
             "specialty": ["Internal Medicine"],
             "source_filename": ["Report - 01-15-24 10.00.00.xlsx"],
+            "file_date": ["2024-01-15"],
+            "processed_at": ["2024-01-16T08:00:00"],
         }).lazy()
         # This tests the org NPI path with null npi
         result = inner(df, {}, catalog, logger, force=False)

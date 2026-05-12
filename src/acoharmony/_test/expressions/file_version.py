@@ -64,3 +64,45 @@ class TestFileVersionExpression:
     def test_keep_only_most_recent_file(self):
         expr = FileVersionExpression.keep_only_most_recent_file()
         assert isinstance(expr, pl.Expr)
+
+    @pytest.mark.unit
+    def test_keep_only_most_recent_file_picks_latest_file_date(self):
+        """Picks the row(s) with the newest file_date regardless of filename style."""
+        df = pl.DataFrame(
+            {
+                "source_filename": [
+                    "Old REACH PY2026 - 10-7-25 16.16.36.xlsx",
+                    "Old REACH PY2026 - 10-7-25 16.16.36.xlsx",
+                    "New HC Provider List - 4-27-2026 16.48.20.xlsx",
+                    "New HC Provider List - 4-27-2026 16.48.20.xlsx",
+                ],
+                "file_date": ["2025-10-07", "2025-10-07", "2026-04-27", "2026-04-27"],
+                "processed_at": [
+                    "2025-10-08T09:00:00",
+                    "2025-10-08T09:00:00",
+                    "2026-04-28T12:00:00",
+                    "2026-04-28T12:00:00",
+                ],
+                "row_id": [1, 2, 3, 4],
+            }
+        )
+        result = df.filter(FileVersionExpression.keep_only_most_recent_file())
+        # Both rows from the newer file survive; older REACH file is dropped.
+        assert sorted(result["row_id"].to_list()) == [3, 4]
+
+    @pytest.mark.unit
+    def test_keep_only_most_recent_file_breaks_ties_on_processed_at(self):
+        """Same file_date → later processed_at wins (re-runs supersede earlier loads)."""
+        df = pl.DataFrame(
+            {
+                "source_filename": [
+                    "A - 1-30-2026 15.27.44.xlsx",
+                    "B - 1-30-2026 17.55.55.xlsx",
+                ],
+                "file_date": ["2026-01-30", "2026-01-30"],
+                "processed_at": ["2026-02-01T08:00:00", "2026-02-01T10:00:00"],
+                "row_id": [1, 2],
+            }
+        )
+        result = df.filter(FileVersionExpression.keep_only_most_recent_file())
+        assert result["row_id"].to_list() == [2]

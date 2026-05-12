@@ -171,38 +171,35 @@ class FileVersionExpression:
     )
     def keep_only_most_recent_file() -> pl.Expr:
         """
-        Universal filter for most recent file - extracts date from filename.
+        Universal filter for most recent file using the ``file_date`` column.
 
-        For files with date patterns like "Report - MM-DD-YY HH.MM.SS.xlsx",
-        extracts and compares the actual dates to find the most recent.
+        ``file_date`` is set during parsing by ``extract_file_date`` and is
+        ISO ``YYYY-MM-DD``, so it sorts correctly regardless of filename
+        convention. Ties on the same calendar day are broken by
+        ``processed_at`` (a wall-clock timestamp) so a later re-run wins
+        over an earlier one.
 
-        Falls back to lexicographic sorting if no date pattern found.
+        Previously this expression parsed dates out of the filename with a
+        ``MM-DD-YY`` regex; that excluded any file using a different
+        naming convention (e.g. HarmonyCares-internal ``M-D-YYYY``
+        exports were silently invisible to the filter). Reading
+        ``file_date`` directly fixes that and keeps the helper schema-
+        agnostic.
 
         Returns:
             Expression that filters to rows from the most recent file
         """
-        # Extract date components: MM-DD-YY HH.MM.SS
-        # Build sortable date string: YYMMDD-HHMMSS
-        date_sortable = pl.concat_str(
+        # source_filename is a per-row constant inside a file, so combining
+        # file_date + processed_at + source_filename uniquely identifies a
+        # single file's rows. Equality against the max of that key keeps
+        # exactly one file's rows.
+        recency_key = pl.concat_str(
             [
-                # Year (position 3): DD-YY -> YY
-                pl.col("source_filename").str.extract(r"(\d{1,2})-(\d{1,2})-(\d{2})", 3),
-                # Month (position 1): MM-DD-YY -> MM (zero-padded)
-                pl.col("source_filename")
-                .str.extract(r"(\d{1,2})-(\d{1,2})-(\d{2})", 1)
-                .str.zfill(2),
-                # Day (position 2): MM-DD-YY -> DD (zero-padded)
-                pl.col("source_filename")
-                .str.extract(r"(\d{1,2})-(\d{1,2})-(\d{2})", 2)
-                .str.zfill(2),
-                pl.lit("-"),
-                # Time HH.MM.SS
-                pl.col("source_filename").str.extract(r"(\d{2})\.(\d{2})\.(\d{2})", 1).str.zfill(2),
-                pl.col("source_filename").str.extract(r"(\d{2})\.(\d{2})\.(\d{2})", 2).str.zfill(2),
-                pl.col("source_filename").str.extract(r"(\d{2})\.(\d{2})\.(\d{2})", 3).str.zfill(2),
+                pl.col("file_date").cast(pl.Utf8).fill_null(""),
+                pl.lit(" "),
+                pl.col("processed_at").cast(pl.Utf8).fill_null(""),
+                pl.lit(" "),
+                pl.col("source_filename").fill_null(""),
             ]
         )
-
-        # Filter to rows where date_sortable equals the max date_sortable
-        max_date = date_sortable.max()
-        return date_sortable == max_date
+        return recency_key == recency_key.max()
