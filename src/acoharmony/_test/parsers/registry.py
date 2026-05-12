@@ -234,7 +234,6 @@ class TestCoreParserImports:
             "acoharmony._parsers._json",
             "acoharmony._parsers._parquet",
             "acoharmony._parsers._tparc",
-            "acoharmony._parsers._participant_list_excel",
             "acoharmony._parsers._xml",
             "acoharmony._parsers._ecfr_xml",
             "acoharmony._parsers._federal_register_xml",

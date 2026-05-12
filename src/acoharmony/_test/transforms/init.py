@@ -43,7 +43,7 @@ from acoharmony._transforms.utilization import UtilizationTransform
 from acoharmony._expressions._reach_hedr_eligible import build_reach_hedr_denominator_expr
 
 # Import participant list transform
-from acoharmony._transforms._participant_list import transform_participant_list
+from acoharmony._transforms._participant_list import apply_transform as transform_participant_list
 
 
 class TestTransformsPackageInit:
@@ -1202,13 +1202,29 @@ class TestHccGapAnalysisV2:
 class TestParticipantList:
 
     @pytest.mark.unit
-    def test_transform_passthrough(self):
-        df = pl.LazyFrame({"col_a": [1, 2], "col_b": ["x", "y"]})
-        inner = getattr(transform_participant_list, "func", transform_participant_list)
-        result = inner(df)
-        assert isinstance(result, pl.LazyFrame)
+    def test_transform_fills_entity_columns_when_null(self):
+        """Transform stamps operating-ACO identity onto rows that ship without entity columns."""
+        import logging
+
+        df = pl.LazyFrame({
+            "entity_id": [None, "D9999"],
+            "entity_tin": [None, "999999999"],
+            "entity_legal_business_name": [None, "Other ACO"],
+            "performance_year": [None, "PY2099"],
+            "file_date": ["2026-04-27", "2030-05-01"],
+        })
+        result = transform_participant_list(df, schema=None, catalog=None, logger=logging.getLogger("t"))
         collected = result.collect()
-        assert collected.shape == (2, 2)
+        # Row 0 (D0259 file with null entity cols) gets filled from aco.toml identity.
+        assert collected["entity_id"][0] == "D0259"
+        assert collected["entity_tin"][0] == "881823607"
+        assert collected["entity_legal_business_name"][0] == "HarmonyCares ACO LLC"
+        assert collected["performance_year"][0] == "PY2026"
+        # Row 1 (REACH-shaped row with values present) passes through untouched.
+        assert collected["entity_id"][1] == "D9999"
+        assert collected["entity_tin"][1] == "999999999"
+        assert collected["entity_legal_business_name"][1] == "Other ACO"
+        assert collected["performance_year"][1] == "PY2099"
 
 
 # ===== From test_reexport.py =====

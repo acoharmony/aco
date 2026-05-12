@@ -337,6 +337,85 @@ class TestExtractColumns:
         assert columns[0]["start_pos"] == 1
         assert columns[0]["end_pos"] == 10
 
+    @pytest.mark.unit
+    def test_extract_columns_captures_plain_alias(self):
+        """Field(alias=...) surfaces as a single-entry aliases list."""
+        import dataclasses
+        from pydantic import Field
+
+        @dataclasses.dataclass
+        class AliasedModel:
+            entity_id: str = Field(default="", alias="Entity_ID")
+
+        columns = SchemaRegistry._extract_columns(AliasedModel)
+        assert columns[0]["aliases"] == ["Entity_ID"]
+
+    @pytest.mark.unit
+    def test_extract_columns_captures_alias_choices(self):
+        """validation_alias=AliasChoices captures every choice, preserving order."""
+        import dataclasses
+        from pydantic import AliasChoices, Field
+
+        @dataclasses.dataclass
+        class ChoicesModel:
+            tin: str = Field(
+                default="",
+                alias="Base_Provider_TIN",
+                validation_alias=AliasChoices("Base_Provider_TIN", "Billing TIN"),
+            )
+
+        columns = SchemaRegistry._extract_columns(ChoicesModel)
+        # The plain alias appears first; choices add the second.
+        assert columns[0]["aliases"] == ["Base_Provider_TIN", "Billing TIN"]
+
+    @pytest.mark.unit
+    def test_extract_columns_no_aliases_omits_key(self):
+        """When no alias is declared, the column dict has no 'aliases' key."""
+        import dataclasses
+
+        @dataclasses.dataclass
+        class PlainModel:
+            x: str = ""
+
+        columns = SchemaRegistry._extract_columns(PlainModel)
+        assert "aliases" not in columns[0]
+
+
+class TestExtractFieldAliasesHelper:
+    """Direct tests for the module-level _extract_field_aliases helper."""
+
+    @pytest.mark.unit
+    def test_none_field_returns_empty(self):
+        from acoharmony._registry.registry import _extract_field_aliases
+
+        assert _extract_field_aliases(None) == []
+
+    @pytest.mark.unit
+    def test_string_validation_alias(self):
+        from acoharmony._registry.registry import _extract_field_aliases
+        from pydantic import Field
+
+        f = Field(validation_alias="X")
+        assert _extract_field_aliases(f) == ["X"]
+
+    @pytest.mark.unit
+    def test_alias_path_choices(self):
+        """AliasPath instances expose path-segment strings via .path."""
+        from acoharmony._registry.registry import _extract_field_aliases
+        from pydantic import AliasPath, Field
+
+        f = Field(validation_alias=AliasPath("outer", "inner"))
+        assert _extract_field_aliases(f) == ["outer", "inner"]
+
+    @pytest.mark.unit
+    def test_deduplicates_repeated_aliases(self):
+        """The same alias listed twice across alias= and validation_alias= appears once."""
+        from acoharmony._registry.registry import _extract_field_aliases
+        from pydantic import AliasChoices, Field
+
+        f = Field(alias="A", validation_alias=AliasChoices("A", "B", "A"))
+        assert _extract_field_aliases(f) == ["A", "B"]
+
 
 class TestFullTableConfigBranches:
     """Cover remaining branches in get_full_table_config."""

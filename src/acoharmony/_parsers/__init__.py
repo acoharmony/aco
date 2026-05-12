@@ -21,7 +21,6 @@ from . import (
     _fixed_width,
     _json,
     _mabel_log,
-    _participant_list_excel,
     _tparc,
     _xml,
 )
@@ -78,7 +77,6 @@ __all__ = [
     "_fixed_width",
     "_json",
     "_mabel_log",
-    "_participant_list_excel",
     "_tparc",
     "_xml",
     # Public API

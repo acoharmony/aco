@@ -497,94 +497,191 @@ def parse_excel(
     if limit:
         df = df.head(limit)
 
-    # Get actual column count in file
-    actual_col_count = len(df.columns)
-
-    # Build column mapping based on POSITION
+    # Map source columns to schema fields.
     if schema and hasattr(schema, "columns"):
-        # Create new column names based on schema position
-        new_columns = []
-        dtypes = {}
-
-        for i, col_def in enumerate(schema.columns):
-            if i >= actual_col_count:
-                # Schema has more columns than file - stop
-                break
-
-            output_name = col_def.get("output_name", col_def.get("name"))
-            new_columns.append(output_name)
-
-            # Store types we need to cast
-            data_type = col_def.get("data_type", "string").lower()
-
-            if data_type in ["int", "integer"]:
-                dtypes[output_name] = pl.Int64
-            elif data_type in ["float", "decimal"]:
-                dtypes[output_name] = pl.Float64
-            elif data_type == "boolean":
-                dtypes[output_name] = pl.Boolean
-            elif data_type == "string":
-                dtypes[output_name] = pl.Utf8
-
-        # Rename columns by position
-        if new_columns:
-            # Take only the columns we have mappings for
-            df = df.select(df.columns[: len(new_columns)])
-
-            # Rename to schema names
-            df.columns = new_columns
-
-            # Cast numeric types only if needed
-            if dtypes:
-                cast_exprs = []
-                for col_name in df.columns:
-                    if col_name in dtypes:
-                        target_dtype = dtypes[col_name]
-                        current_dtype = df.schema[col_name]
-
-                        # Only cast if type doesn't match
-                        if target_dtype == pl.Int64 and current_dtype not in (pl.Int64, pl.Int32):
-                            cast_exprs.append(pl.col(col_name).cast(pl.Int64, strict=False))
-                        elif target_dtype == pl.Float64 and current_dtype not in (
-                            pl.Float64,
-                            pl.Float32,
-                        ):
-                            cast_exprs.append(pl.col(col_name).cast(pl.Float64, strict=False))
-                        elif target_dtype == pl.Boolean and current_dtype != pl.Boolean:
-                            # Handle various boolean representations (0/1, "0"/"1", etc)
-                            cast_exprs.append(
-                                pl.when(
-                                    pl.col(col_name)
-                                    .cast(pl.Utf8)
-                                    .is_in(
-                                        ["1", "true", "True", "TRUE", "T", "t", "yes", "Yes", "YES"]
-                                    )
-                                )
-                                .then(True)
-                                .when(
-                                    pl.col(col_name)
-                                    .cast(pl.Utf8)
-                                    .is_in(
-                                        ["0", "false", "False", "FALSE", "F", "f", "no", "No", "NO"]
-                                    )
-                                )
-                                .then(False)
-                                .otherwise(None)
-                                .alias(col_name)
-                            )
-                        elif target_dtype == pl.Utf8 and current_dtype != pl.Utf8:
-                            # Cast to string if specified in schema
-                            cast_exprs.append(pl.col(col_name).cast(pl.Utf8, strict=False))
-                        else:
-                            cast_exprs.append(pl.col(col_name))
-                    else:
-                        # Keep as-is
-                        cast_exprs.append(pl.col(col_name))
-
-                df = df.select(cast_exprs)
+        if file_format.get("header_driven"):
+            df = _apply_header_driven_mapping(df, schema)
+        else:
+            df = _apply_positional_mapping(df, schema)
 
     # Apply date parsing for date columns
     df_lazy = df.lazy()
     df_lazy = apply_date_parsing(df_lazy, schema)
 
     return df_lazy
+
+
+def _schema_output_name(col_def: dict[str, Any]) -> str:
+    """Resolve the destination column name for a schema column definition."""
+    return col_def.get("output_name", col_def.get("name"))
+
+
+def _schema_polars_dtype(col_def: dict[str, Any]) -> Any | None:
+    """Resolve the Polars dtype for a schema column definition, or None to skip casting."""
+    data_type = col_def.get("data_type", "string").lower()
+    if data_type in ("int", "integer"):
+        return pl.Int64
+    if data_type in ("float", "decimal"):
+        return pl.Float64
+    if data_type == "boolean":
+        return pl.Boolean
+    if data_type == "string":
+        return pl.Utf8
+    return None
+
+
+def _cast_columns_to_schema(df: pl.DataFrame, dtypes: dict[str, Any]) -> pl.DataFrame:
+    """
+    Cast columns to schema-declared dtypes in-place on a DataFrame.
+
+    Skips columns whose current dtype already matches. Boolean cast accepts
+    common string truthy/falsy representations (0/1, true/false, yes/no, ...).
+    """
+    if not dtypes:
+        return df
+
+    cast_exprs = []
+    for col_name in df.columns:
+        target_dtype = dtypes.get(col_name)
+        if target_dtype is None:
+            cast_exprs.append(pl.col(col_name))
+            continue
+
+        current_dtype = df.schema[col_name]
+        if target_dtype == pl.Int64 and current_dtype not in (pl.Int64, pl.Int32):
+            cast_exprs.append(pl.col(col_name).cast(pl.Int64, strict=False))
+        elif target_dtype == pl.Float64 and current_dtype not in (pl.Float64, pl.Float32):
+            cast_exprs.append(pl.col(col_name).cast(pl.Float64, strict=False))
+        elif target_dtype == pl.Boolean and current_dtype != pl.Boolean:
+            cast_exprs.append(
+                pl.when(
+                    pl.col(col_name)
+                    .cast(pl.Utf8)
+                    .is_in(["1", "true", "True", "TRUE", "T", "t", "yes", "Yes", "YES"])
+                )
+                .then(True)
+                .when(
+                    pl.col(col_name)
+                    .cast(pl.Utf8)
+                    .is_in(["0", "false", "False", "FALSE", "F", "f", "no", "No", "NO"])
+                )
+                .then(False)
+                .otherwise(None)
+                .alias(col_name)
+            )
+        elif target_dtype == pl.Utf8 and current_dtype != pl.Utf8:
+            cast_exprs.append(pl.col(col_name).cast(pl.Utf8, strict=False))
+        else:
+            cast_exprs.append(pl.col(col_name))
+
+    return df.select(cast_exprs)
+
+
+def _apply_positional_mapping(df: pl.DataFrame, schema: Any) -> pl.DataFrame:
+    """
+    Map file columns to schema columns by ordinal position.
+
+    This is the default behavior — file headers are ignored; the Nth file
+    column becomes the Nth schema column. Extra file columns are dropped.
+    """
+    actual_col_count = len(df.columns)
+    new_columns: list[str] = []
+    dtypes: dict[str, Any] = {}
+
+    for i, col_def in enumerate(schema.columns):
+        if i >= actual_col_count:
+            break
+        output_name = _schema_output_name(col_def)
+        new_columns.append(output_name)
+        target_dtype = _schema_polars_dtype(col_def)
+        if target_dtype is not None:
+            dtypes[output_name] = target_dtype
+
+    if not new_columns:
+        return df
+
+    df = df.select(df.columns[: len(new_columns)])
+    df.columns = new_columns
+    return _cast_columns_to_schema(df, dtypes)
+
+
+def _normalize_header(name: str) -> str:
+    """Normalize an Excel header for alias matching: lowercase, collapse whitespace, strip."""
+    if name is None:
+        return ""
+    # NBSP and other whitespace collapse to single space, then underscores too.
+    cleaned = " ".join(str(name).replace("\xa0", " ").replace("_", " ").split())
+    return cleaned.lower()
+
+
+def _apply_header_driven_mapping(df: pl.DataFrame, schema: Any) -> pl.DataFrame:
+    """
+    Map file columns to schema fields by matching headers against declared aliases.
+
+    Schemas opt in via ``@with_parser(header_driven=True)``. Every schema field
+    that participates must declare its source header(s) via pydantic ``alias=``
+    or ``validation_alias=AliasChoices(...)``. File headers are normalized
+    (lowercase, whitespace/underscore-insensitive) before matching, so
+    ``"Entity ID"`` and ``"Entity_ID"`` both bind to the same field.
+
+    File columns whose headers don't match any alias are dropped. Schema fields
+    with no matching file column are added as nulls so the downstream output
+    shape is stable across heterogeneous source layouts.
+    """
+    # Build alias → output_name lookup for the schema.
+    alias_to_output: dict[str, str] = {}
+    dtypes: dict[str, Any] = {}
+    schema_output_order: list[str] = []
+    schema_output_dtype: dict[str, Any] = {}
+
+    for col_def in schema.columns:
+        output_name = _schema_output_name(col_def)
+        schema_output_order.append(output_name)
+        target_dtype = _schema_polars_dtype(col_def)
+        if target_dtype is not None:
+            schema_output_dtype[output_name] = target_dtype
+
+        # The output_name itself is always a valid alias (matches a file that
+        # already uses the canonical schema header).
+        alias_to_output.setdefault(_normalize_header(output_name), output_name)
+
+        for alias in col_def.get("aliases", []) or []:
+            alias_to_output.setdefault(_normalize_header(alias), output_name)
+
+    # Rename file columns whose normalized header matches a known alias; drop
+    # unknown columns. If multiple file columns map to the same field, only
+    # the first one wins (subsequent ones are dropped).
+    rename_map: dict[str, str] = {}
+    claimed: set[str] = set()
+    for file_col in df.columns:
+        output_name = alias_to_output.get(_normalize_header(file_col))
+        if output_name and output_name not in claimed:
+            rename_map[file_col] = output_name
+            claimed.add(output_name)
+
+    if rename_map:
+        df = df.rename(rename_map)
+
+    # Drop file columns that didn't bind to any schema field.
+    df = df.select([c for c in df.columns if c in claimed])
+
+    # Add schema fields that weren't found in the file as null columns.
+    missing = [name for name in schema_output_order if name not in claimed]
+    if missing:
+        df = df.with_columns([pl.lit(None, dtype=pl.Utf8).alias(name) for name in missing])
+        # Track these so casts give them the correct dtype.
+        for name in missing:
+            target = schema_output_dtype.get(name)
+            if target is not None:
+                dtypes[name] = target
+
+    # Cast file-sourced columns to declared dtypes too.
+    for name in claimed:
+        target = schema_output_dtype.get(name)
+        if target is not None:
+            dtypes[name] = target
+
+    # Reorder to schema order so downstream consumers see a stable layout.
+    df = df.select(schema_output_order)
+
+    return _cast_columns_to_schema(df, dtypes)

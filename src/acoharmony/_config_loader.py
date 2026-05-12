@@ -53,3 +53,36 @@ def load_aco_config() -> dict[str, Any]:
         )
     with _CONFIG_PATH.open("rb") as f:
         return tomllib.load(f)
+
+
+def get_aco_identity(apm_id: str | None = None) -> dict[str, Any]:
+    """
+    Resolve the operating ACO entity identity from ``aco.toml``.
+
+    Reads the ``[aco_identity]`` section. If ``apm_id`` is omitted the active
+    ACO from ``aco_identity.apm_id`` is used. Returns the matching directory
+    row (``apm_id``, ``tin``, ``legal_business_name``, ``program``).
+
+    This is the *only* place ACO entity constants live. Code paths that need
+    to stamp entity columns onto rows lacking them (e.g. internal exports
+    that ship without entity TIN/name) should call this loader rather than
+    hardcoding any of those values.
+
+    Raises
+    ------
+    KeyError
+        If no directory entry matches the requested ``apm_id``.
+    """
+    config = load_aco_config()
+    identity = config.get("aco_identity", {})
+    active_id = apm_id or identity.get("apm_id")
+    directory = identity.get("directory", []) or []
+
+    for row in directory:
+        if row.get("apm_id") == active_id:
+            return dict(row)
+
+    raise KeyError(
+        f"No aco_identity.directory entry found for apm_id={active_id!r}. "
+        "Add a [[aco_identity.directory]] row in aco.toml."
+    )

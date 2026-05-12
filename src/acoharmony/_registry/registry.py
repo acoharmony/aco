@@ -274,6 +274,12 @@ class SchemaRegistry:
                     if pos_key in extra:
                         col[pos_key] = extra[pos_key]
 
+            # Expose pydantic Field alias / AliasChoices so header-driven parsers
+            # can map source headers to schema fields by name (not position).
+            aliases = _extract_field_aliases(pydantic_field)
+            if aliases:
+                col["aliases"] = aliases
+
             # Default date_format for date fields if not explicitly set
             if col.get("data_type") == "date" and "date_format" not in col:
                 col["date_format"] = "%Y-%m-%d"
@@ -309,3 +315,42 @@ def list_registered_schemas() -> list[str]:
 def get_full_table_config(schema_name: str) -> dict[str, Any]:
     """Get complete table configuration for a schema."""
     return SchemaRegistry.get_full_table_config(schema_name)
+
+
+def _extract_field_aliases(pydantic_field: Any) -> list[str]:
+    """
+    Collect all source-header aliases from a pydantic Field/FieldInfo.
+
+    Supports both ``alias="X"`` and ``validation_alias=AliasChoices("X", "Y")``.
+    Returns an empty list when no aliases are declared. Order is preserved so
+    callers can treat the first entry as the canonical source name when needed.
+    """
+    aliases: list[str] = []
+    seen: set[str] = set()
+
+    def _add(value: Any) -> None:
+        if isinstance(value, str) and value not in seen:
+            aliases.append(value)
+            seen.add(value)
+
+    if pydantic_field is None:
+        return aliases
+
+    # Plain alias=
+    alias = getattr(pydantic_field, "alias", None)
+    _add(alias)
+
+    # validation_alias may be a string or an AliasChoices/AliasPath instance.
+    validation_alias = getattr(pydantic_field, "validation_alias", None)
+    if isinstance(validation_alias, str):
+        _add(validation_alias)
+    elif validation_alias is not None:
+        # pydantic.AliasChoices exposes .choices; AliasPath exposes .path.
+        for attr in ("choices", "path"):
+            seq = getattr(validation_alias, attr, None)
+            if seq:
+                for item in seq:
+                    if isinstance(item, str):
+                        _add(item)
+
+    return aliases

@@ -2,6 +2,20 @@ default_profile = "dev"
 project_name = "ACO Harmony"
 version = "2.0.0"
 
+# Operating ACO entity identity. Used wherever a file lacks entity columns
+# (e.g. HarmonyCares-internal provider list exports). `apm_id` selects the
+# active row in [[aco_identity.directory]]. To deploy this project for a
+# different ACO, point `apm_id` at the right row (or add a new row) —
+# no code changes required.
+[aco_identity]
+apm_id = "D0259"
+
+[[aco_identity.directory]]
+apm_id = "D0259"
+tin = "881823607"
+legal_business_name = "HarmonyCares ACO LLC"
+program = "REACH"
+
 [logging]
 level = "INFO"
 format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"

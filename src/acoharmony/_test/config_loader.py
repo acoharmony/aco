@@ -4,7 +4,11 @@ from unittest.mock import patch
 
 import pytest
 
-from acoharmony._config_loader import get_config_path, load_aco_config
+from acoharmony._config_loader import (
+    get_aco_identity,
+    get_config_path,
+    load_aco_config,
+)
 
 
 class TestGetConfigPath:
@@ -49,3 +53,38 @@ class TestLoadAcoConfig:
         monkeypatch.setattr(loader, "_CONFIG_PATH", missing)
         with pytest.raises(FileNotFoundError, match="aco.toml not found"):
             load_aco_config()
+
+
+class TestGetAcoIdentity:
+    """Tests for get_aco_identity()."""
+
+    @pytest.mark.unit
+    def test_returns_active_identity_by_default(self):
+        """No apm_id arg → resolves the active [aco_identity].apm_id row."""
+        row = get_aco_identity()
+        assert row["apm_id"] == "D0259"
+        assert row["tin"] == "881823607"
+        assert row["legal_business_name"] == "HarmonyCares ACO LLC"
+
+    @pytest.mark.unit
+    def test_returns_specific_identity_when_apm_id_given(self):
+        """Explicit apm_id arg overrides the active default."""
+        row = get_aco_identity("D0259")
+        assert row["apm_id"] == "D0259"
+
+    @pytest.mark.unit
+    def test_raises_when_apm_id_not_in_directory(self):
+        """KeyError when no directory row matches the requested apm_id."""
+        with pytest.raises(KeyError, match="No aco_identity.directory entry"):
+            get_aco_identity("NOTREAL")
+
+    @pytest.mark.unit
+    def test_raises_when_active_apm_id_is_missing(self, monkeypatch):
+        """Both [aco_identity] and apm_id arg absent → KeyError on None lookup."""
+        import acoharmony._config_loader as loader
+
+        monkeypatch.setattr(
+            loader, "load_aco_config", lambda: {"aco_identity": {"directory": []}}
+        )
+        with pytest.raises(KeyError):
+            get_aco_identity()

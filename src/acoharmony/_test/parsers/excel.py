@@ -2244,4 +2244,126 @@ class TestExcel:
         assert df.columns == ["val"]
 
 
+class TestHeaderDrivenMapping:
+    """Header-driven mode (file_format['header_driven']=True)."""
 
+    def _make_xlsx(self, tmp_path, data, filename="test.xlsx"):
+        p = tmp_path / filename
+        pl.DataFrame(data).write_excel(p)
+        return p
+
+    @pytest.mark.unit
+    def test_normalize_header_collapses_whitespace_and_underscores(self):
+        from acoharmony._parsers._excel import _normalize_header
+
+        assert _normalize_header("Entity ID") == _normalize_header("Entity_ID")
+        # NBSP collapses to space.
+        assert _normalize_header("Low\xa0volume") == _normalize_header("Low volume")
+        # None is safe.
+        assert _normalize_header(None) == ""
+
+    @pytest.mark.unit
+    def test_header_driven_maps_by_alias(self, tmp_path):
+        """File columns are renamed by alias, regardless of order; unknown columns drop."""
+        from acoharmony._parsers._excel import parse_excel
+
+        p = self._make_xlsx(
+            tmp_path,
+            {
+                "Billing TIN": ["12-3456789"],
+                "Provider Type": ["Individual"],
+                "Unknown Column": ["ignored"],
+            },
+        )
+        schema = _schema_with_file_format(
+            [
+                {
+                    "name": "provider_type",
+                    "output_name": "provider_type",
+                    "data_type": "string",
+                    "aliases": ["Provider_Type"],
+                },
+                {
+                    "name": "base_provider_tin",
+                    "output_name": "base_provider_tin",
+                    "data_type": "string",
+                    "aliases": ["Base_Provider_TIN", "Billing TIN"],
+                },
+                {
+                    "name": "missing_field",
+                    "output_name": "missing_field",
+                    "data_type": "string",
+                    "aliases": ["Missing_Field"],
+                },
+            ],
+            file_format={"header_driven": True, "has_header": True},
+        )
+        df = parse_excel(p, schema).collect()
+        # Schema column order is preserved.
+        assert df.columns == ["provider_type", "base_provider_tin", "missing_field"]
+        # Header-driven binding routed each file column to its declared field.
+        assert df["provider_type"][0] == "Individual"
+        assert df["base_provider_tin"][0] == "12-3456789"
+        # Missing field is null-filled.
+        assert df["missing_field"][0] is None
+        # Unknown file column dropped.
+        assert "Unknown Column" not in df.columns
+
+    @pytest.mark.unit
+    def test_header_driven_first_alias_wins_on_duplicate(self, tmp_path):
+        """When two file columns alias to the same field, only the first one binds."""
+        from acoharmony._parsers._excel import parse_excel
+
+        p = self._make_xlsx(
+            tmp_path,
+            {
+                "Base_Provider_TIN": ["first"],
+                "Billing TIN": ["second"],
+            },
+        )
+        schema = _schema_with_file_format(
+            [
+                {
+                    "name": "base_provider_tin",
+                    "output_name": "base_provider_tin",
+                    "data_type": "string",
+                    "aliases": ["Base_Provider_TIN", "Billing TIN"],
+                },
+            ],
+            file_format={"header_driven": True, "has_header": True},
+        )
+        df = parse_excel(p, schema).collect()
+        # First file column that matched wins.
+        assert df["base_provider_tin"][0] == "first"
+
+    @pytest.mark.unit
+    def test_header_driven_canonical_output_name_acts_as_alias(self, tmp_path):
+        """A file whose header already matches output_name binds even without aliases."""
+        from acoharmony._parsers._excel import parse_excel
+
+        p = self._make_xlsx(tmp_path, {"provider_type": ["x"]})
+        schema = _schema_with_file_format(
+            [{"name": "provider_type", "output_name": "provider_type", "data_type": "string"}],
+            file_format={"header_driven": True, "has_header": True},
+        )
+        df = parse_excel(p, schema).collect()
+        assert df["provider_type"][0] == "x"
+
+    @pytest.mark.unit
+    def test_positional_mapping_still_default_when_flag_off(self, tmp_path):
+        """Without header_driven=True the parser remains positional (regression guard)."""
+        from acoharmony._parsers._excel import parse_excel
+
+        # File columns in a *different* order than schema — positional must keep this order.
+        p = self._make_xlsx(tmp_path, {"first": ["a"], "second": ["b"]})
+        schema = _schema_with_file_format(
+            [
+                {"name": "schema_col_0", "output_name": "schema_col_0", "data_type": "string"},
+                {"name": "schema_col_1", "output_name": "schema_col_1", "data_type": "string"},
+            ],
+            file_format={},
+        )
+        df = parse_excel(p, schema).collect()
+        # Positional: file["first"] → schema_col_0, file["second"] → schema_col_1.
+        assert df["schema_col_0"][0] == "a"
+        assert df["schema_col_1"][0] == "b"
