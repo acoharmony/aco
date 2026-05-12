@@ -113,7 +113,13 @@ class ECFRConnector:
     @staticmethod
     def get_latest_date(title: str) -> str | None:
         """
-        Get the latest available date for a CFR title from the versions API.
+        Get the latest available date for a CFR title.
+
+        Uses the ``/titles.json`` endpoint, which lists every title with an
+        ``up_to_date_as_of`` field. The older ``/versions/title-{n}.json``
+        endpoint now rejects requests without a ``date`` query parameter
+        (HTTP 400), so we read the authoritative latest date from the
+        title listing instead.
 
         Args:
             title: CFR title number (e.g., "42")
@@ -121,19 +127,23 @@ class ECFRConnector:
         Returns:
             Latest date in YYYY-MM-DD format or None if failed
         """
-        api_url = f"{ECFRConnector.API_BASE}/versions/title-{title}.json"
+        api_url = f"{ECFRConnector.API_BASE}/titles.json"
 
         try:
             response = requests.get(api_url, timeout=30)
             response.raise_for_status()
             data = response.json()
 
-            # Extract all unique dates and return the most recent
-            dates = sorted({v["date"] for v in data.get("content_versions", [])})
-            if dates:
-                latest = dates[-1]
-                logger.info(f"Latest available date for CFR Title {title}: {latest}")
-                return latest
+            title_num = int(title)
+            for entry in data.get("titles", []) or []:
+                if entry.get("number") == title_num:
+                    latest = entry.get("up_to_date_as_of")
+                    if latest:
+                        logger.info(
+                            f"Latest available date for CFR Title {title}: {latest}"
+                        )
+                        return latest
+                    return None
             return None
         except (requests.RequestException, KeyError, ValueError) as e:
             logger.error(f"Failed to fetch latest eCFR date: {e}")

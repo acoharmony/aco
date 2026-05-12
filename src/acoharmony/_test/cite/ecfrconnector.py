@@ -329,10 +329,10 @@ class TestECFRConnector:
 
         mock_resp = MagicMock()
         mock_resp.json.return_value = {
-            "content_versions": [
-                {"date": "2024-01-01"},
-                {"date": "2024-06-15"},
-                {"date": "2024-03-01"},
+            "titles": [
+                {"number": 41, "up_to_date_as_of": "2024-05-01"},
+                {"number": 42, "up_to_date_as_of": "2024-06-15"},
+                {"number": 43, "up_to_date_as_of": "2024-04-01"},
             ]
         }
         mock_resp.raise_for_status = MagicMock()
@@ -343,11 +343,35 @@ class TestECFRConnector:
 
     @patch("acoharmony._cite.connectors._ecfr.requests.get")
     @pytest.mark.unit
+    def test_get_latest_date_title_not_in_listing(self, mock_get):
+        """No matching title in /titles.json → None."""
+        from acoharmony._cite.connectors._ecfr import ECFRConnector
+
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {"titles": [{"number": 1, "up_to_date_as_of": "2024-01-01"}]}
+        mock_resp.raise_for_status = MagicMock()
+        mock_get.return_value = mock_resp
+        assert ECFRConnector.get_latest_date("42") is None
+
+    @patch("acoharmony._cite.connectors._ecfr.requests.get")
+    @pytest.mark.unit
+    def test_get_latest_date_reserved_title_returns_none(self, mock_get):
+        """A reserved title (up_to_date_as_of is null) → None."""
+        from acoharmony._cite.connectors._ecfr import ECFRConnector
+
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {"titles": [{"number": 42, "up_to_date_as_of": None}]}
+        mock_resp.raise_for_status = MagicMock()
+        mock_get.return_value = mock_resp
+        assert ECFRConnector.get_latest_date("42") is None
+
+    @patch("acoharmony._cite.connectors._ecfr.requests.get")
+    @pytest.mark.unit
     def test_get_latest_date_empty_versions(self, mock_get):
         from acoharmony._cite.connectors._ecfr import ECFRConnector
 
         mock_resp = MagicMock()
-        mock_resp.json.return_value = {"content_versions": []}
+        mock_resp.json.return_value = {"titles": []}
         mock_resp.raise_for_status = MagicMock()
         mock_get.return_value = mock_resp
         assert ECFRConnector.get_latest_date("42") is None
@@ -379,9 +403,11 @@ class TestECFRConnector:
     def test_get_latest_structure_no_date(self, mock_get):
         from acoharmony._cite.connectors._ecfr import ECFRConnector
 
-        # First call for get_latest_date, second for structure
+        # First call for get_latest_date (now hits /titles.json), second for structure
         date_resp = MagicMock()
-        date_resp.json.return_value = {"content_versions": [{"date": "2024-06-15"}]}
+        date_resp.json.return_value = {
+            "titles": [{"number": 42, "up_to_date_as_of": "2024-06-15"}]
+        }
         date_resp.raise_for_status = MagicMock()
         struct_resp = MagicMock()
         struct_resp.json.return_value = {"title": "42"}
@@ -396,7 +422,7 @@ class TestECFRConnector:
         from acoharmony._cite.connectors._ecfr import ECFRConnector
 
         date_resp = MagicMock()
-        date_resp.json.return_value = {"content_versions": []}
+        date_resp.json.return_value = {"titles": []}
         date_resp.raise_for_status = MagicMock()
         mock_get.return_value = date_resp
         assert ECFRConnector.get_latest_structure("42") is None

@@ -427,8 +427,12 @@ class TestUnsubscribes:
     @pytest.mark.unit
     def test_domain_unsubscribes(self) -> None:
         out = MailersPlugins().domain_unsubscribes(_unsub_df())
-        domains = out["email_domain"].to_list()
-        assert "gmail.com" in domains
+        domains = sorted(out["email_domain"].to_list())
+        # Equality (rather than `"gmail.com" in domains`) avoids CodeQL's
+        # py/incomplete-url-substring-sanitization false positive on the
+        # in-operator pattern. These are email-address suffixes, not URLs,
+        # so there's no real sanitization concern.
+        assert domains == ["gmail.com", "yahoo.com"]
 
     @pytest.mark.unit
     def test_domain_unsubscribes_missing_event_col(self) -> None:
