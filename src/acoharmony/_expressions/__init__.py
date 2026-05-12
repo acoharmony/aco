@@ -27,6 +27,7 @@ from ._chronic_conditions import ChronicConditionsExpression
 from ._claim_id_match import ClaimIdMatchExpression
 from ._cms_hcc import CmsHccExpression
 from ._ed_classification import EdClassificationExpression
+from ._facility_claims import FacilityClaimsExpression
 
 # Import intermediate expressions
 from ._ffs_first_dates import FfsFirstDatesExpression
@@ -76,6 +77,7 @@ __all__ = [
     "QualityMeasuresExpression",
     "ServiceCategoryExpression",
     "EdClassificationExpression",
+    "FacilityClaimsExpression",
     "CcsrExpression",
     "RiskStratificationExpression",
 ]
