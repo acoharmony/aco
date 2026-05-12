@@ -56,6 +56,46 @@ def _scan_medical_claim(gold_path: Path) -> pl.LazyFrame:
     return pl.scan_parquet(gold_path / "medical_claim.parquet")
 
 
+def build_rollup_lazy(
+    silver_path: Path,
+    gold_path: Path,
+    provider_category: str = DEFAULT_PROVIDER_CATEGORY,
+    provider_type: str = DEFAULT_PROVIDER_TYPE,
+) -> pl.LazyFrame:
+    """
+    Build the per-``(tin, npi)`` facility rollup as a ``LazyFrame``.
+
+    Pure data-construction — no I/O beyond the lazy scans. Suitable for
+    sinking via the pipeline stage runner (which calls ``sink_parquet``
+    with streaming).
+    """
+    return FacilityClaimsExpression.build_facility_rollup(
+        _scan_participant_list(silver_path),
+        _scan_medical_claim(gold_path),
+        provider_category,
+        provider_type,
+    )
+
+
+def build_bene_detail_lazy(
+    silver_path: Path,
+    gold_path: Path,
+    provider_category: str = DEFAULT_PROVIDER_CATEGORY,
+    provider_type: str = DEFAULT_PROVIDER_TYPE,
+) -> pl.LazyFrame:
+    """
+    Build the per-``(tin, npi, member_id)`` detail as a ``LazyFrame``.
+
+    Pure data-construction — no I/O beyond the lazy scans.
+    """
+    return FacilityClaimsExpression.build_facility_bene_detail(
+        _scan_participant_list(silver_path),
+        _scan_medical_claim(gold_path),
+        provider_category,
+        provider_type,
+    )
+
+
 def execute_to_gold(
     silver_path: Path,
     gold_path: Path,
@@ -68,6 +108,10 @@ def execute_to_gold(
     """
     Run the rollup + bene-detail joins and write both parquets to ``gold/``.
 
+    Notebook-friendly direct entrypoint. The :mod:`preferred_providers` pipe
+    bypasses this and calls the pure builders via the stage runner so the
+    write path goes through ``sink_parquet`` streaming.
+
     Returns
     -------
     (rollup_path, benes_path)
@@ -75,11 +119,8 @@ def execute_to_gold(
     """
     gold_path.mkdir(parents=True, exist_ok=True)
 
-    participants = _scan_participant_list(silver_path)
-    claims = _scan_medical_claim(gold_path)
-
-    rollup = FacilityClaimsExpression.build_facility_rollup(
-        participants, claims, provider_category, provider_type
+    rollup = build_rollup_lazy(
+        silver_path, gold_path, provider_category, provider_type
     ).collect()
     rollup_out = gold_path / rollup_filename
     rollup.write_parquet(rollup_out, compression="zstd")
@@ -89,8 +130,8 @@ def execute_to_gold(
             f"to gold/{rollup_out.name}"
         )
 
-    bene_detail = FacilityClaimsExpression.build_facility_bene_detail(
-        participants, claims, provider_category, provider_type
+    bene_detail = build_bene_detail_lazy(
+        silver_path, gold_path, provider_category, provider_type
     ).collect()
     benes_out = gold_path / benes_filename
     bene_detail.write_parquet(benes_out, compression="zstd")

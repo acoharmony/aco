@@ -4,18 +4,20 @@
 """Meta-pipeline that runs every registered pipeline in dependency order.
 
 Tier order:
-    1. bronze_all          - parse all raw inputs (CCLF + non-CCLF) to bronze parquet
-    2. reference_data      - Tuva seed reference tables (used by gold)
-    3. cclf_silver         - dedupe/normalize bronze CCLF into silver
-    4. identity_timeline   - beneficiary identity resolution off silver
-    5. alignment           - assignment/alignment derivations off silver
-    6. cclf_gold           - gold CCLF outputs
-    7. home_visit_gold     - home visit claims gold
-    8. analytics_gold      - post-Tuva analytics (consumes other gold + reference)
-    9. high_needs          - domain analysis on gold
-   10. wound_care          - domain analysis on gold
-   11. wound_care_analysis - downstream of wound_care
-   12. sva_log             - SVA log processing (independent)
+    1. bronze_all              - parse all raw inputs (CCLF + non-CCLF) to bronze parquet
+    2. reference_data          - Tuva seed reference tables (used by gold)
+    3. cclf_silver             - dedupe/normalize bronze CCLF into silver
+    4. identity_timeline       - beneficiary identity resolution off silver
+    5. alignment               - assignment/alignment derivations off silver
+    6. cclf_gold               - gold CCLF outputs
+    7. home_visit_gold         - home visit claims gold
+    8. preferred_providers     - preferred-provider claims attribution
+                                 (joins silver/participant_list × gold/medical_claim)
+    9. analytics_gold          - post-Tuva analytics (consumes other gold + reference)
+   10. high_needs              - domain analysis on gold
+   11. wound_care              - domain analysis on gold
+   12. wound_care_analysis     - downstream of wound_care
+   13. sva_log                 - SVA log processing (independent)
 
 cclf_bronze is intentionally skipped: bronze_all already includes its stages.
 """
@@ -33,6 +35,7 @@ PIPELINE_ORDER = [
     "alignment",
     "cclf_gold",
     "home_visit_gold",
+    "preferred_providers",
     "analytics_gold",
     "high_needs",
     "wound_care",

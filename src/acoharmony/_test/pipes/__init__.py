@@ -110,6 +110,7 @@ class TestInitImports:
             "acoharmony._pipes._alignment",
             "acoharmony._pipes._home_visit_gold",
             "acoharmony._pipes._identity_timeline",
+            "acoharmony._pipes._preferred_providers",
             "acoharmony._pipes._reference_data",
             "acoharmony._pipes._sva_log",
             "acoharmony._pipes._wound_care",

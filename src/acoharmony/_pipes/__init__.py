@@ -37,6 +37,7 @@ from . import (  # noqa: F401 (imported for registration side effects)
     _home_visit_gold,
     _identity_timeline,
     _mx_validate,
+    _preferred_providers,
     _reference_data,
     _sva_log,
     _wound_care,

@@ -62,6 +62,8 @@ from . import (  # noqa: F401 (imported for registration side effects)
 )
 
 # Import with aliases for pipeline use
+from . import preferred_provider_facility_benes as preferred_provider_facility_benes  # noqa: F401
+from . import preferred_provider_facility_rollup as preferred_provider_facility_rollup  # noqa: F401
 from . import _skin_substitute_claims as skin_substitute_claims
 from . import _wound_care_claims as wound_care_claims
 from . import _wound_care_clustered as wound_care_clustered
