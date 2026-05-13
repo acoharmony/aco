@@ -34,6 +34,7 @@ from ._reach import ReachPlugins
 from ._setup import SetupPlugins
 from ._signature import SignaturePlugins
 from ._sva import SvaPlugins
+from ._sva_pdf_extract import SvaPdfExtractPlugins
 from ._sva_submissions import SvaSubmissionsPlugins
 from ._tparc import TparcPlugins
 from ._wound_care import WoundCarePlugins
@@ -68,6 +69,7 @@ quality = QualityPlugins()
 reach = ReachPlugins()
 signature = SignaturePlugins()
 sva = SvaPlugins()
+sva_pdf_extract = SvaPdfExtractPlugins()
 sva_submissions = SvaSubmissionsPlugins()
 tparc = TparcPlugins()
 wound_care = WoundCarePlugins()
@@ -102,6 +104,7 @@ __all__ = [
     "ReachPlugins",
     "SignaturePlugins",
     "SvaPlugins",
+    "SvaPdfExtractPlugins",
     "SvaSubmissionsPlugins",
     "TparcPlugins",
     "WoundCarePlugins",
@@ -131,6 +134,7 @@ __all__ = [
     "reach",
     "signature",
     "sva",
+    "sva_pdf_extract",
     "sva_submissions",
     "tparc",
     "wound_care",

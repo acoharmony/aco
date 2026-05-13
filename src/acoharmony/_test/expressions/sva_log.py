@@ -55,6 +55,64 @@ class TestSvaLogExpression:
         assert result['patient_name'][0] is not None
         assert result['patient_name'][2] is None
 
+
+class TestCleanFilenameToName:
+    """Pinned cases for filename → name extraction (regression-locked).
+
+    All names below are synthetic placeholders chosen to exercise each
+    structural variant we see in real Mabel uploads — never use real
+    beneficiary names in tests.
+    """
+
+    @pytest.mark.unit
+    @pytest.mark.parametrize(
+        "filename, expected",
+        [
+            # Canonical SVA filename with space-separated date
+            ("Foo Bar Jr SVA 02.182026.pdf", "Foo Bar Jr"),
+            # Underscore-separated, uppercase SVA marker
+            ("Foo_Bar_SVA_05.11.2026.pdf", "Foo Bar"),
+            # Underscore-separated, lowercase sva marker
+            ("Foo_Bar_sva_05.11.2026.pdf", "Foo Bar"),
+            # Leading numeric chart ID, no SVA marker at all
+            ("6128324 Foo Bar.pdf", "Foo Bar"),
+            # Typo'd marker: "SA" instead of "SVA"
+            ("Foo_Bar_SA_5.11.2026.pdf", "Foo Bar"),
+            # No SVA marker, just date
+            ("Foo Bar 4.15.2026.pdf", "Foo Bar"),
+            ("Foo Bar 04.14.2026.pdf", "Foo Bar"),
+            # Double whitespace inside the name
+            ("Foo D  Bar SVA 05.112026.pdf", "Foo D Bar"),
+            ("Foo Bar  SVA 1-8-2026.pdf", "Foo Bar"),
+            # Underscore in last name + uppercase
+            ("FOO BAR_BAZ SVA 04 01 26.pdf", "Foo Bar Baz"),
+            # Period instead of space between first/last
+            ("Foo.Bar_SVA_05.11.2026.pdf", "Foo Bar"),
+            # Extra punctuation between tokens
+            ("Foo_.Bar_sva_05.11.2026.pdf", "Foo Bar"),
+            # Hyphenated last name preserved
+            ("Foo Bar-Baz SVA 04.30.2026.pdf", "Foo Bar-Baz"),
+            # Spurious space inside date (just before the period)
+            ("Foo K Bar 05 .112026.pdf", "Foo K Bar"),
+            # Bare last name, no date, no SVA marker
+            ("Bar.pdf", "Bar"),
+            # All uppercase, space-separated date
+            ("FOO BAR 04 09 26.pdf", "Foo Bar"),
+            # Already lowercase suffix
+            ("Foo_Bar_sva_05.11.2026.pdf", "Foo Bar"),
+            # No SVA marker, joined date (MM.DDYYYY)
+            ("Foo T Bar 05.112026.pdf", "Foo T Bar"),
+            # Single-token fallback
+            ("Bar.pdf", "Bar"),
+            # None passthrough
+            (None, None),
+        ],
+    )
+    def test_clean_cases(self, filename, expected):
+        from acoharmony._expressions._sva_log import clean_filename_to_name
+
+        assert clean_filename_to_name(filename) == expected
+
     @pytest.mark.unit
     def test_patient_name_key(self):
         df = pl.DataFrame({'patient_name': ['John Smith Jr', 'Jane Doe']})

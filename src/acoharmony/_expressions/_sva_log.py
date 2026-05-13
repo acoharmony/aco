@@ -35,11 +35,67 @@ Duplicate Detection
 - ``find_duplicate_patients``: Pairwise bigram Jaccard similarity on patient names
 """
 
+import re
 from itertools import combinations
 
 import polars as pl
 
 from ._registry import register_expression
+
+# Trailing signature-date suffix in any of the observed forms
+# (``05.11.2026``, ``05.112026``, ``05 11 26``, ``5-11-2026``, ``05.11026``...).
+_TRAILING_DATE_RE = re.compile(
+    r"[\s._\-]+\(?\d{1,2}[.\s\-_/]*\d{1,2}[.\s\-_/]*\d{2,6}\)?.*$"
+)
+
+# Trailing SVA/SA marker once underscores/periods have been normalized to
+# spaces (so ``Ann Chovitz Sva`` becomes ``Ann Chovitz``). Also catches the
+# ``SA`` typo. Must be word-bounded so it doesn't eat names like ``Sarlas``.
+_TRAILING_SVA_TOKEN_RE = re.compile(r"\s+s[av]a?(\s.*)?$", re.IGNORECASE)
+
+# Leading numeric chart/patient ID (e.g. "6128324 Kathryn Mitchell.pdf").
+_LEADING_NUMERIC_ID_RE = re.compile(r"^\s*\d{4,}\s+")
+
+_PDF_EXT_RE = re.compile(r"\.pdf$", re.IGNORECASE)
+_MULTI_WHITESPACE_RE = re.compile(r"\s{2,}")
+
+# Punctuation we want gone *between* name tokens (keep hyphens for
+# double-barreled last names like ``Laguerre-Val``).
+_NAME_PUNCT_RE = re.compile(r"[._]+")
+
+
+def clean_filename_to_name(filename: str | None) -> str | None:
+    """
+    Clean a raw SVA upload filename down to a beneficiary name.
+
+    Single source of truth: shared by the Polars expression and the PDF
+    extractor. Strategy is order-sensitive — trailing date is stripped
+    *before* underscores/periods become spaces (otherwise a date like
+    ``05.11.2026`` separated by underscores would survive), and the SVA
+    marker is stripped *after* (because underscored ``_SVA_`` becomes a
+    proper word boundary only once underscores collapse to spaces).
+
+    Pipeline:
+
+    1. Drop trailing ``.pdf``.
+    2. Strip trailing date suffix.
+    3. Drop a leading 4+ digit chart/patient ID.
+    4. Replace ``_`` / ``.`` with spaces (keeps hyphens).
+    5. Strip trailing SVA / SA marker (now a real word boundary).
+    6. Collapse whitespace; trim; title-case.
+    """
+    if filename is None:
+        return None
+    s = _PDF_EXT_RE.sub("", filename)
+    s = _TRAILING_DATE_RE.sub("", s)
+    s = _LEADING_NUMERIC_ID_RE.sub("", s)
+    s = _NAME_PUNCT_RE.sub(" ", s)
+    s = _MULTI_WHITESPACE_RE.sub(" ", s).strip()
+    s = _TRAILING_SVA_TOKEN_RE.sub("", s)
+    s = _MULTI_WHITESPACE_RE.sub(" ", s).strip()
+    if not s:
+        return None
+    return s.title()
 
 
 def _token_similarity(a: str, b: str) -> float:
@@ -100,30 +156,21 @@ class SvaLogExpression:
         """
         Extract patient name from SVA upload filename, normalized to title case.
 
-        Handles formats like:
-        - ``Andrew Weigert Jr SVA 02.182026.pdf`` → ``Andrew Weigert Jr``
-        - ``HELEN BILLINGS SVA 03.12.2026.pdf`` → ``Helen Billings``
-        - ``Marion_Booker_SVA_)3.16.2026.pdf`` → ``Marion Booker``
-        - ``Cabb.pdf`` → ``Cabb`` (no SVA marker, use full stem)
+        Delegates to ``clean_filename_to_name`` so the Polars expression and
+        the PDF extractor (acoharmony._notes._sva_pdf_extract) share one
+        definition. Handles:
+
+        - canonical: ``Andrew Weigert Jr SVA 02.182026.pdf`` → ``Andrew Weigert Jr``
+        - underscores: ``Ann_Chovitz_SVA_05.11.2026.pdf`` → ``Ann Chovitz``
+        - no-SVA-token: ``Christina Smith 4.15.2026.pdf`` → ``Christina Smith``
+        - leading chart ID: ``6128324 Kathryn Mitchell.pdf`` → ``Kathryn Mitchell``
+        - typo'd marker: ``Leland_Poole_SA_5.11.2026.pdf`` → ``Leland Poole``
+        - punctuation between tokens: ``George.Beebe_SVA_05.11.2026.pdf`` → ``George Beebe``
+        - hyphenated last name: ``Angelina Laguerre-Val SVA ...`` → ``Angelina Laguerre-Val``
         """
         return (
-            pl.when(pl.col("filename").is_not_null() & pl.col("filename").str.contains("(?i)SVA"))
-            .then(
-                pl.col("filename")
-                .str.replace(r"(?i)[\s_]*SVA[\s_]*[).]?\d{0,2}\.?\d{1,2}\.?\d{0,6}(?:-\d+)?(?:\s*\(\d+\))?(?:pdf)?\.pdf$", "")
-                .str.replace_all(r"_", " ")
-                .str.replace_all(r"\s{2,}", " ")
-                .str.strip_chars()
-                .str.to_titlecase()
-            )
-            .when(pl.col("filename").is_not_null())
-            .then(
-                pl.col("filename")
-                .str.replace(r"\.pdf$", "")
-                .str.strip_chars()
-                .str.to_titlecase()
-            )
-            .otherwise(pl.lit(None))
+            pl.col("filename")
+            .map_elements(clean_filename_to_name, return_dtype=pl.Utf8)
             .alias("patient_name")
         )
 
