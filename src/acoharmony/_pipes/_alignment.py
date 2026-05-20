@@ -174,11 +174,37 @@ def apply_alignment_pipeline(
 
     try:
         result_collected = result_df.collect()
-        result_collected.write_parquet(
-            str(consolidated_path),
-            compression=config.transform.compression,
-            row_group_size=config.transform.row_group_size,
-        )
+        # If incremental mode is enabled and a consolidated file already exists,
+        # append new rows to the existing file rather than blindly overwriting.
+        if consolidated_path.exists() and config.transform.incremental and not force:
+            logger.info("Existing consolidated_alignment found — appending incremental results")
+            try:
+                existing = pl.read_parquet(str(consolidated_path))
+                # Concatenate existing and new results. Prefer deduplication on
+                # common identifier(s) if present to avoid exact duplicates.
+                combined = pl.concat([existing.lazy(), result_collected.lazy()]).collect()
+                # Attempt smart dedupe on obvious keys
+                if "person_id" in combined.columns:
+                    combined = combined.unique(subset=["person_id"])
+                combined.write_parquet(
+                    str(consolidated_path),
+                    compression=config.transform.compression,
+                    row_group_size=config.transform.row_group_size,
+                )
+            except Exception as e:
+                logger.error(f"Error appending to parquet: {e}")
+                logger.error("Falling back to overwrite write")
+                result_collected.write_parquet(
+                    str(consolidated_path),
+                    compression=config.transform.compression,
+                    row_group_size=config.transform.row_group_size,
+                )
+        else:
+            result_collected.write_parquet(
+                str(consolidated_path),
+                compression=config.transform.compression,
+                row_group_size=config.transform.row_group_size,
+            )
     except Exception as e:
         logger.error(f"Error writing parquet: {e}")
         logger.error(f"Schema: {result_df.collect_schema()}")
