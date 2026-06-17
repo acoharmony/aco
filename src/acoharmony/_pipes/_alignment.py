@@ -21,6 +21,28 @@ from .._decor8 import transform_method
 from ._builder import PipelineStage
 from ._registry import register_pipeline
 
+_CONSOLIDATED_ALIGNMENT_KEYS = ("current_mbi", "bene_mbi", "person_id", "member_id", "mbi")
+_CONSOLIDATED_ALIGNMENT_FRESHNESS_COLUMNS = ("processed_at", "lineage_processed_at")
+
+
+def _consolidated_alignment_dedupe_key(columns: list[str]) -> str | None:
+    """Return the preferred beneficiary key for consolidated alignment rows."""
+    return next((col for col in _CONSOLIDATED_ALIGNMENT_KEYS if col in columns), None)
+
+
+def _dedupe_consolidated_alignment(df: pl.DataFrame) -> pl.DataFrame:
+    """Keep one consolidated alignment row per beneficiary when a key is available."""
+    dedupe_key = _consolidated_alignment_dedupe_key(df.columns)
+    if dedupe_key is None:
+        return df
+    freshness_col = next(
+        (col for col in _CONSOLIDATED_ALIGNMENT_FRESHNESS_COLUMNS if col in df.columns),
+        None,
+    )
+    if freshness_col is not None:
+        df = df.sort([dedupe_key, freshness_col])
+    return df.unique(subset=[dedupe_key], keep="last")
+
 
 def _execute_stage(
     stage: PipelineStage, df: pl.LazyFrame | None, catalog: Any, logger: Any, force: bool
@@ -181,11 +203,9 @@ def apply_alignment_pipeline(
             try:
                 existing = pl.read_parquet(str(consolidated_path))
                 # Concatenate existing and new results. Prefer deduplication on
-                # common identifier(s) if present to avoid exact duplicates.
+                # the consolidated alignment beneficiary key when present.
                 combined = pl.concat([existing.lazy(), result_collected.lazy()]).collect()
-                # Attempt smart dedupe on obvious keys
-                if "person_id" in combined.columns:
-                    combined = combined.unique(subset=["person_id"])
+                combined = _dedupe_consolidated_alignment(combined)
                 combined.write_parquet(
                     str(consolidated_path),
                     compression=config.transform.compression,

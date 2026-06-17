@@ -91,9 +91,44 @@ class TestExecuteStage:
     """Cover _pipes/_alignment.py:29-32."""
 
     @pytest.mark.unit
+    def test_dedupes_consolidated_alignment_on_current_mbi(self):
+        from acoharmony._pipes._alignment import _dedupe_consolidated_alignment
+
+        df = pl.DataFrame({
+            "current_mbi": ["M001", "M001", "M002"],
+            "value": [1, 2, 3],
+        })
+
+        out = _dedupe_consolidated_alignment(df).sort("current_mbi")
+
+        assert out.to_dicts() == [
+            {"current_mbi": "M001", "value": 2},
+            {"current_mbi": "M002", "value": 3},
+        ]
+
+    @pytest.mark.unit
+    def test_dedupes_consolidated_alignment_keeps_latest_processed_row(self):
+        from acoharmony._pipes._alignment import _dedupe_consolidated_alignment
+
+        df = pl.DataFrame({
+            "current_mbi": ["M001", "M001", "M002"],
+            "processed_at": [2, 1, 1],
+            "value": ["new", "old", "only"],
+        })
+
+        out = _dedupe_consolidated_alignment(df).sort("current_mbi")
+
+        assert out.select(["current_mbi", "value"]).to_dicts() == [
+            {"current_mbi": "M001", "value": "new"},
+            {"current_mbi": "M002", "value": "only"},
+        ]
+
+    @pytest.mark.unit
     def test_execute_stage_helper(self):
         from unittest.mock import MagicMock
+
         import polars as pl
+
         from acoharmony._pipes._alignment import _execute_stage
         from acoharmony._pipes._builder import PipelineStage
 
@@ -122,7 +157,9 @@ class TestAlignmentWriteParquetException:
     @pytest.mark.unit
     def test_collect_raises(self, tmp_path):
         from unittest.mock import MagicMock, patch
+
         import polars as pl
+
         from acoharmony._pipes._alignment import apply_alignment_pipeline
         executor = MagicMock()
         executor.storage_config.get_path.return_value = tmp_path
@@ -130,9 +167,14 @@ class TestAlignmentWriteParquetException:
         bad_lf = MagicMock()
         bad_lf.collect.side_effect = RuntimeError("oom")
         bad_lf.collect_schema.return_value = {}
-        with patch("acoharmony._pipes._alignment._execute_stage", return_value=bad_lf), \
-             patch("acoharmony._transforms._voluntary_alignment.apply_transform"), \
-             patch("acoharmony._pipes._alignment.pl.scan_parquet", return_value=pl.DataFrame({"x":[1]}).lazy()), \
-             patch("pathlib.Path.exists", return_value=True):
-            try: apply_alignment_pipeline(executor, logger, force=True)
-            except: pass
+        with (
+            patch("acoharmony._pipes._alignment._execute_stage", return_value=bad_lf),
+            patch("acoharmony._transforms._voluntary_alignment.apply_transform"),
+            patch(
+                "acoharmony._pipes._alignment.pl.scan_parquet",
+                return_value=pl.DataFrame({"x": [1]}).lazy(),
+            ),
+            patch("pathlib.Path.exists", return_value=True),
+        ):
+            with pytest.raises(RuntimeError, match="oom"):
+                apply_alignment_pipeline(executor, logger, force=True)

@@ -12,6 +12,7 @@ class _:
 
 import polars as pl
 import pytest
+
 import acoharmony
 
 
@@ -45,6 +46,48 @@ class TestNotebookTrendsDeep:
             "ym_202402_mssp": [False, False, True],
         })
         calculate_alignment_trends_over_time(df, ["202401", "202402"])
+
+    @pytest.mark.unit
+    def test_trends_count_distinct_beneficiaries(self):
+        df = pl.LazyFrame({
+            "current_mbi": ["M001", "M001", "M002", "M002", "M003"],
+            "processed_at": [1, 2, 1, 2, 2],
+            "ym_202401_reach": [True, True, False, False, False],
+            "ym_202401_mssp": [False, False, True, True, False],
+        })
+
+        result = calculate_alignment_trends_over_time(df, ["202401"])
+
+        assert result is not None
+        assert result.to_dicts() == [
+            {
+                "year_month": "2024-01",
+                "REACH": 1,
+                "MSSP": 1,
+                "Total Aligned": 2,
+            }
+        ]
+
+    @pytest.mark.unit
+    def test_trends_keep_latest_duplicate_beneficiary_row(self):
+        df = pl.LazyFrame({
+            "current_mbi": ["M001", "M001", "M002"],
+            "processed_at": [1, 2, 2],
+            "ym_202401_reach": [True, False, False],
+            "ym_202401_mssp": [False, False, True],
+        })
+
+        result = calculate_alignment_trends_over_time(df, ["202401"])
+
+        assert result is not None
+        assert result.to_dicts() == [
+            {
+                "year_month": "2024-01",
+                "REACH": 0,
+                "MSSP": 1,
+                "Total Aligned": 1,
+            }
+        ]
 
 
 # ---------------------------------------------------------------------------
