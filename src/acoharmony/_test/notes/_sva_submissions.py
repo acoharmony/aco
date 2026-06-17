@@ -262,23 +262,19 @@ class TestEnrichValidRecords:
     @pytest.mark.unit
     def test_with_participants(self) -> None:
         plugin = SvaSubmissionsPlugins()
-        df = pl.DataFrame(
-            {"mbi": ["M1"], "tin": ["T1"], "provider_npi": ["N1"]}
-        )
-        participants = pl.DataFrame(
-            {"base_provider_tin": ["T1"], "individual_npi": ["N1"]}
-        )
+        df = pl.DataFrame({"mbi": ["M1"], "tin": ["T1"], "provider_npi": ["N1"]})
+        participants = pl.DataFrame({"base_provider_tin": ["T1"], "individual_npi": ["N1"]})
         out = plugin.enrich_valid_records(df, pl.DataFrame(), participants, pl.DataFrame())
         assert out["tin_npi_match"][0] is True
 
     @pytest.mark.unit
     def test_with_bar(self) -> None:
         plugin = SvaSubmissionsPlugins()
-        df = pl.DataFrame(
-            {"mbi": ["M1"], "tin": ["T1"], "provider_npi": ["N1"]}
-        )
+        df = pl.DataFrame({"mbi": ["M1"], "tin": ["T1"], "provider_npi": ["N1"]})
         bar = pl.DataFrame({"bene_mbi": ["M1"], "end_date": [None]})
-        out = plugin.enrich_valid_records(df, pl.DataFrame(), pl.DataFrame(), bar, today=date(2024, 6, 1))
+        out = plugin.enrich_valid_records(
+            df, pl.DataFrame(), pl.DataFrame(), bar, today=date(2024, 6, 1)
+        )
         assert out["current_bar_status"][0] == "Active"
 
 
@@ -321,9 +317,7 @@ class TestSummaryStats:
             date(2024, 1, 1),
             date(2024, 12, 31),
         )
-        breakdown, excluded = plugin.exclusion_breakdown(
-            out["flagged"], out["exclusion_patterns"]
-        )
+        breakdown, excluded = plugin.exclusion_breakdown(out["flagged"], out["exclusion_patterns"])
         assert "Reason" in breakdown.columns
         assert excluded.height == 1
 
@@ -399,9 +393,7 @@ class TestPalmrPanel:
 class TestEnrichProvidersWithStates:
     @pytest.mark.unit
     def test_empty(self) -> None:
-        out = SvaSubmissionsPlugins().enrich_providers_with_states(
-            pl.DataFrame(), pl.DataFrame()
-        )
+        out = SvaSubmissionsPlugins().enrich_providers_with_states(pl.DataFrame(), pl.DataFrame())
         assert out.is_empty()
 
     @pytest.mark.unit
@@ -426,6 +418,29 @@ class TestEnrichProvidersWithStates:
         )
         out = SvaSubmissionsPlugins().enrich_providers_with_states(palmr, participants)
         assert out.height == 1
+
+    @pytest.mark.unit
+    def test_uses_default_state_when_participants_have_no_state_column(self) -> None:
+        palmr = pl.DataFrame(
+            {
+                "prvdr_npi": ["1568005569"],
+                "prvdr_tin": ["T1"],
+                "bene_mbi": ["M1"],
+            }
+        )
+        participants = pl.DataFrame(
+            {
+                "individual_npi": ["1568005569", "1568005569"],
+                "base_provider_tin": ["T1", "T1"],
+                "individual_first_name": ["Jennifer"] * 2,
+                "individual_last_name": ["Datzko"] * 2,
+                "provider_type": ["Individual Practitioner/Professional", "Individual Provider"],
+                "effective_start_date": [None, "2024-01-01"],
+            }
+        )
+        out = SvaSubmissionsPlugins().enrich_providers_with_states(palmr, participants)
+        assert out.select("provider_state").to_series().to_list() == ["MI"]
+        assert out["current_panel"][0] == 1
 
 
 class TestPanelBalancing:
@@ -719,10 +734,9 @@ class TestSnapshotDiff:
 
     @pytest.mark.unit
     def test_only_one_snapshot(self) -> None:
-        df = pl.DataFrame(
-            {"mbi": ["M1"], "file_date": [date(2024, 6, 1)]}
-        )
+        df = pl.DataFrame({"mbi": ["M1"], "file_date": [date(2024, 6, 1)]})
         out = SvaSubmissionsPlugins().snapshot_diff(df)
+        assert out is not None
         assert out["available"] is False
         assert out["snapshot_count"] == 1
 
@@ -744,6 +758,7 @@ class TestSnapshotDiff:
             }
         )
         out = SvaSubmissionsPlugins().snapshot_diff(df)
+        assert out is not None
         assert out["available"] is True
         # M3 added (only in 7/1)
         assert out["new"].height == 1

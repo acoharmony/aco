@@ -13,7 +13,7 @@ snapshot diff + duplicate-name analysis.
 
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -58,6 +58,29 @@ DEFAULT_PROVIDER_STATE_ASSIGNMENTS = {
     "1376709493": {"NJ"},
 }
 
+_PROVIDER_STATE_SCHEMA = {
+    "prvdr_npi": pl.String,
+    "prvdr_tin": pl.String,
+    "provider_name": pl.String,
+    "provider_state": pl.String,
+}
+
+
+def _empty_provider_state_info() -> pl.DataFrame:
+    return pl.DataFrame(schema=_PROVIDER_STATE_SCHEMA)
+
+
+def _default_provider_states() -> pl.DataFrame:
+    rows = [
+        {"prvdr_npi": npi, "provider_state": state}
+        for npi, states in sorted(DEFAULT_PROVIDER_STATE_ASSIGNMENTS.items())
+        for state in sorted(states)
+    ]
+    return pl.DataFrame(
+        rows,
+        schema={"prvdr_npi": pl.String, "provider_state": pl.String},
+    )
+
 
 class SvaSubmissionsPlugins(PluginRegistry):
     """SVA submissions dashboard analytics."""
@@ -86,9 +109,7 @@ class SvaSubmissionsPlugins(PluginRegistry):
         df_sva = pl.read_parquet(sva_path) if sva_path.exists() else pl.DataFrame()
         df_bar = pl.read_parquet(bar_path) if bar_path.exists() else pl.DataFrame()
         df_participants = (
-            pl.read_parquet(participants_path)
-            if participants_path.exists()
-            else pl.DataFrame()
+            pl.read_parquet(participants_path) if participants_path.exists() else pl.DataFrame()
         )
 
         if (silver / "identity_timeline.parquet").exists():
@@ -126,14 +147,10 @@ class SvaSubmissionsPlugins(PluginRegistry):
         sig_dtype = df.schema.get("signature_date")
         if sig_dtype == pl.Utf8:
             sig_expr = (
-                pl.col("signature_date")
-                .str.to_datetime(strict=False)
-                .alias("signature_datetime")
+                pl.col("signature_date").str.to_datetime(strict=False).alias("signature_datetime")
             )
         else:
-            sig_expr = (
-                pl.col("signature_date").cast(pl.Datetime).alias("signature_datetime")
-            )
+            sig_expr = pl.col("signature_date").cast(pl.Datetime).alias("signature_datetime")
         return df.with_columns(
             pl.col("created_at")
             .str.to_datetime(format="%B %d, %Y, %I:%M %p")
@@ -147,25 +164,18 @@ class SvaSubmissionsPlugins(PluginRegistry):
     def default_date_range(self, df_sva: pl.DataFrame) -> tuple[date, date]:
         if df_sva.height > 0 and "file_date" in df_sva.columns:
             sva_str = df_sva.select("file_date").max().item()
-            sva_date = (
-                date.fromisoformat(sva_str) if sva_str else date(2025, 11, 1)
-            )
+            sva_date = date.fromisoformat(sva_str) if sva_str else date(2025, 11, 1)
             start = sva_date + timedelta(days=1)
         else:
             start = date(2025, 11, 1)
         return start, date.today()
 
-    def filter_date_range(
-        self, df: pl.DataFrame, start_date: date, end_date: date
-    ) -> pl.DataFrame:
+    def filter_date_range(self, df: pl.DataFrame, start_date: date, end_date: date) -> pl.DataFrame:
         return df.filter(
-            (pl.col("created_date") >= start_date)
-            & (pl.col("created_date") <= end_date)
+            (pl.col("created_date") >= start_date) & (pl.col("created_date") <= end_date)
         )
 
-    def identify_exclusions(
-        self, df: pl.DataFrame
-    ) -> tuple[pl.DataFrame, tuple[str, ...]]:
+    def identify_exclusions(self, df: pl.DataFrame) -> tuple[pl.DataFrame, tuple[str, ...]]:
         return (
             df.with_columns(
                 pl.col("transcriber_notes")
@@ -177,18 +187,11 @@ class SvaSubmissionsPlugins(PluginRegistry):
             EXCLUSION_PATTERNS,
         )
 
-    def flag_duplicate_completed(
-        self, df: pl.DataFrame, df_all: pl.DataFrame
-    ) -> pl.DataFrame:
+    def flag_duplicate_completed(self, df: pl.DataFrame, df_all: pl.DataFrame) -> pl.DataFrame:
         completed_mbis = (
-            df_all.filter(pl.col("status") == "Completed")
-            .select("mbi")
-            .unique()["mbi"]
-            .to_list()
+            df_all.filter(pl.col("status") == "Completed").select("mbi").unique()["mbi"].to_list()
         )
-        return df.with_columns(
-            pl.col("mbi").is_in(completed_mbis).alias("has_completed_sva")
-        )
+        return df.with_columns(pl.col("mbi").is_in(completed_mbis).alias("has_completed_sva"))
 
     def invalid_export(self, df: pl.DataFrame) -> pl.DataFrame:
         return (
@@ -233,9 +236,9 @@ class SvaSubmissionsPlugins(PluginRegistry):
     ) -> pl.DataFrame:
         if df_xwalk.height > 0:
             xwalk_lookup = df_xwalk.select(["prvs_num", "crnt_num"]).unique()
-            enriched = df.join(
-                xwalk_lookup, left_on="mbi", right_on="prvs_num", how="left"
-            ).rename({"crnt_num": "crosswalk_mbi"})
+            enriched = df.join(xwalk_lookup, left_on="mbi", right_on="prvs_num", how="left").rename(
+                {"crnt_num": "crosswalk_mbi"}
+            )
         else:
             enriched = df.with_columns(pl.lit(None).alias("crosswalk_mbi"))
 
@@ -251,9 +254,7 @@ class SvaSubmissionsPlugins(PluginRegistry):
                     right_on=["tin", "npi"],
                     how="left",
                 )
-                .with_columns(
-                    pl.col("_tin_npi_exists").fill_null(False).alias("tin_npi_match")
-                )
+                .with_columns(pl.col("_tin_npi_exists").fill_null(False).alias("tin_npi_match"))
                 .drop("_tin_npi_exists")
             )
         else:
@@ -262,28 +263,20 @@ class SvaSubmissionsPlugins(PluginRegistry):
         if df_bar.height > 0:
             ref_today = today or date.today()
             current_bar = (
-                df_bar.filter(
-                    pl.col("end_date").is_null() | (pl.col("end_date") >= ref_today)
-                )
+                df_bar.filter(pl.col("end_date").is_null() | (pl.col("end_date") >= ref_today))
                 .select(["bene_mbi"])
                 .unique()
                 .with_columns(pl.lit("Active").alias("bar_status"))
             )
             enriched = (
-                enriched.join(
-                    current_bar, left_on="mbi", right_on="bene_mbi", how="left"
-                )
+                enriched.join(current_bar, left_on="mbi", right_on="bene_mbi", how="left")
                 .with_columns(
-                    pl.col("bar_status")
-                    .fill_null("Not in BAR")
-                    .alias("current_bar_status")
+                    pl.col("bar_status").fill_null("Not in BAR").alias("current_bar_status")
                 )
                 .drop("bar_status")
             )
         else:
-            enriched = enriched.with_columns(
-                pl.lit("Unknown").alias("current_bar_status")
-            )
+            enriched = enriched.with_columns(pl.lit("Unknown").alias("current_bar_status"))
         return enriched
 
     def valid_export(
@@ -295,25 +288,17 @@ class SvaSubmissionsPlugins(PluginRegistry):
         df_bar: pl.DataFrame,
         today: date | None = None,
     ) -> pl.DataFrame:
-        filtered = df.filter(
-            (pl.col("status") == "Completed") & ~pl.col("should_exclude")
-        )
+        filtered = df.filter((pl.col("status") == "Completed") & ~pl.col("should_exclude"))
         if df_sva.height > 0:
             already = df_sva.select(
                 pl.col("bene_mbi").alias("mbi"),
                 pl.col("sva_signature_date").alias("signature_date_parsed"),
             ).unique()
-            new = filtered.join(
-                already, on=["mbi", "signature_date_parsed"], how="anti"
-            )
+            new = filtered.join(already, on=["mbi", "signature_date_parsed"], how="anti")
         else:
             new = filtered
-        deduped = new.sort("created_date", descending=True).unique(
-            subset=["mbi"], keep="first"
-        )
-        enriched = self.enrich_valid_records(
-            deduped, df_xwalk, df_participants, df_bar, today
-        )
+        deduped = new.sort("created_date", descending=True).unique(subset=["mbi"], keep="first")
+        enriched = self.enrich_valid_records(deduped, df_xwalk, df_participants, df_bar, today)
         return enriched.select(
             [
                 "sva_id",
@@ -357,9 +342,7 @@ class SvaSubmissionsPlugins(PluginRegistry):
         with_excl, exclusion_patterns = self.identify_exclusions(filtered)
         flagged = self.flag_duplicate_completed(with_excl, parsed)
         invalid = self.invalid_export(flagged)
-        valid = self.valid_export(
-            flagged, df_sva, df_xwalk, df_participants, df_bar, today
-        )
+        valid = self.valid_export(flagged, df_sva, df_xwalk, df_participants, df_bar, today)
         return {
             "filtered": filtered,
             "flagged": flagged,
@@ -409,9 +392,7 @@ class SvaSubmissionsPlugins(PluginRegistry):
 
     def invalid_with_completed(self, df_flagged: pl.DataFrame) -> pl.DataFrame:
         return (
-            df_flagged.filter(
-                (pl.col("status") == "Invalid") & pl.col("has_completed_sva")
-            )
+            df_flagged.filter((pl.col("status") == "Invalid") & pl.col("has_completed_sva"))
             .select(
                 [
                     "mbi",
@@ -438,9 +419,7 @@ class SvaSubmissionsPlugins(PluginRegistry):
         if df_palmr.is_empty():
             return {"available": False}
         palmr_date = (
-            df_palmr.select("file_date").max().item()
-            if "file_date" in df_palmr.columns
-            else "N/A"
+            df_palmr.select("file_date").max().item() if "file_date" in df_palmr.columns else "N/A"
         )
         df_palmr_with_state = df_palmr
         if df_bar.height > 0:
@@ -479,9 +458,7 @@ class SvaSubmissionsPlugins(PluginRegistry):
                 ]
             )
         else:
-            panel_by_npi = panel_by_npi.with_columns(
-                pl.lit(None).alias("provider_name")
-            ).select(
+            panel_by_npi = panel_by_npi.with_columns(pl.lit(None).alias("provider_name")).select(
                 [
                     "prvdr_npi",
                     "provider_name",
@@ -544,27 +521,54 @@ class SvaSubmissionsPlugins(PluginRegistry):
     ) -> pl.DataFrame:
         if df_palmr.is_empty() or df_participants.is_empty():
             return pl.DataFrame()
-        state_info = (
-            df_participants.filter(
-                pl.col("individual_npi").is_not_null()
-                & pl.col("individual_npi").is_in(list(ALLOWED_PROVIDER_NPIS))
-                & pl.col("state_cd").is_not_null()
-                & pl.col("provider_type").str.contains("Individual Practitioner")
-            )
-            .select(
-                pl.col("individual_npi").alias("prvdr_npi"),
-                pl.col("base_provider_tin").alias("prvdr_tin"),
-                pl.concat_str(
-                    [
-                        pl.col("individual_first_name"),
-                        pl.lit(" "),
-                        pl.col("individual_last_name"),
-                    ]
-                ).alias("provider_name"),
-                pl.col("state_cd").alias("provider_state"),
-            )
-            .unique(subset=["prvdr_npi", "prvdr_tin", "provider_state"])
+        allowed_practitioners = df_participants.filter(
+            pl.col("individual_npi").is_not_null()
+            & pl.col("individual_npi").is_in(list(ALLOWED_PROVIDER_NPIS))
+            & pl.col("provider_type").str.contains("Individual Practitioner")
         )
+        provider_names = allowed_practitioners.select(
+            pl.col("individual_npi").alias("prvdr_npi"),
+            pl.col("base_provider_tin").alias("prvdr_tin"),
+            pl.concat_str(
+                [
+                    pl.col("individual_first_name"),
+                    pl.lit(" "),
+                    pl.col("individual_last_name"),
+                ]
+            ).alias("provider_name"),
+        ).unique(subset=["prvdr_npi", "prvdr_tin"])
+        if "state_cd" in allowed_practitioners.columns:
+            state_info = (
+                allowed_practitioners.filter(pl.col("state_cd").is_not_null())
+                .select(
+                    pl.col("individual_npi").alias("prvdr_npi"),
+                    pl.col("base_provider_tin").alias("prvdr_tin"),
+                    pl.concat_str(
+                        [
+                            pl.col("individual_first_name"),
+                            pl.lit(" "),
+                            pl.col("individual_last_name"),
+                        ]
+                    ).alias("provider_name"),
+                    pl.col("state_cd").alias("provider_state"),
+                )
+                .unique(subset=["prvdr_npi", "prvdr_tin", "provider_state"])
+            )
+        else:
+            state_info = _empty_provider_state_info()
+        fallback_state_info = provider_names.join(
+            _default_provider_states(), on="prvdr_npi", how="inner"
+        )
+        if not state_info.is_empty():
+            fallback_state_info = fallback_state_info.join(
+                state_info.select(["prvdr_npi", "prvdr_tin"]).unique(),
+                on=["prvdr_npi", "prvdr_tin"],
+                how="anti",
+            )
+        state_info = pl.concat(
+            [state_info, fallback_state_info.select(_PROVIDER_STATE_SCHEMA.keys())],
+            how="vertical",
+        ).unique(subset=["prvdr_npi", "prvdr_tin", "provider_state"])
         effective_dates = (
             df_participants.filter(
                 pl.col("individual_npi").is_not_null()
@@ -572,22 +576,17 @@ class SvaSubmissionsPlugins(PluginRegistry):
                 & pl.col("effective_start_date").is_not_null()
                 & (pl.col("provider_type") == "Individual Provider")
             )
-            .with_columns(
-                pl.col("effective_start_date").cast(pl.Date).alias("parsed_start_date")
-            )
+            .with_columns(pl.col("effective_start_date").cast(pl.Date).alias("parsed_start_date"))
             .group_by(["individual_npi", "base_provider_tin"])
-            .agg(
-                pl.col("parsed_start_date").min().alias("earliest_effective_date")
-            )
+            .agg(pl.col("parsed_start_date").min().alias("earliest_effective_date"))
             .select(
                 pl.col("individual_npi").alias("prvdr_npi"),
                 pl.col("base_provider_tin").alias("prvdr_tin"),
                 pl.col("earliest_effective_date"),
             )
         )
-        current_panels = (
-            df_palmr.group_by(["prvdr_npi", "prvdr_tin"])
-            .agg(pl.len().alias("current_panel"))
+        current_panels = df_palmr.group_by(["prvdr_npi", "prvdr_tin"]).agg(
+            pl.len().alias("current_panel")
         )
         return (
             state_info.join(effective_dates, on=["prvdr_npi", "prvdr_tin"], how="left")
@@ -623,11 +622,11 @@ class SvaSubmissionsPlugins(PluginRegistry):
         if panels.is_empty():
             return {}
         bar_states = df_bar.select(["bene_mbi", "bene_state"]).unique()
-        valid_with_state = df_valid.join(
-            bar_states, left_on="mbi", right_on="bene_mbi", how="left"
-        ).with_columns(
-            pl.coalesce(["bene_state", "state"]).alias("final_state")
-        ).select(["mbi", "final_state", "signature_date_parsed"])
+        valid_with_state = (
+            df_valid.join(bar_states, left_on="mbi", right_on="bene_mbi", how="left")
+            .with_columns(pl.coalesce(["bene_state", "state"]).alias("final_state"))
+            .select(["mbi", "final_state", "signature_date_parsed"])
+        )
 
         recommendations: dict[str, dict[str, str]] = {}
         for row in valid_with_state.iter_rows(named=True):
@@ -647,9 +646,7 @@ class SvaSubmissionsPlugins(PluginRegistry):
             primary = PRIMARY_PROVIDERS_BY_STATE.get(state)
             best = None
             if primary:
-                primary_match = state_match.filter(
-                    pl.col("prvdr_npi") == primary
-                )
+                primary_match = state_match.filter(pl.col("prvdr_npi") == primary)
                 if primary_match.height > 0:
                     best = primary_match.limit(1)
             if best is None or best.is_empty():
@@ -722,9 +719,9 @@ class SvaSubmissionsPlugins(PluginRegistry):
                     right_on=["prvdr_npi", "prvdr_tin"],
                     how="left",
                 ).with_columns(
-                    pl.coalesce(
-                        ["recommended_provider_name", "provider_name"]
-                    ).alias("final_provider_name")
+                    pl.coalesce(["recommended_provider_name", "provider_name"]).alias(
+                        "final_provider_name"
+                    )
                 )
             else:
                 cms = cms.with_columns(pl.col("provider_name").alias("final_provider_name"))
@@ -784,9 +781,9 @@ class SvaSubmissionsPlugins(PluginRegistry):
         prior = archive.filter(pl.col("file_date") == second)
         new = recent.join(prior.select("mbi").unique(), on="mbi", how="anti")
         removed = prior.join(recent.select("mbi").unique(), on="mbi", how="anti")
-        common = recent.join(
-            prior.select("mbi").unique(), on="mbi", how="inner"
-        ).select("mbi").unique()
+        common = (
+            recent.join(prior.select("mbi").unique(), on="mbi", how="inner").select("mbi").unique()
+        )
         recent_common = recent.join(common, on="mbi", how="inner")
         prior_common = prior.join(common, on="mbi", how="inner")
         status_cmp = recent_common.select(
@@ -804,9 +801,7 @@ class SvaSubmissionsPlugins(PluginRegistry):
             on="mbi",
             how="inner",
         )
-        status_changes = status_cmp.filter(
-            pl.col("current_status") != pl.col("previous_status")
-        )
+        status_changes = status_cmp.filter(pl.col("current_status") != pl.col("previous_status"))
         return {
             "available": True,
             "most_recent": most_recent,
@@ -822,9 +817,7 @@ class SvaSubmissionsPlugins(PluginRegistry):
         if df_submissions.is_empty():
             return {"available": False}
         groups = (
-            df_submissions.group_by(
-                ["beneficiary_first_name", "beneficiary_last_name"]
-            )
+            df_submissions.group_by(["beneficiary_first_name", "beneficiary_last_name"])
             .agg(
                 pl.col("mbi").alias("mbis"),
                 pl.col("mbi").n_unique().alias("unique_mbis"),
@@ -856,8 +849,6 @@ class SvaSubmissionsPlugins(PluginRegistry):
                     "tin",
                 ]
             )
-            .sort(
-                ["beneficiary_last_name", "beneficiary_first_name", "mbi"]
-            )
+            .sort(["beneficiary_last_name", "beneficiary_first_name", "mbi"])
         )
         return {"available": True, "groups": groups, "records": records}
