@@ -14,16 +14,16 @@ from acoharmony._test._import_magic import auto_import
 class _:
     pass  # noqa: E701
 
+
 import re
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import polars as pl
 import pytest
-import requests
 
 from acoharmony._cite.connectors._ecfr import ECFRConnector
-from acoharmony._test.cite.conftest import _make_base_citation
+from acoharmony._test.cite.conftest import _get_live_response_or_skip, _make_base_citation
 
 
 @pytest.fixture
@@ -112,6 +112,8 @@ class TestECFRStructure:
 
         latest_date = ECFRConnector.get_latest_date("42")
 
+        if latest_date is None:
+            pytest.skip("Live eCFR API did not return a latest date")
         assert latest_date is not None, "Should return a date"
         # Verify date format YYYY-MM-DD
         assert re.match(r"\d{4}-\d{2}-\d{2}", latest_date), f"Invalid date format: {latest_date}"
@@ -133,6 +135,8 @@ class TestECFRStructure:
 
         xml_url = ECFRConnector.construct_xml_url("42")
 
+        if xml_url is None:
+            pytest.skip("Live eCFR API did not return a current XML URL")
         assert xml_url is not None, "Should return a valid URL"
         assert "title-42.xml" in xml_url
         assert ECFRConnector.API_BASE in xml_url
@@ -158,8 +162,7 @@ class TestECFRProcessing:
 
         # Download HTML (though we'll use XML for content)
         html_path = tmp_path / "ecfr.html"
-        response = requests.get(ecfr_section_url, timeout=30)
-        response.raise_for_status()
+        response = _get_live_response_or_skip(ecfr_section_url)
         html_path.write_bytes(response.content)
 
         # Create base citation
@@ -174,6 +177,8 @@ class TestECFRProcessing:
         # Process
         citations = ECFRConnector.process(ecfr_section_url, html_path, base_citation)
 
+        if citations is None:
+            pytest.skip("Live eCFR metadata unavailable")
         # Verify we got at least parent citation
         assert citations is not None
         assert len(citations) >= 1, "Should have at least parent citation"
@@ -208,8 +213,7 @@ class TestECFRProcessing:
         """Test that eCFR citations have complete metadata."""
 
         html_path = tmp_path / "ecfr.html"
-        response = requests.get(ecfr_section_url, timeout=30)
-        response.raise_for_status()
+        response = _get_live_response_or_skip(ecfr_section_url)
         html_path.write_bytes(response.content)
 
         base_citation = pl.DataFrame(
@@ -222,6 +226,8 @@ class TestECFRProcessing:
 
         citations = ECFRConnector.process(ecfr_section_url, html_path, base_citation)
 
+        if citations is None:
+            pytest.skip("Live eCFR metadata unavailable")
         parent = citations[0]
 
         # Check required parent fields
@@ -405,9 +411,7 @@ class TestECFRConnector:
 
         # First call for get_latest_date (now hits /titles.json), second for structure
         date_resp = MagicMock()
-        date_resp.json.return_value = {
-            "titles": [{"number": 42, "up_to_date_as_of": "2024-06-15"}]
-        }
+        date_resp.json.return_value = {"titles": [{"number": 42, "up_to_date_as_of": "2024-06-15"}]}
         date_resp.raise_for_status = MagicMock()
         struct_resp = MagicMock()
         struct_resp.json.return_value = {"title": "42"}

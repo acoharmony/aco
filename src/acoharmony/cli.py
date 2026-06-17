@@ -1278,12 +1278,13 @@ notes:
             return 1
 
     elif args.command == "databricks":
-        if args.databricks_command == "copy-volume":
+        databricks_command = getattr(args, "databricks_command", None)
+        if databricks_command == "copy-volume":
             from acoharmony._databricks._uc_volume import cmd_copy_volume
 
             return cmd_copy_volume(args)
 
-        if args.databricks_command == "create-tables":
+        if databricks_command == "create-tables":
             from acoharmony._databricks._uc_tables import cmd_create_tables
 
             return cmd_create_tables(args)

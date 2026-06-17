@@ -18,8 +18,6 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-
-from ._url import host_matches
 from typing import TYPE_CHECKING
 
 import polars as pl
@@ -27,11 +25,13 @@ import requests
 
 from ..._log import LogWriter
 from ..._parsers._ecfr_xml import extract_section_by_number
+from ._url import host_matches
 
 if TYPE_CHECKING:
     pass
 
 logger = LogWriter("connectors.ecfr")
+REQUEST_HEADERS = {"User-Agent": "acoharmony/1.0 (https://github.com/acoharmony/aco)"}
 
 
 class ECFRConnector:
@@ -130,7 +130,7 @@ class ECFRConnector:
         api_url = f"{ECFRConnector.API_BASE}/titles.json"
 
         try:
-            response = requests.get(api_url, timeout=30)
+            response = requests.get(api_url, headers=REQUEST_HEADERS, timeout=30)
             response.raise_for_status()
             data = response.json()
 
@@ -139,9 +139,7 @@ class ECFRConnector:
                 if entry.get("number") == title_num:
                     latest = entry.get("up_to_date_as_of")
                     if latest:
-                        logger.info(
-                            f"Latest available date for CFR Title {title}: {latest}"
-                        )
+                        logger.info(f"Latest available date for CFR Title {title}: {latest}")
                         return latest
                     return None
             return None
@@ -170,7 +168,7 @@ class ECFRConnector:
         api_url = f"{ECFRConnector.API_BASE}/structure/{date}/title-{title}.json"
 
         try:
-            response = requests.get(api_url, timeout=30)
+            response = requests.get(api_url, headers=REQUEST_HEADERS, timeout=30)
             response.raise_for_status()
             return response.json()
         except requests.RequestException as e:
@@ -225,7 +223,9 @@ class ECFRConnector:
 
         try:
             logger.info(f"Downloading eCFR XML: {xml_url}")
-            response = requests.get(xml_url, timeout=120)  # CFR titles can be large
+            response = requests.get(
+                xml_url, headers=REQUEST_HEADERS, timeout=120
+            )  # CFR titles can be large
             response.raise_for_status()
 
             # Ensure parent directory exists
@@ -350,7 +350,9 @@ class ECFRConnector:
                                 pl.lit(title).alias("cfr_title"),
                                 pl.lit(section_data.get("part_number", part)).alias("cfr_part"),
                                 pl.lit(section).alias("cfr_section"),
-                                pl.lit(section_data.get("section_title", "")).alias("section_title"),
+                                pl.lit(section_data.get("section_title", "")).alias(
+                                    "section_title"
+                                ),
                                 pl.lit(section_data.get("subpart", "")).alias("subpart"),
                                 pl.lit(section_data.get("authority", "")).alias("authority"),
                                 pl.lit(section_data.get("source", "")).alias("source_citation"),

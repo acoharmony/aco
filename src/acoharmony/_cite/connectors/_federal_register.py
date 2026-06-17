@@ -23,17 +23,17 @@ from typing import TYPE_CHECKING
 
 import polars as pl
 import requests
-
-from ._url import host_matches
 from bs4 import BeautifulSoup
 
 from ..._log import LogWriter
 from ..._parsers._federal_register_xml import extract_paragraph_by_id
+from ._url import host_matches
 
 if TYPE_CHECKING:
     pass
 
 logger = LogWriter("connectors.federal_register")
+REQUEST_HEADERS = {"User-Agent": "acoharmony/1.0 (https://github.com/acoharmony/aco)"}
 
 
 class FederalRegisterConnector:
@@ -105,7 +105,7 @@ class FederalRegisterConnector:
         api_url = f"{FederalRegisterConnector.API_BASE}/documents/{document_number}.json"
 
         try:
-            response = requests.get(api_url, timeout=30)
+            response = requests.get(api_url, headers=REQUEST_HEADERS, timeout=30)
             response.raise_for_status()
             return response.json()
         except requests.RequestException as e:
@@ -165,7 +165,7 @@ class FederalRegisterConnector:
 
             # Need to download
             logger.info(f"Downloading Federal Register XML: {xml_url}")
-            response = requests.get(xml_url, timeout=30)
+            response = requests.get(xml_url, headers=REQUEST_HEADERS, timeout=30)
             response.raise_for_status()
 
             with open(save_path, "wb") as f:
@@ -244,7 +244,9 @@ class FederalRegisterConnector:
                 if len(text) > 100:  # Substantial paragraph
                     return f"[Document excerpt - full document should be cited] {text[:500]}..."
 
-            logger.warning(f"Could not extract any substantial text for paragraph {paragraph_number}")
+            logger.warning(
+                f"Could not extract any substantial text for paragraph {paragraph_number}"
+            )
             return ""
 
         except Exception as e:
@@ -307,11 +309,7 @@ class FederalRegisterConnector:
         publication_date = metadata.get("publication_date", "")
         start_page = metadata.get("start_page", "")
         end_page = metadata.get("end_page", "")
-        page_count = (
-            int(end_page) - int(start_page) + 1
-            if start_page and end_page
-            else None
-        )
+        page_count = int(end_page) - int(start_page) + 1 if start_page and end_page else None
 
         regulation_id_numbers = metadata.get("regulation_id_numbers", [])
         html_url = metadata.get("html_url", "")
@@ -352,9 +350,7 @@ class FederalRegisterConnector:
             paragraph_text = ""
 
             # Construct XML URL from metadata
-            xml_url = FederalRegisterConnector.construct_xml_url(
-                document_number, publication_date
-            )
+            xml_url = FederalRegisterConnector.construct_xml_url(document_number, publication_date)
 
             if xml_url:
                 # Download XML to temp location
@@ -385,9 +381,7 @@ class FederalRegisterConnector:
                         pl.lit(", ".join(agency_names)).alias("author"),
                         pl.lit(agency_names[0] if agency_names else "").alias("author_primary"),
                         # Title and content - paragraph-specific
-                        pl.lit(
-                            f"{title} - Paragraph {paragraph_number}"
-                        ).alias("title"),
+                        pl.lit(f"{title} - Paragraph {paragraph_number}").alias("title"),
                         pl.lit(paragraph_text).alias("content"),
                         pl.lit(paragraph_text).alias("abstract"),
                         # Document identifiers - inherited from parent

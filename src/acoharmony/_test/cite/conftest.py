@@ -6,6 +6,22 @@ from __future__ import annotations
 from pathlib import Path
 
 import polars as pl
+import pytest
+import requests
+
+LIVE_REQUEST_HEADERS = {
+    "User-Agent": ("acoharmony-ci/1.0 (https://github.com/acoharmony/aco; live integration test)")
+}
+
+
+def _get_live_response_or_skip(url: str, *, timeout: int = 30) -> requests.Response:
+    """Fetch a live integration-test URL, skipping if the remote site blocks CI."""
+    try:
+        response = requests.get(url, headers=LIVE_REQUEST_HEADERS, timeout=timeout)
+        response.raise_for_status()
+        return response
+    except requests.RequestException as exc:
+        pytest.skip(f"Live HTTP fixture unavailable for {url}: {exc}")
 
 
 def _make_base_citation() -> pl.DataFrame:
