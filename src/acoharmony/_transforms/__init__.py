@@ -51,6 +51,7 @@ from . import (  # noqa: F401 (imported for registration side effects)
     _quality_uamcc,
     _skin_substitute_claims,
     _standardization,
+    _sva,
     _sva_log,
     _voluntary_alignment,
     _wound_care_claims,
@@ -60,10 +61,6 @@ from . import (  # noqa: F401 (imported for registration side effects)
     _wound_care_high_frequency,
     _wound_care_identical_patterns,
 )
-
-# Import with aliases for pipeline use
-from . import preferred_provider_facility_benes as preferred_provider_facility_benes  # noqa: F401
-from . import preferred_provider_facility_rollup as preferred_provider_facility_rollup  # noqa: F401
 from . import _skin_substitute_claims as skin_substitute_claims
 from . import _wound_care_claims as wound_care_claims
 from . import _wound_care_clustered as wound_care_clustered
@@ -71,6 +68,10 @@ from . import _wound_care_duplicates as wound_care_duplicates
 from . import _wound_care_high_cost as wound_care_high_cost
 from . import _wound_care_high_frequency as wound_care_high_frequency
 from . import _wound_care_identical_patterns as wound_care_identical_patterns
+
+# Import with aliases for pipeline use
+from . import preferred_provider_facility_benes as preferred_provider_facility_benes  # noqa: F401
+from . import preferred_provider_facility_rollup as preferred_provider_facility_rollup  # noqa: F401
 
 # Import quality measure framework
 from ._quality_measure_base import MeasureFactory, MeasureMetadata, QualityMeasureBase
@@ -100,6 +101,7 @@ __all__ = [
     "_quality_medication_adherence",
     "_quality_preventive",
     "_standardization",
+    "_sva",
     "_sva_log",
     "skin_substitute_claims",
     "wound_care_claims",

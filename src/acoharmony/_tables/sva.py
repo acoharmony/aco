@@ -40,12 +40,18 @@ from acoharmony._validators.field_validators import (
     version=2,
     tier="bronze",
     description="Shared Voluntary Alignment (SVA) submission file for beneficiary voluntary alignment",
-    file_patterns={"reach": ["*SVA*.xlsx"]},
+    file_patterns={"reach": ["*SVA????????.xlsx"]},
 )
-@with_parser(type="excel", encoding="utf-8", has_header=False, embedded_transforms=False)
+@with_parser(
+    type="excel",
+    encoding="utf-8",
+    has_header=True,
+    embedded_transforms=False,
+    sheet_name="SVA_DATA",
+)
 @with_storage(
     tier="bronze",
-    file_patterns={"reach": ["*SVA*.xlsx"]},
+    file_patterns={"reach": ["*SVA????????.xlsx"]},
     medallion_layer="bronze",
     silver={
         "output_name": "sva.parquet",
@@ -56,7 +62,7 @@ from acoharmony._validators.field_validators import (
 @with_four_icli(
     category="Beneficiary List",
     file_type_code=None,
-    file_pattern="*SVA*.xlsx",
+    file_pattern="*SVA????????.xlsx",
     extract_zip=False,
     refresh_frequency="quarterly",
     default_date_filter={"createdWithinLastQuarter": True},
@@ -125,6 +131,13 @@ class Sva:
         alias="Signature_Date_on_SVA_letter",
         default=None,
         description="Date of signature on SVA letter",
+        date_format=[
+            "%Y-%m-%d",
+            "%m/%d/%Y",
+            "%-m/%-d/%Y",
+            "%m/%d/%y",
+            "%-m/%-d/%y",
+        ],
     )
     response_code_cms_to_fill_out: str | None = Field(
         alias="Response_Code__CMS_to_fill_out_",

@@ -65,3 +65,4 @@ coverage.json
 
 coverage.xml
 src/acoharmony/_version.py
+.envrc

@@ -5,7 +5,7 @@
 SVA log analysis expressions.
 
 Provides Polars expressions for analyzing parsed Mabel SFTP log data from
-the REACH SVA (Specialist Verification of Attribution) document transfer
+the REACH SVA (Signed Voluntary Alignment) document transfer
 service. These expressions classify events, extract patient names from
 uploaded filenames, and compute session-level flags.
 
@@ -44,9 +44,7 @@ from ._registry import register_expression
 
 # Trailing signature-date suffix in any of the observed forms
 # (``05.11.2026``, ``05.112026``, ``05 11 26``, ``5-11-2026``, ``05.11026``...).
-_TRAILING_DATE_RE = re.compile(
-    r"[\s._\-]+\(?\d{1,2}[.\s\-_/]*\d{1,2}[.\s\-_/]*\d{2,6}\)?.*$"
-)
+_TRAILING_DATE_RE = re.compile(r"[\s._\-]+\(?\d{1,2}[.\s\-_/]*\d{1,2}[.\s\-_/]*\d{2,6}\)?.*$")
 
 # Trailing SVA/SA marker once underscores/periods have been normalized to
 # spaces (so ``Ann Chovitz Sva`` becomes ``Ann Chovitz``). Also catches the
@@ -146,10 +144,9 @@ class SvaLogExpression:
 
         SVA filenames typically follow: ``<Name> SVA MM.DDYYYY.pdf``
         """
-        return (
-            pl.col("filename").is_not_null()
-            & pl.col("filename").str.to_lowercase().str.contains("sva")
-        )
+        return pl.col("filename").is_not_null() & pl.col(
+            "filename"
+        ).str.to_lowercase().str.contains("sva")
 
     @staticmethod
     def patient_name() -> pl.Expr:
@@ -201,11 +198,11 @@ class SvaLogExpression:
         Returns None for non-SVA filenames.
         """
         return (
-            pl.when(pl.col("filename").is_not_null() & pl.col("filename").str.contains(r"\d{2}\.\d{2,6}\.pdf$"))
-            .then(
-                pl.col("filename")
-                .str.extract(r"(\d{2}\.\d{2,6})\.pdf$", 1)
+            pl.when(
+                pl.col("filename").is_not_null()
+                & pl.col("filename").str.contains(r"\d{2}\.\d{2,6}\.pdf$")
             )
+            .then(pl.col("filename").str.extract(r"(\d{2}\.\d{2,6})\.pdf$", 1))
             .otherwise(pl.lit(None))
             .alias("submission_date_str")
         )
