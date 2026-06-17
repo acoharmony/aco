@@ -57,9 +57,7 @@ class ConsolidatedAlignmentsPlugins(PluginRegistry):
             cond = cond & pl.col("bene_death_date").is_null()
         return cond
 
-    def extract_year_months(
-        self, df: pl.LazyFrame
-    ) -> tuple[str | None, list[str]]:
+    def extract_year_months(self, df: pl.LazyFrame) -> tuple[str | None, list[str]]:
         ym_cols = [c for c in df.collect_schema().names() if c.startswith("ym_")]
         if not ym_cols:
             return None, []
@@ -167,43 +165,38 @@ class ConsolidatedAlignmentsPlugins(PluginRegistry):
                 else 0
             )
         total = df.select(pl.len()).collect().item()
-        stats["Not Enrolled"] = (
-            total - (stats["REACH"] + stats["MSSP"] + stats["FFS"])
-        )
+        stats["Not Enrolled"] = total - (stats["REACH"] + stats["MSSP"] + stats["FFS"])
         return stats
 
-    def alignment_trends(
-        self, df: pl.LazyFrame, year_months: list[str]
-    ) -> pl.DataFrame | None:
+    def alignment_trends(self, df: pl.LazyFrame, year_months: list[str]) -> pl.DataFrame | None:
         from acoharmony._transforms._notebook_trends import (
             calculate_alignment_trends_over_time,
         )
 
         return calculate_alignment_trends_over_time(df, year_months)
 
-    def transitions(
-        self, df: pl.LazyFrame, prev_ym: str, curr_ym: str
-    ) -> pl.DataFrame:
+    def transitions(self, df: pl.LazyFrame, prev_ym: str, curr_ym: str) -> pl.DataFrame:
         from acoharmony._transforms._notebook_transitions import (
             calculate_alignment_transitions,
         )
 
-        return calculate_alignment_transitions(df, prev_ym, curr_ym)
+        result = calculate_alignment_transitions(df, curr_ym, [prev_ym, curr_ym])
+        if isinstance(result, tuple):
+            transitions, _, _ = result
+        else:
+            transitions = result
+        return transitions if transitions is not None else pl.DataFrame()
 
     # ---- office breakdowns -------------------------------------------
 
-    def office_enrollment(
-        self, df: pl.LazyFrame, selected_ym: str
-    ) -> pl.DataFrame | None:
+    def office_enrollment(self, df: pl.LazyFrame, selected_ym: str) -> pl.DataFrame | None:
         from acoharmony._transforms._notebook_office_stats import (
             calculate_office_enrollment_stats,
         )
 
         return calculate_office_enrollment_stats(df, selected_ym)
 
-    def office_alignment_types(
-        self, df: pl.LazyFrame, selected_ym: str
-    ) -> pl.DataFrame | None:
+    def office_alignment_types(self, df: pl.LazyFrame, selected_ym: str) -> pl.DataFrame | None:
         from acoharmony._transforms._notebook_office_stats import (
             calculate_office_alignment_types,
         )
@@ -219,7 +212,7 @@ class ConsolidatedAlignmentsPlugins(PluginRegistry):
 
         return calculate_office_program_distribution(df, selected_ym)
 
-    def office_transitions(self, df: pl.LazyFrame) -> pl.DataFrame:
+    def office_transitions(self, df: pl.LazyFrame) -> pl.DataFrame | None:
         from acoharmony._transforms._notebook_office_stats import (
             calculate_office_transition_stats,
         )
