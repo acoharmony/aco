@@ -7,11 +7,19 @@ set -euo pipefail
 # ── Branch Protection ────────────────────────────────────────────────────
 # Prevent direct commits to main branch
 branch="$(git rev-parse --abbrev-ref HEAD)"
-if [ "$branch" = "main" ]; then
+allow_main="$(git config --bool acoharmony.allowMainCommits 2>/dev/null || true)"
+release_after_commit="$(git config --bool acoharmony.releaseAfterCommit 2>/dev/null || true)"
+if [ "$branch" = "main" ] \
+  && [ "${ACO_ALLOW_MAIN_COMMIT:-}" != "1" ] \
+  && [ "$allow_main" != "true" ] \
+  && [ "$release_after_commit" != "true" ]; then
   echo "❌ ERROR: Direct commits to 'main' branch are not allowed!"
   echo ""
   echo "Please create a feature branch first:"
   echo "  git checkout -b feature/your-feature-name"
+  echo ""
+  echo "For the local release train, enable:"
+  echo "  git config acoharmony.releaseAfterCommit true"
   echo ""
   exit 1
 fi

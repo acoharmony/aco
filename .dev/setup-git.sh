@@ -4,6 +4,11 @@ set -e
 
 echo "🔧 Setting up Git configuration..."
 
+# Use SSH for ordinary `git push` / `git pull`. HTTPS token auth has been
+# flaky in this environment, while SSH is the path used by the release flow.
+git remote set-url origin git@github.com:acoharmony/aco.git
+echo "✅ origin configured for SSH"
+
 # Configure git to use shared hooks directory
 git config core.hooksPath .githooks
 echo "✅ Git hooks configured to use .githooks/"
@@ -28,3 +33,13 @@ echo "Coverage baseline:"
 echo "  Coverage accumulates across incremental test runs (--cov-append)."
 echo "  To seed a fresh baseline:  uv run coverage erase && .githooks/run-coverage"
 echo "  To reset stale data:       uv run coverage erase"
+echo ""
+echo "Release automation:"
+echo "  To run the full post-commit release train after commits on main:"
+echo "    git config acoharmony.releaseAfterCommit true"
+echo "  To allow main commits without auto-release:"
+echo "    git config acoharmony.allowMainCommits true"
+echo "  The release hook pushes HEAD, waits for CI, tags the next patch release,"
+echo "  waits for the GitHub Release workflow, then builds/pushes GHCR images."
+echo "  Manual equivalent:"
+echo "    scripts/release_after_ci.sh"

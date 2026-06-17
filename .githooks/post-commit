@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# Optional release hook. Enable with:
+#   git config acoharmony.releaseAfterCommit true
+#
+# The hook intentionally does nothing by default; when enabled, it pushes HEAD,
+# waits for CI, tags the next patch release, waits for the GitHub Release
+# workflow, then builds/pushes GHCR images from a clean temp worktree.
+set -euo pipefail
+
+enabled="$(git config --bool acoharmony.releaseAfterCommit 2>/dev/null || true)"
+if [ "${ACO_RELEASE_AFTER_COMMIT:-}" != "1" ] && [ "$enabled" != "true" ]; then
+    exit 0
+fi
+
+root="$(git rev-parse --show-toplevel)"
+"$root/scripts/release_after_ci.sh" --from-hook
