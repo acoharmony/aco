@@ -1,7 +1,6 @@
 # © 2025 HarmonyCares
 """Tests for acoharmony/_deploy/_version.py."""
 
-
 from acoharmony._test._import_magic import auto_import
 
 
@@ -41,14 +40,34 @@ class TestFindGitRoot:
 
 class TestLatestReleaseTag:
     @pytest.mark.unit
-    def test_returns_tag_from_git(self, tmp_path: Path) -> None:
+    def test_returns_latest_tag_from_remote(self, tmp_path: Path) -> None:
         (tmp_path / ".git").mkdir()
+        remote_stdout = (
+            "abc123\trefs/tags/v0.0.9\ndef456\trefs/tags/v0.0.37\nghi789\trefs/tags/not-a-release\n"
+        )
         with patch.object(_version, "_find_git_root", return_value=tmp_path):
             with patch(
                 "acoharmony._deploy._version.subprocess.run",
-                return_value=MagicMock(returncode=0, stdout="v0.0.42\n"),
+                return_value=MagicMock(returncode=0, stdout=remote_stdout),
             ):
-                assert latest_release_tag() == "v0.0.42"
+                assert latest_release_tag() == "v0.0.37"
+
+    @pytest.mark.unit
+    def test_remote_tag_wins_over_stale_local_tag(self, tmp_path: Path) -> None:
+        (tmp_path / ".git").mkdir()
+        remote_stdout = "abc123\trefs/tags/v0.0.37\n"
+        local_stdout = "v0.0.36\n"
+        with patch.object(_version, "_find_git_root", return_value=tmp_path):
+            with patch(
+                "acoharmony._deploy._version.subprocess.run",
+                side_effect=[
+                    MagicMock(returncode=0, stdout=remote_stdout),
+                    MagicMock(returncode=0, stdout=local_stdout),
+                ],
+            ) as run:
+                assert latest_release_tag() == "v0.0.37"
+        # The local fallback is not consulted when the remote knows the release.
+        assert run.call_count == 1
 
     @pytest.mark.unit
     def test_returns_none_when_no_git_root(self) -> None:
@@ -56,14 +75,17 @@ class TestLatestReleaseTag:
             assert latest_release_tag() is None
 
     @pytest.mark.unit
-    def test_returns_none_when_git_describe_fails(self, tmp_path: Path) -> None:
+    def test_falls_back_to_local_tags_when_remote_fails(self, tmp_path: Path) -> None:
         (tmp_path / ".git").mkdir()
         with patch.object(_version, "_find_git_root", return_value=tmp_path):
             with patch(
                 "acoharmony._deploy._version.subprocess.run",
-                return_value=MagicMock(returncode=128, stdout=""),
+                side_effect=[
+                    MagicMock(returncode=128, stdout=""),
+                    MagicMock(returncode=0, stdout="v0.0.9\nv0.0.37\nv0.0.36\n"),
+                ],
             ):
-                assert latest_release_tag() is None
+                assert latest_release_tag() == "v0.0.37"
 
     @pytest.mark.unit
     def test_returns_none_when_git_binary_missing(self, tmp_path: Path) -> None:
@@ -76,11 +98,27 @@ class TestLatestReleaseTag:
                 assert latest_release_tag() is None
 
     @pytest.mark.unit
+    def test_returns_none_when_remote_and_local_fail(self, tmp_path: Path) -> None:
+        (tmp_path / ".git").mkdir()
+        with patch.object(_version, "_find_git_root", return_value=tmp_path):
+            with patch(
+                "acoharmony._deploy._version.subprocess.run",
+                side_effect=[
+                    MagicMock(returncode=128, stdout=""),
+                    MagicMock(returncode=128, stdout=""),
+                ],
+            ):
+                assert latest_release_tag() is None
+
+    @pytest.mark.unit
     def test_returns_none_on_empty_stdout(self, tmp_path: Path) -> None:
         (tmp_path / ".git").mkdir()
         with patch.object(_version, "_find_git_root", return_value=tmp_path):
             with patch(
                 "acoharmony._deploy._version.subprocess.run",
-                return_value=MagicMock(returncode=0, stdout="\n"),
+                side_effect=[
+                    MagicMock(returncode=0, stdout="\n"),
+                    MagicMock(returncode=0, stdout="\n"),
+                ],
             ):
                 assert latest_release_tag() is None
