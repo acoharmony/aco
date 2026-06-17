@@ -1,7 +1,5 @@
 """Tests for acoharmony._store module."""
 
-
-
 # Magic auto-import: brings in ALL exports from module under test
 from acoharmony._test._import_magic import auto_import
 
@@ -10,11 +8,10 @@ from acoharmony._test._import_magic import auto_import
 class _:
     pass  # noqa: E701
 
+
 from pathlib import Path
 
 import pytest
-
-import acoharmony
 
 
 class TestModuleStructure:
@@ -23,7 +20,9 @@ class TestModuleStructure:
     @pytest.mark.unit
     def test_module_imports(self):
         """Module can be imported."""
-        assert acoharmony._store is not None
+        import acoharmony._store as store_module
+
+        assert store_module is not None
 
 
 class TestStorageBackendBranches:
@@ -34,8 +33,9 @@ class TestStorageBackendBranches:
     @pytest.mark.unit
     def test_expand_env_vars_string(self):
         """Branch 72->73: value is a string with env var."""
-        from acoharmony._store import StorageBackend
         import os
+
+        from acoharmony._store import StorageBackend
 
         sb = StorageBackend.__new__(StorageBackend)
         os.environ["_TEST_VAR_XYZ"] = "hello"
@@ -48,8 +48,9 @@ class TestStorageBackendBranches:
     @pytest.mark.unit
     def test_expand_env_vars_dict(self):
         """Branch 72: value is a dict, recurses."""
-        from acoharmony._store import StorageBackend
         import os
+
+        from acoharmony._store import StorageBackend
 
         sb = StorageBackend.__new__(StorageBackend)
         os.environ["_TEST_DICT_VAR"] = "world"
@@ -150,8 +151,10 @@ class TestStorageBackendBranches:
     def test_get_path_with_medallion_layer_enum(self):
         """Branch 173->174: tier is MedallionLayer enum."""
         from acoharmony._store import StorageBackend
+
         try:
             from acoharmony._store import MedallionLayer
+
             sb = StorageBackend.__new__(StorageBackend)
             sb.config = {"storage": {"data_path": "s3://bucket/data"}}
             sb.project_root = None
@@ -212,14 +215,16 @@ class TestStorageBackendBranches:
         from acoharmony._store import StorageBackend
 
         sb = StorageBackend.__new__(StorageBackend)
-        sb.config = {"storage": {
-            "data_path": "s3://bucket/data",
-            "backend": "s3",
-            "endpoint": "http://localhost:9000",
-            "access_key": "key",
-            "secret_key": "secret",
-            "bucket": "mybucket",
-        }}
+        sb.config = {
+            "storage": {
+                "data_path": "s3://bucket/data",
+                "backend": "s3",
+                "endpoint": "http://localhost:9000",
+                "access_key": "key",
+                "secret_key": "secret",
+                "bucket": "mybucket",
+            }
+        }
 
         result = sb.get_connection_params()
         assert result["endpoint"] == "http://localhost:9000"
@@ -231,12 +236,14 @@ class TestStorageBackendBranches:
         from acoharmony._store import StorageBackend
 
         sb = StorageBackend.__new__(StorageBackend)
-        sb.config = {"storage": {
-            "data_path": "/local/path",
-            "backend": "databricks",
-            "databricks_host": "https://host",
-            "databricks_token": "token123",
-        }}
+        sb.config = {
+            "storage": {
+                "data_path": "/local/path",
+                "backend": "databricks",
+                "databricks_host": "https://host",
+                "databricks_token": "token123",
+            }
+        }
 
         result = sb.get_connection_params()
         assert result["host"] == "https://host"
@@ -248,11 +255,13 @@ class TestStorageBackendBranches:
         from acoharmony._store import StorageBackend
 
         sb = StorageBackend.__new__(StorageBackend)
-        sb.config = {"storage": {
-            "data_path": "/local/path",
-            "backend": "duckdb",
-            "database": "test.db",
-        }}
+        sb.config = {
+            "storage": {
+                "data_path": "/local/path",
+                "backend": "duckdb",
+                "database": "test.db",
+            }
+        }
 
         result = sb.get_connection_params()
         assert result["database"] == "test.db"
@@ -268,3 +277,36 @@ class TestStorageBackendBranches:
 
         result = sb.get_connection_params()
         assert "base_path" in result
+
+    @pytest.mark.unit
+    def test_get_uc_volume_path_configured(self):
+        """UC volume roots come from storage config when present."""
+        from acoharmony._store import StorageBackend
+
+        sb = StorageBackend.__new__(StorageBackend)
+        sb.config = {"storage": {"uc_volumes": {"silver": "/Volumes/u/g/silver"}}}
+
+        assert sb.get_uc_volume_path("silver") == "/Volumes/u/g/silver"
+
+    @pytest.mark.unit
+    def test_get_uc_volume_path_fallback(self):
+        """UC volume roots fall back to uc_catalog/uc_schema/layer."""
+        from acoharmony._store import StorageBackend
+
+        sb = StorageBackend.__new__(StorageBackend)
+        sb.config = {"storage": {"uc_catalog": "uat", "uc_schema": "gov"}}
+
+        assert sb.get_uc_volume_path("gold") == "/Volumes/uat/gov/gold"
+
+    @pytest.mark.unit
+    def test_get_uc_volume_roots(self):
+        """Multiple UC volume roots can be returned in layer order."""
+        from acoharmony._store import StorageBackend
+
+        sb = StorageBackend.__new__(StorageBackend)
+        sb.config = {"storage": {"uc_catalog": "uat", "uc_schema": "gov"}}
+
+        assert sb.get_uc_volume_roots(["bronze", "gold"]) == [
+            "/Volumes/uat/gov/bronze",
+            "/Volumes/uat/gov/gold",
+        ]

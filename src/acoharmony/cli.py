@@ -9,6 +9,7 @@ Transforms are registered via decorators and orchestrated through pipelines.
 import argparse
 import sys
 from pathlib import Path
+from typing import Any
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
@@ -17,6 +18,11 @@ from acoharmony import __version__
 
 # Full package imports — deferred to allow skinny installs
 _FULL_PACKAGE_AVAILABLE = None
+Catalog: Any
+MedallionLayer: Any
+StorageBackend: Any
+TransformRunner: Any
+get_config: Any
 
 
 def _require_full_package():
@@ -26,13 +32,11 @@ def _require_full_package():
         return
     try:
         global Catalog, MedallionLayer, TransformRunner, get_config, StorageBackend
-        from acoharmony import (
-            Catalog,
-            MedallionLayer,
-            TransformRunner,
-            get_config,
-        )
+        from acoharmony._catalog import Catalog
+        from acoharmony._runner import TransformRunner
         from acoharmony._store import StorageBackend
+        from acoharmony.config import get_config
+        from acoharmony.medallion import MedallionLayer
 
         _FULL_PACKAGE_AVAILABLE = True
     except ImportError:
@@ -215,6 +219,13 @@ def main():
         help="Path to workspace directory for symlinks (local profile)",
     )
 
+    tuva_seed_urls_parser = dev_subparsers.add_parser(
+        "tuva-seed-urls", help="List Tuva public seed S3/HTTPS URLs"
+    )
+    from acoharmony._tuva.seed_urls import add_arguments as _add_tuva_seed_url_arguments
+
+    _add_tuva_seed_url_arguments(tuva_seed_urls_parser)
+
     # Dev unpack subcommand
     unpack_parser = dev_subparsers.add_parser(
         "unpack", help="Extract ZIP files from bronze directory"
@@ -322,6 +333,125 @@ def main():
         action="store_true",
         help="Aggregate tracking state logs into gov_programs_logs.parquet",
     )
+    databricks_subparsers = databricks_parser.add_subparsers(
+        dest="databricks_command", help="Databricks commands"
+    )
+    copy_volume_parser = databricks_subparsers.add_parser(
+        "copy-volume", help="Copy local medallion files into configured UC volumes"
+    )
+    copy_volume_parser.add_argument(
+        "layer",
+        nargs="?",
+        default="all",
+        choices=["bronze", "silver", "gold", "all"],
+        help="Layer to copy (default: all)",
+    )
+    copy_volume_parser.add_argument("--source", help="Override local source directory")
+    copy_volume_parser.add_argument("--destination", help="Override UC volume destination")
+    copy_volume_parser.add_argument(
+        "--aco-profile", help="ACO storage profile for source and UC volume defaults"
+    )
+    copy_volume_parser.add_argument(
+        "--profile", help="Optional ~/.databrickscfg profile to pass to databricks CLI"
+    )
+    copy_volume_parser.add_argument("--target", help="Optional Databricks bundle target")
+    copy_volume_parser.add_argument(
+        "--databricks-bin",
+        default="databricks",
+        help="Databricks CLI executable name or path",
+    )
+    copy_volume_parser.add_argument(
+        "--concurrency", type=int, default=8, help="Parallel copy operations"
+    )
+    copy_volume_parser.add_argument("--overwrite", action="store_true", help="Overwrite files")
+    copy_volume_parser.add_argument(
+        "--skip-mkdir", action="store_true", help="Skip destination mkdir before copy"
+    )
+    copy_volume_parser.add_argument(
+        "--dry-run", action="store_true", help="Print Databricks CLI commands only"
+    )
+
+    create_tables_parser = databricks_subparsers.add_parser(
+        "create-tables", help="Create Unity Catalog tables from UC volume parquet files"
+    )
+    create_tables_parser.add_argument("--catalog", default=None, help="Target UC catalog")
+    create_tables_parser.add_argument("--schema", default=None, help="Target UC schema")
+    create_tables_parser.add_argument(
+        "--aco-profile", default=None, help="ACO storage profile for default UC roots"
+    )
+    create_tables_parser.add_argument(
+        "--layer",
+        action="append",
+        choices=["bronze", "silver", "gold"],
+        dest="layers",
+        help="Storage-configured layer to scan; may be passed more than once",
+    )
+    create_tables_parser.add_argument(
+        "--source-volume",
+        "--volume",
+        action="append",
+        dest="volume_fqns",
+        help="UC volume FQN to scan, e.g. uat_sandbox.gov_programs.gold",
+    )
+    create_tables_parser.add_argument(
+        "--volume-root", action="append", dest="volume_roots", help="UC volume path to scan"
+    )
+    create_tables_parser.add_argument(
+        "--table-prefix", default="", help="Prefix to prepend to generated table names"
+    )
+    create_tables_parser.add_argument(
+        "--include-volume-prefix",
+        action="store_true",
+        help="Prefix every table name with the source volume/layer",
+    )
+    create_tables_parser.add_argument(
+        "--duplicate-strategy",
+        choices=("prefix-volume", "error"),
+        default="prefix-volume",
+        help="How to handle duplicate parquet stems across volumes",
+    )
+    create_tables_parser.add_argument(
+        "--table-mode",
+        choices=("managed-delta", "external-parquet"),
+        default="managed-delta",
+        help="Create managed Delta tables or external Parquet tables",
+    )
+    create_tables_parser.add_argument(
+        "--replace-existing", action="store_true", help="Drop target tables before creation"
+    )
+    create_tables_parser.add_argument(
+        "--no-recurse", action="store_true", help="Only scan files directly under roots"
+    )
+    create_tables_parser.add_argument(
+        "--skip-missing-roots",
+        action="store_true",
+        help="Warn and continue when a root cannot be listed",
+    )
+    create_tables_parser.add_argument("--dry-run", action="store_true", help="Print SQL only")
+    create_tables_parser.add_argument(
+        "--warehouse-id", help="Databricks SQL warehouse ID for local execution"
+    )
+    create_tables_parser.add_argument(
+        "--profile", help="Optional ~/.databrickscfg profile to pass to databricks CLI"
+    )
+    create_tables_parser.add_argument("--target", help="Optional Databricks bundle target")
+    create_tables_parser.add_argument(
+        "--databricks-bin",
+        default="databricks",
+        help="Databricks CLI executable name or path",
+    )
+    create_tables_parser.add_argument(
+        "--wait-timeout-seconds",
+        type=int,
+        default=30,
+        help="Initial SQL statement wait timeout",
+    )
+    create_tables_parser.add_argument(
+        "--poll-interval-seconds",
+        type=float,
+        default=2.0,
+        help="Polling interval for Databricks SQL statements",
+    )
 
     # 4icli command - CMS DataHub integration
     fouricli_parser = subparsers.add_parser("4icli", help="CMS DataHub file management")
@@ -396,12 +526,11 @@ def main():
     # 4icli setup subcommand — prompts for fresh KEY/SECRET, persists to .env,
     # and runs deploy/images/4icli/bootstrap.sh. Operator runs this after a
     # 4Innovation portal rotation; takes no arguments.
-    fouricli_subparsers.add_parser(
-        "setup", help="Refresh 4i credentials after a portal rotation"
-    )
+    fouricli_subparsers.add_parser("setup", help="Refresh 4i credentials after a portal rotation")
 
     # xfr command - file transfer between locations via pluggable profiles
     from acoharmony._xfr.cli import add_subparsers as _xfr_add_subparsers
+
     _xfr_add_subparsers(subparsers)
 
     # PUF command - CMS Public Use Files management
@@ -622,9 +751,7 @@ notes:
         choices=["start", "stop", "restart", "status", "logs", "ps", "build"],
         help="Deployment action to perform",
     )
-    deploy_parser.add_argument(
-        "services", nargs="*", help="Specific services to act on (optional)"
-    )
+    deploy_parser.add_argument("services", nargs="*", help="Specific services to act on (optional)")
     deploy_parser.add_argument(
         "--group",
         "-g",
@@ -636,9 +763,7 @@ notes:
         action="store_true",
         help="Follow log output (logs)",
     )
-    deploy_parser.add_argument(
-        "--tail", type=int, help="Number of log lines to show (logs)"
-    )
+    deploy_parser.add_argument("--tail", type=int, help="Number of log lines to show (logs)")
     deploy_parser.add_argument(
         "--build",
         action="store_true",
@@ -892,6 +1017,11 @@ notes:
         return 0
 
     elif args.command == "dev":
+        if args.dev_command == "tuva-seed-urls":
+            from acoharmony._tuva.seed_urls import cmd_seed_urls
+
+            return cmd_seed_urls(args)
+
         _require_full_package()
         if args.dev_command == "generate":
             # Handle --all-docs flag
@@ -1148,6 +1278,16 @@ notes:
             return 1
 
     elif args.command == "databricks":
+        if args.databricks_command == "copy-volume":
+            from acoharmony._databricks._uc_volume import cmd_copy_volume
+
+            return cmd_copy_volume(args)
+
+        if args.databricks_command == "create-tables":
+            from acoharmony._databricks._uc_tables import cmd_create_tables
+
+            return cmd_create_tables(args)
+
         _require_full_package()
         from pathlib import Path
 

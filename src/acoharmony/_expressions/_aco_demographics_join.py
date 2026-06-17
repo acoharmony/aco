@@ -52,10 +52,20 @@ def build_zip5_expr(zip_col: str = "bene_zip") -> pl.Expr:
     """
     Build expression to extract first 5 digits of ZIP code.
 
+    This is robust to numeric or punctuated inputs by casting to text,
+    stripping non-digits, taking the first 5 characters and left-padding
+    with zeros if necessary.
+
     Args:
         zip_col: Column name for ZIP code
 
     Returns:
         pl.Expr: Expression to extract ZIP-5
     """
-    return pl.col(zip_col).str.slice(0, 5).alias("bene_zip_5")
+    digits = pl.col(zip_col).cast(pl.Utf8).str.replace_all(r"\D", "").str.slice(0, 5)
+    return (
+        pl.when(digits.str.len_chars() > 0)
+        .then(digits.str.zfill(5))
+        .otherwise(pl.lit(None))
+        .alias("bene_zip_5")
+    )

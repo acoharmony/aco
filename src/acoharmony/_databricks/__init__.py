@@ -9,5 +9,7 @@ to Databricks-compatible formats with tracking and change detection.
 """
 
 from ._transfer import DatabricksTransferManager
+from ._uc_tables import create_tables
+from ._uc_volume import copy_to_uc_volumes
 
-__all__ = ["DatabricksTransferManager"]
+__all__ = ["DatabricksTransferManager", "copy_to_uc_volumes", "create_tables"]

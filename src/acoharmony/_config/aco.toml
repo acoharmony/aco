@@ -34,6 +34,13 @@ environment = "development"
 [profiles.dev.storage]
 backend = "local"
 data_path = "/opt/s3/data/workspace"
+uc_catalog = "uat_sandbox"
+uc_schema = "gov_programs"
+
+[profiles.dev.storage.uc_volumes]
+bronze = "/Volumes/uat_sandbox/gov_programs/bronze"
+silver = "/Volumes/uat_sandbox/gov_programs/silver"
+gold = "/Volumes/uat_sandbox/gov_programs/gold"
 
 [profiles.dev.storage.filesystem]
 type = "local"
@@ -77,6 +84,13 @@ environment = "local"
 [profiles.local.storage]
 backend = "local"
 data_path = "/opt/s3/data/workspace"
+uc_catalog = "uat_sandbox"
+uc_schema = "gov_programs"
+
+[profiles.local.storage.uc_volumes]
+bronze = "/Volumes/uat_sandbox/gov_programs/bronze"
+silver = "/Volumes/uat_sandbox/gov_programs/silver"
+gold = "/Volumes/uat_sandbox/gov_programs/gold"
 
 [profiles.local.storage.filesystem]
 type = "local"
@@ -129,6 +143,13 @@ use_ssl = false
 verify_ssl = false
 region = "us-east-1"
 data_path = "s3://aco"
+uc_catalog = "uat_sandbox"
+uc_schema = "gov_programs"
+
+[profiles.staging.storage.uc_volumes]
+bronze = "/Volumes/uat_sandbox/gov_programs/bronze"
+silver = "/Volumes/uat_sandbox/gov_programs/silver"
+gold = "/Volumes/uat_sandbox/gov_programs/gold"
 
 [profiles.staging.storage.duckdb]
 enabled = true
@@ -179,6 +200,13 @@ databricks_token = "${DATABRICKS_TOKEN}"
 catalog = "main"
 schema = "aco_harmony"
 data_path = "/Volumes/main/aco_harmony/data"
+uc_catalog = "main"
+uc_schema = "aco_harmony"
+
+[profiles.prod.storage.uc_volumes]
+bronze = "/Volumes/main/aco_harmony/data/bronze"
+silver = "/Volumes/main/aco_harmony/data/silver"
+gold = "/Volumes/main/aco_harmony/data/gold"
 
 [profiles.prod.storage.s3]
 bucket = "harmonycares-prod"

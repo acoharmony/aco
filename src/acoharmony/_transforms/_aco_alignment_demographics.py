@@ -44,8 +44,8 @@ def apply_transform(
     Returns:
         pl.LazyFrame: Transformed data with demographics joined
     """
-    # Idempotency check - use schema() instead of collect_schema() to avoid file reads
-    schema_names = df.schema.names()
+    # Idempotency check
+    schema_names = df.collect_schema().names()
     if not force and "_demographics_joined" in schema_names:
         logger.info("Demographics already joined, skipping")
         return df
@@ -88,23 +88,26 @@ def apply_transform(
     if bar_df is not None:
         # Get most recent BAR address data per MBI
         bar_address = (
-            bar_df
-            .group_by("bene_mbi")
-            .agg([
-                pl.col("file_date").max().alias("max_file_date"),
-            ])
+            bar_df.group_by("bene_mbi")
+            .agg(
+                [
+                    pl.col("file_date").max().alias("max_file_date"),
+                ]
+            )
             .join(
                 bar_df,
                 left_on=["bene_mbi", "max_file_date"],
                 right_on=["bene_mbi", "file_date"],
-                how="left"
+                how="left",
             )
-            .select([
-                pl.col("bene_mbi").alias("current_mbi"),
-                pl.col("bene_zip_5").alias("bar_zip_5"),
-                pl.col("bene_state").alias("bar_state"),
-                pl.col("bene_county_fips").alias("bar_county"),
-            ])
+            .select(
+                [
+                    pl.col("bene_mbi").alias("current_mbi"),
+                    pl.col("bene_zip_5").alias("bar_zip_5"),
+                    pl.col("bene_state").alias("bar_state"),
+                    pl.col("bene_county_fips").alias("bar_county"),
+                ]
+            )
             .unique(subset=["current_mbi"], keep="first")
         )
 
@@ -112,24 +115,28 @@ def apply_transform(
         result = result.join(bar_address, on="current_mbi", how="left")
 
         # Coalesce to fill nulls
-        result = result.with_columns([
-            # Fill bene_zip with BAR data if null, then recalculate bene_zip_5
-            pl.coalesce([pl.col("bene_zip"), pl.col("bar_zip_5")]).alias("bene_zip"),
-            # Fill state if null
-            pl.coalesce([pl.col("bene_state"), pl.col("bar_state")]).alias("bene_state"),
-        ])
+        result = result.with_columns(
+            [
+                # Fill bene_zip with BAR data if null, then recalculate bene_zip_5
+                pl.coalesce([pl.col("bene_zip"), pl.col("bar_zip_5")]).alias("bene_zip"),
+                # Fill state if null
+                pl.coalesce([pl.col("bene_state"), pl.col("bar_state")]).alias("bene_state"),
+            ]
+        )
 
         # Recalculate bene_zip_5 after filling bene_zip
-        result = result.with_columns([
-            pl.col("bene_zip").str.slice(0, 5).alias("bene_zip_5"),
-        ])
+        result = result.with_columns(
+            [
+                build_zip5_expr(),
+            ]
+        )
 
         # Fill county if the column exists
         schema_cols = result.collect_schema().names()
         if "bene_county" in schema_cols:
-            result = result.with_columns([
-                pl.coalesce([pl.col("bene_county"), pl.col("bar_county")]).alias("bene_county")
-            ])
+            result = result.with_columns(
+                [pl.coalesce([pl.col("bene_county"), pl.col("bar_county")]).alias("bene_county")]
+            )
 
         # Drop temporary BAR columns
         result = result.drop(["bar_zip_5", "bar_state", "bar_county"])

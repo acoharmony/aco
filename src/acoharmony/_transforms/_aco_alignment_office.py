@@ -8,7 +8,7 @@ Applies office location matching using direct and fuzzy strategies.
 Uses conditional logic based on data state. Idempotent and schema-driven.
 """
 
-from typing import Any
+from typing import Any, cast
 
 import polars as pl
 
@@ -62,6 +62,25 @@ def apply_transform(
     if office_zip_df is None:
         logger.warning("office_zip source not found, skipping office matching")
         return df.with_columns([pl.lit(True).alias("_office_matched")])
+
+    def normalized_zip_expr(column: str) -> pl.Expr:
+        digits = pl.col(column).cast(pl.Utf8).str.replace_all(r"\D", "").str.slice(0, 5)
+        return pl.when(digits.str.len_chars() > 0).then(digits.str.zfill(5)).otherwise(None)
+
+    # Normalize ZIP join keys to 5-digit strings to avoid dtype mismatches.
+    schema_names = df.collect_schema().names()
+    if "bene_zip_5" in schema_names:
+        df = df.with_columns(
+            [
+                normalized_zip_expr("bene_zip_5").alias("bene_zip_5"),
+            ]
+        )
+
+    office_zip_df = office_zip_df.with_columns(
+        [
+            normalized_zip_expr("zip_code").alias("zip_code"),
+        ]
+    )
 
     # Separate into direct and fuzzy sources
     direct_office = office_zip_df.filter(pl.col("office_name").is_not_null()).select(
@@ -125,7 +144,10 @@ def apply_transform(
             logger.info(f"After fuzzy join: {after_fuzzy_join:,} rows")
 
             # Union matched and fuzzy-matched back together
-            result = pl.concat([base_with_office, base_without_office], how="diagonal_relaxed")
+            result = cast(
+                pl.LazyFrame,
+                pl.concat([base_with_office, base_without_office], how="diagonal_relaxed"),
+            )
 
             after_concat = result.select(pl.len()).collect().item()
             logger.info(f"After concat: {after_concat:,} rows")
@@ -136,7 +158,10 @@ def apply_transform(
     except Exception as e:
         logger.warning(f"Fuzzy office matching failed, using direct matches only: {e}")
         # Fallback: just use what we have
-        result = pl.concat([base_with_office, base_without_office], how="diagonal_relaxed")
+        result = cast(
+            pl.LazyFrame,
+            pl.concat([base_with_office, base_without_office], how="diagonal_relaxed"),
+        )
 
     # Alias market to office_location
     result = result.with_columns([build_office_location_alias_expr()])
@@ -145,4 +170,4 @@ def apply_transform(
     result = result.with_columns([pl.lit(True).alias("_office_matched")])
 
     logger.info("Office matching transform complete")
-    return result
+    return cast(pl.LazyFrame, result)

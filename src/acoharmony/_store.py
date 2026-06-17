@@ -15,6 +15,7 @@ map this to the appropriate backend storage.
 """
 
 import os
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -171,6 +172,32 @@ class StorageBackend:
 
         subpath = tier_mapping.get(tier_str.lower(), tier_str)
         return self.get_data_path(subpath)
+
+    def get_uc_volume_path(self, tier: str | MedallionLayer) -> str:
+        """Return the Unity Catalog volume root configured for a medallion tier."""
+        if isinstance(tier, MedallionLayer):
+            tier_str = tier.data_tier
+        else:
+            tier_str = tier.lower()
+
+        storage_config = self.config.get("storage", {})
+        uc_volumes = storage_config.get("uc_volumes", {})
+        configured_path = uc_volumes.get(tier_str)
+        if configured_path:
+            return str(configured_path).rstrip("/")
+
+        catalog = storage_config.get("uc_catalog") or storage_config.get("catalog", "main")
+        schema = storage_config.get("uc_schema") or storage_config.get("schema", "aco_harmony")
+        volume = tier_str
+        return f"/Volumes/{catalog}/{schema}/{volume}"
+
+    def get_uc_volume_roots(
+        self,
+        tiers: Sequence[str | MedallionLayer] | None = None,
+    ) -> list[str]:
+        """Return configured Unity Catalog volume roots for medallion tiers."""
+        tiers = tiers or ("bronze", "silver", "gold")
+        return [self.get_uc_volume_path(tier) for tier in tiers]
 
     def get_storage_type(self) -> str:
         """
