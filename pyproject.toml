@@ -53,6 +53,7 @@ full = [
   "opentelemetry-sdk>=1.20.0",
   "opentelemetry-exporter-otlp-proto-grpc>=1.20.0",
   "ty>=0.0.1a25",
+  "nbconvert[webpdf]>=7.17.1",
   "pypdf>=6.10.0",
   "beautifulsoup4>=4.14.2",
   "markdown>=3.10.2",

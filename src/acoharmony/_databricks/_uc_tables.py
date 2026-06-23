@@ -30,6 +30,14 @@ from pathlib import Path
 from typing import Any, cast
 
 from .._store import StorageBackend
+from ._state import (
+    DatabricksStateStore,
+    SourceSnapshot,
+    default_databricks_state_file,
+    snapshot_local_path,
+    snapshot_remote_path,
+    uc_table_state_key,
+)
 
 DEFAULT_CATALOG = "uat_sandbox"
 DEFAULT_SCHEMA = "gov_programs"
@@ -42,6 +50,14 @@ COLUMN_ALIAS_HASH_LENGTH = 12
 DELTA_INVALID_COLUMN_NAME_CHARS = set(" ,;{}()\n\t=")
 READ_FILES_SOURCE_READER = "read_files"
 PARQUET_SOURCE_READER = "parquet"
+TABLE_STATE_VERSION_PROPERTY = "acoharmony.state.version"
+TABLE_SOURCE_PATH_PROPERTY = "acoharmony.source.path"
+TABLE_SOURCE_KIND_PROPERTY = "acoharmony.source.kind"
+TABLE_SOURCE_DIGEST_PROPERTY = "acoharmony.source.digest"
+TABLE_SOURCE_FINGERPRINT_PROPERTY = "acoharmony.source.fingerprint"
+TABLE_SOURCE_ENTRY_COUNT_PROPERTY = "acoharmony.source.entry_count"
+TABLE_SOURCE_TOTAL_SIZE_PROPERTY = "acoharmony.source.total_size"
+TABLE_SOURCE_MAX_MTIME_NS_PROPERTY = "acoharmony.source.max_mtime_ns"
 
 
 @dataclass(frozen=True)
@@ -85,6 +101,8 @@ class FsEntry:
     path: str
     name: str
     is_dir: bool
+    size: int | None = None
+    modification_time: int | None = None
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -177,6 +195,18 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--replace-existing",
         action="store_true",
         help="Drop each target table before creating it so metadata is refreshed.",
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Ignore Databricks state and replace unchanged tables.",
+    )
+    parser.add_argument(
+        "--state-file",
+        help=(
+            "Path to the Databricks state JSON file. Default: "
+            "configured logs/databricks/databricks_state.json."
+        ),
     )
     parser.add_argument(
         "--no-recurse",
@@ -502,9 +532,35 @@ def parse_cli_fs_entries(data: Any) -> list[FsEntry]:
             or raw_path.endswith("/")
             or raw_name.endswith("/")
         )
-        parsed_entries.append(FsEntry(path=path, name=name, is_dir=is_dir))
+        size = cli_entry_int(
+            entry.get("size") or entry.get("file_size") or entry.get("length") or entry.get("bytes")
+        )
+        modification_time = cli_entry_int(
+            entry.get("modification_time")
+            or entry.get("modificationTime")
+            or entry.get("last_modified")
+            or entry.get("mtime")
+        )
+        parsed_entries.append(
+            FsEntry(
+                path=path,
+                name=name,
+                is_dir=is_dir,
+                size=size,
+                modification_time=modification_time,
+            )
+        )
 
     return parsed_entries
+
+
+def cli_entry_int(value: Any) -> int | None:
+    if value in (None, ""):
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def quote_command(command: list[str]) -> str:
@@ -572,6 +628,104 @@ def schema_identifier(catalog: str, schema: str) -> str:
 
 def table_identifier(catalog: str, schema: str, table: str) -> str:
     return f"{schema_identifier(catalog, schema)}.{quote_identifier(table)}"
+
+
+def source_snapshot_table_properties(snapshot: SourceSnapshot) -> dict[str, str]:
+    properties = {
+        TABLE_STATE_VERSION_PROPERTY: "1",
+        TABLE_SOURCE_PATH_PROPERTY: snapshot.path,
+        TABLE_SOURCE_KIND_PROPERTY: snapshot.kind,
+        TABLE_SOURCE_DIGEST_PROPERTY: snapshot.digest,
+        TABLE_SOURCE_FINGERPRINT_PROPERTY: snapshot.fingerprint,
+        TABLE_SOURCE_ENTRY_COUNT_PROPERTY: str(snapshot.entry_count),
+        TABLE_SOURCE_TOTAL_SIZE_PROPERTY: str(snapshot.total_size),
+    }
+    if snapshot.max_mtime_ns is not None:
+        properties[TABLE_SOURCE_MAX_MTIME_NS_PROPERTY] = str(snapshot.max_mtime_ns)
+    return properties
+
+
+def source_snapshot_from_table_properties(properties: dict[str, str]) -> SourceSnapshot | None:
+    digest = properties.get(TABLE_SOURCE_DIGEST_PROPERTY)
+    if not digest:
+        return None
+
+    return SourceSnapshot(
+        path=properties.get(TABLE_SOURCE_PATH_PROPERTY, ""),
+        kind=properties.get(TABLE_SOURCE_KIND_PROPERTY, ""),
+        digest=digest,
+        fingerprint=properties.get(TABLE_SOURCE_FINGERPRINT_PROPERTY, digest),
+        entry_count=cli_entry_int(properties.get(TABLE_SOURCE_ENTRY_COUNT_PROPERTY)) or 0,
+        total_size=cli_entry_int(properties.get(TABLE_SOURCE_TOTAL_SIZE_PROPERTY)) or 0,
+        max_mtime_ns=cli_entry_int(properties.get(TABLE_SOURCE_MAX_MTIME_NS_PROPERTY)),
+    )
+
+
+def set_source_snapshot_properties_sql(table: str, snapshot: SourceSnapshot) -> str:
+    properties = source_snapshot_table_properties(snapshot)
+    lines = [f"ALTER TABLE {table}", "SET TBLPROPERTIES ("]
+    property_items = list(properties.items())
+    for index, (key, value) in enumerate(property_items):
+        suffix = "," if index < len(property_items) - 1 else ""
+        lines.append(f"  {quote_string_literal(key)} = {quote_string_literal(value)}{suffix}")
+    lines.append(")")
+    return "\n".join(lines)
+
+
+def table_properties_rows_to_dict(rows: list[Any]) -> dict[str, str]:
+    properties: dict[str, str] = {}
+    for row in rows:
+        if isinstance(row, dict):
+            key = row.get("key") or row.get("property_key")
+            value = row.get("value") or row.get("property_value")
+        elif hasattr(row, "asDict"):
+            row_dict = row.asDict()
+            key = row_dict.get("key") or row_dict.get("property_key")
+            value = row_dict.get("value") or row_dict.get("property_value")
+        else:
+            key = row[0] if len(row) > 0 else None
+            value = row[1] if len(row) > 1 else None
+
+        if key is not None:
+            properties[str(key)] = "" if value is None else str(value)
+    return properties
+
+
+def table_properties(
+    *,
+    table: str,
+    spark_session: Any | None,
+    databricks_cli: DatabricksCli | None,
+) -> dict[str, str] | None:
+    sql = f"SHOW TBLPROPERTIES {table}"
+    try:
+        if spark_session is not None:
+            result = spark_session.sql(sql)
+            rows = result.collect() if hasattr(result, "collect") else []
+            return table_properties_rows_to_dict(rows)
+
+        if databricks_cli is not None and databricks_cli.warehouse_id:
+            return table_properties_rows_to_dict(databricks_cli.execute_query(sql))
+    except (RuntimeError, IndexError, TypeError):
+        return None
+
+    return None
+
+
+def catalog_source_snapshot(
+    *,
+    table: str,
+    spark_session: Any | None,
+    databricks_cli: DatabricksCli | None,
+) -> SourceSnapshot | None:
+    properties = table_properties(
+        table=table,
+        spark_session=spark_session,
+        databricks_cli=databricks_cli,
+    )
+    if not properties:
+        return None
+    return source_snapshot_from_table_properties(properties)
 
 
 def is_hidden_or_system_name(name: str) -> bool:
@@ -993,6 +1147,55 @@ def discover_parquet_paths(
     return sorted(set(parquet_paths))
 
 
+def fs_entries_from_dbutils(dbutils: Any, path: str) -> list[FsEntry]:
+    try:
+        entries = dbutils.fs.ls(path)
+    except Exception as exc:  # noqa: BLE001 - Databricks wraps FS errors.
+        raise FileNotFoundError(f"Could not list {path}: {exc}") from exc
+
+    parsed_entries: list[FsEntry] = []
+    for entry in entries:
+        entry_path = str(entry.path).rstrip("/")
+        entry_name = str(entry.name).rstrip("/").rsplit("/", 1)[-1]
+        parsed_entries.append(
+            FsEntry(
+                path=entry_path,
+                name=entry_name,
+                is_dir=item_is_directory(entry),
+                size=cli_entry_int(getattr(entry, "size", None)),
+                modification_time=cli_entry_int(getattr(entry, "modificationTime", None)),
+            )
+        )
+    return parsed_entries
+
+
+def source_snapshot_for_registration(
+    registration: TableRegistration,
+    *,
+    dbutils: Any | None,
+    databricks_cli: DatabricksCli | None,
+) -> SourceSnapshot:
+    source_path = registration.source_location
+    if local_path_can_be_listed(source_path):
+        return snapshot_local_path(Path(source_path), recursive=True)
+
+    if dbutils is not None:
+        return snapshot_remote_path(
+            source_path,
+            list_entries=lambda path: fs_entries_from_dbutils(dbutils, path),
+            recursive=True,
+        )
+
+    if databricks_cli is not None and databricks_cli.available:
+        return snapshot_remote_path(
+            source_path,
+            list_entries=databricks_cli.fs_ls,
+            recursive=True,
+        )
+
+    raise RuntimeError(f"No filesystem listing method is available for {source_path}")
+
+
 def build_registrations(
     parquet_paths: list[str],
     *,
@@ -1238,6 +1441,13 @@ def run_managed_delta_create_with_retries(
 def create_tables(args: argparse.Namespace) -> int:
     """Create UC tables from parquet files using parsed CLI arguments."""
     storage = StorageBackend(profile=getattr(args, "aco_profile", None))
+    state_store = DatabricksStateStore(
+        default_databricks_state_file(
+            storage=storage,
+            state_file=getattr(args, "state_file", None),
+        )
+    )
+    force = bool(getattr(args, "force", False))
     volume_specs = [parse_volume_fqn(value) for value in args.volume_fqns or []]
 
     if volume_specs and (args.catalog is None or args.schema is None):
@@ -1315,8 +1525,71 @@ def create_tables(args: argparse.Namespace) -> int:
     )
 
     skipped_registrations: list[TableRegistration] = []
+    skipped_unchanged_registrations: list[TableRegistration] = []
 
     for registration in registrations:
+        source_snapshot: SourceSnapshot | None = None
+        table = table_identifier(catalog, schema, registration.table_name)
+        state_key = uc_table_state_key(
+            catalog=catalog,
+            schema=schema,
+            table=registration.table_name,
+            table_mode=args.table_mode,
+            source_path=registration.source_location,
+        )
+        if args.replace_existing:
+            try:
+                source_snapshot = source_snapshot_for_registration(
+                    registration,
+                    dbutils=dbutils,
+                    databricks_cli=databricks_cli if dbutils is None else None,
+                )
+            except (FileNotFoundError, RuntimeError) as exc:
+                print(
+                    "WARNING: Could not snapshot source parquet for "
+                    f"{registration.table_name}; table replacement will proceed: {exc}",
+                    file=sys.stderr,
+                )
+            else:
+                if not force and state_store.is_unchanged(state_key, source_snapshot):
+                    print(
+                        "Skipping "
+                        f"{registration.table_name}: source parquet unchanged since "
+                        "last successful replacement."
+                    )
+                    skipped_unchanged_registrations.append(registration)
+                    continue
+                if not force and not args.dry_run:
+                    table_snapshot = catalog_source_snapshot(
+                        table=table,
+                        spark_session=spark_session,
+                        databricks_cli=databricks_cli,
+                    )
+                    if (
+                        table_snapshot is not None
+                        and table_snapshot.digest == source_snapshot.digest
+                    ):
+                        print(
+                            "Skipping "
+                            f"{registration.table_name}: catalog table state already "
+                            "matches source; seeding local Databricks state."
+                        )
+                        state_store.mark_success(
+                            state_key,
+                            source_snapshot,
+                            operation="uc-table-bootstrap",
+                            metadata={
+                                "catalog": catalog,
+                                "schema": schema,
+                                "table": registration.table_name,
+                                "table_mode": args.table_mode,
+                                "source_path": registration.source_location,
+                                "bootstrap_source": "catalog-table-properties",
+                            },
+                        )
+                        skipped_unchanged_registrations.append(registration)
+                        continue
+
         source_location = registration.source_location
         if (
             args.table_mode == "external-parquet"
@@ -1358,10 +1631,40 @@ def create_tables(args: argparse.Namespace) -> int:
 
         if skipped:
             skipped_registrations.append(registration)
+            continue
+
+        if args.replace_existing and source_snapshot is not None:
+            run_sql(
+                spark_session,
+                databricks_cli,
+                set_source_snapshot_properties_sql(table, source_snapshot),
+                dry_run=args.dry_run,
+            )
+            if not args.dry_run:
+                state_store.mark_success(
+                    state_key,
+                    source_snapshot,
+                    operation="uc-table-replace",
+                    metadata={
+                        "catalog": catalog,
+                        "schema": schema,
+                        "table": registration.table_name,
+                        "table_mode": args.table_mode,
+                        "source_path": registration.source_location,
+                    },
+                )
 
     action = "Would register" if args.dry_run else "Registered"
-    processed_count = len(registrations) - len(skipped_registrations)
+    processed_count = (
+        len(registrations) - len(skipped_registrations) - len(skipped_unchanged_registrations)
+    )
     print(f"{action} {processed_count} parquet-backed tables in {catalog}.{schema}.")
+    if skipped_unchanged_registrations:
+        skipped_tables = ", ".join(item.table_name for item in skipped_unchanged_registrations)
+        print(
+            f"Skipped {len(skipped_unchanged_registrations)} unchanged parquet-backed tables: "
+            f"{skipped_tables}."
+        )
     if skipped_registrations:
         skipped_tables = ", ".join(item.table_name for item in skipped_registrations)
         print(

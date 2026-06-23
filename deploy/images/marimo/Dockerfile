@@ -44,6 +44,23 @@ LABEL org.opencontainers.image.source=https://github.com/acoharmony/aco \
       aco.type="gui" \
       aco.description="Marimo notebook server with acoharmony pre-installed"
 
+# Install ca-certificates + the HarmonyCares / Zscaler root CAs so the
+# Playwright Node driver can download browser assets through the SSL
+# inspection proxy during image build.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    openssl \
+    && rm -rf /var/lib/apt/lists/*
+COPY deploy/images/4icli/zscaler-root-ca.crt /usr/local/share/ca-certificates/
+COPY deploy/images/4icli/zscaler-root.crt /usr/local/share/ca-certificates/
+RUN update-ca-certificates --fresh && \
+    openssl crl2pkcs7 -nocrl -certfile /etc/ssl/certs/ca-certificates.crt \
+        | openssl pkcs7 -print_certs -noout \
+        | grep -q 'CN = Zscaler Root CA' && \
+    openssl crl2pkcs7 -nocrl -certfile /etc/ssl/certs/ca-certificates.crt \
+        | openssl pkcs7 -print_certs -noout \
+        | grep -q 'CN = Zscaler Intermediate Root CA'
+
 # Create care group + user with IDs matching the host.
 RUN groupadd -g 1002 care \
     && groupadd -g 989 docker \
@@ -62,6 +79,15 @@ RUN chmod +x /usr/local/bin/entrypoint.sh
 
 # Copy the prebuilt venv from the builder stage.
 COPY --from=builder --chown=1002:1002 /opt/venv /opt/venv
+
+# Bake Chromium into a shared Playwright cache so marimo/nbconvert PDF export
+# does not attempt an on-demand browser download at request time.
+ENV NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt \
+    PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+RUN mkdir -p /ms-playwright \
+    && DEBIAN_FRONTEND=noninteractive /opt/venv/bin/python -m playwright install --with-deps chromium \
+    && chown -R 1002:1002 /ms-playwright \
+    && rm -rf /var/lib/apt/lists/*
 
 ENV PATH="/opt/venv/bin:${PATH}" \
     VIRTUAL_ENV=/opt/venv \

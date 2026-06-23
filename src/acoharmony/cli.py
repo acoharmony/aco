@@ -365,6 +365,16 @@ def main():
     )
     copy_volume_parser.add_argument("--overwrite", action="store_true", help="Overwrite files")
     copy_volume_parser.add_argument(
+        "--force",
+        action="store_true",
+        default=argparse.SUPPRESS,
+        help="Ignore Databricks state and copy unchanged source files",
+    )
+    copy_volume_parser.add_argument(
+        "--state-file",
+        help="Path to Databricks state JSON file",
+    )
+    copy_volume_parser.add_argument(
         "--skip-mkdir", action="store_true", help="Skip destination mkdir before copy"
     )
     copy_volume_parser.add_argument(
@@ -418,6 +428,16 @@ def main():
     )
     create_tables_parser.add_argument(
         "--replace-existing", action="store_true", help="Drop target tables before creation"
+    )
+    create_tables_parser.add_argument(
+        "--force",
+        action="store_true",
+        default=argparse.SUPPRESS,
+        help="Ignore Databricks state and replace unchanged tables",
+    )
+    create_tables_parser.add_argument(
+        "--state-file",
+        help="Path to Databricks state JSON file",
     )
     create_tables_parser.add_argument(
         "--no-recurse", action="store_true", help="Only scan files directly under roots"
