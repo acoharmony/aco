@@ -62,7 +62,7 @@ services:
       - docs_static_build:/home/care/acoharmony/docs/build  # Production build output
     environment:
       - NODE_ENV=production
-    command: ["npm", "run", "build"]
+    command: ["node", "node_modules/@docusaurus/core/bin/docusaurus.mjs", "build"]
     labels:
       - "aco.network=bridge"
       - "aco.type=builder"  # Builder service

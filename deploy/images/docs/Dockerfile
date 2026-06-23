@@ -4,7 +4,7 @@
 # Stage 1 (builder) runs `npm ci` inside the container to produce a clean,
 # platform-independent node_modules — so we never bake the host's node_modules
 # into the image. Stage 2 (runtime) copies node_modules + source from the
-# builder and runs the dev server.
+# builder and runs the dev server directly from the installed Docusaurus CLI.
 
 # -----------------------------------------------------------------------------
 # Stage 1: builder — produce /app/node_modules via `pnpm install`
@@ -94,7 +94,7 @@ COPY --chown=1002:1002 docs/docs ./docs
 COPY --chown=1002:1002 docs/src ./src
 
 RUN mkdir -p .docusaurus build \
-    && chown -R 1002:1002 /home/care
+    && chown 1002:1002 /home/care /home/care/acoharmony /home/care/acoharmony/docs .docusaurus build
 
 ENV HOME=/home/care \
     NODE_ENV=development \
@@ -102,4 +102,4 @@ ENV HOME=/home/care \
 
 USER 1002:1002
 EXPOSE 3000
-CMD ["pnpm", "start"]
+CMD ["node", "node_modules/@docusaurus/core/bin/docusaurus.mjs", "start", "--host", "0.0.0.0", "--port", "3000", "--no-open"]
