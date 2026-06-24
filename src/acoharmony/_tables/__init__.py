@@ -13,6 +13,7 @@ Each model provides:
 - IDE autocomplete and type checking
 """
 
+from ._gco import Gco
 from .aco_alignment import AcoAlignment
 from .aco_financial_guarantee_amount import AcoFinancialGuaranteeAmount
 from .alr import Alr
@@ -186,6 +187,7 @@ __all__ = [
     "CmsGeoZips",
     "CmsInquiry",
     "GafInputs",
+    "Gco",
     "Gcm",
     "GpciInputs",
     "PeInputsEquipment",
