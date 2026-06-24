@@ -9,6 +9,11 @@ from pathlib import Path
 import pytest
 
 import acoharmony._databricks._uc_volume as uc_volume
+from acoharmony._databricks._state import (
+    DatabricksStateStore,
+    snapshot_local_path,
+    uc_volume_copy_state_key,
+)
 from acoharmony._databricks._uc_tables import FsEntry
 from acoharmony._databricks._uc_volume import (
     build_copy_commands,
@@ -44,6 +49,23 @@ class _FakeDatabricksCli:
 
     def fs_ls(self, path: str) -> list[FsEntry]:
         return self.entries
+
+
+class _UnavailableDatabricksCli:
+    def __init__(self, **kwargs):
+        pass
+
+    @property
+    def available(self) -> bool:
+        return False
+
+
+class _LogWriter:
+    def __init__(self):
+        self.entries = []
+
+    def log(self, level, message, **kwargs):
+        self.entries.append({"level": level, "message": message, **kwargs})
 
 
 class TestUcVolumeHelpers:
@@ -103,14 +125,72 @@ class TestUcVolumeHelpers:
         raw_file.write_text("a,b\n1,2\n", encoding="utf-8")
 
         monkeypatch.setattr(uc_volume, "StorageBackend", lambda profile=None: storage)
+        monkeypatch.setattr(uc_volume, "DatabricksCli", _UnavailableDatabricksCli)
         monkeypatch.setattr(uc_volume.shutil, "which", lambda value: value)
 
         calls: list[list[str]] = []
+        log_writer = _LogWriter()
 
         def fake_run_command(command: list[str], *, dry_run: bool) -> None:
             calls.append(command)
 
         monkeypatch.setattr(uc_volume, "run_command", fake_run_command)
+
+        args = argparse.Namespace(
+            aco_profile=None,
+            databricks_bin="databricks",
+            destination=None,
+            dry_run=False,
+            force=False,
+            layer="bronze",
+            overwrite=True,
+            profile=None,
+            skip_mkdir=True,
+            source=None,
+            state_file=str(tmp_path / "state.json"),
+            target=None,
+            concurrency=4,
+            log_writer=log_writer,
+            pipeline_name="databricks",
+        )
+
+        assert copy_to_uc_volumes(args) == 0
+        assert len(calls) == 1
+        actions = [entry["action"] for entry in log_writer.entries]
+        assert "start_step" in actions
+        assert "inspect_layer" in actions
+        assert "file_copy_plan_complete" in actions
+        assert "copy_file" in actions
+        assert "complete_step" in actions
+
+        assert copy_to_uc_volumes(args) == 0
+        assert len(calls) == 1
+        assert "Skipping bronze" in capsys.readouterr().out
+
+        time.sleep(0.01)
+        raw_file.write_text("a,b\n3,4\n", encoding="utf-8")
+
+        assert copy_to_uc_volumes(args) == 0
+        assert len(calls) == 2
+
+    @pytest.mark.unit
+    def test_copy_to_uc_volumes_recopies_file_missing_from_destination(self, tmp_path, monkeypatch):
+        storage = _Storage(tmp_path)
+        source = tmp_path / "bronze"
+        source.mkdir()
+        (source / "raw.csv").write_text("a,b\n1,2\n", encoding="utf-8")
+
+        _FakeDatabricksCli.entries = []
+        monkeypatch.setattr(uc_volume, "StorageBackend", lambda profile=None: storage)
+        monkeypatch.setattr(uc_volume, "DatabricksCli", _FakeDatabricksCli)
+        monkeypatch.setattr(uc_volume.shutil, "which", lambda value: value)
+
+        calls: list[list[str]] = []
+        monkeypatch.setattr(
+            uc_volume,
+            "run_command",
+            lambda command, *, dry_run: calls.append(command),
+        )
 
         args = argparse.Namespace(
             aco_profile=None,
@@ -132,14 +212,71 @@ class TestUcVolumeHelpers:
         assert len(calls) == 1
 
         assert copy_to_uc_volumes(args) == 0
-        assert len(calls) == 1
-        assert "Skipping bronze" in capsys.readouterr().out
+        assert len(calls) == 2
+
+    @pytest.mark.unit
+    def test_copy_to_uc_volumes_copies_legacy_layer_state_when_source_changed_same_size(
+        self, tmp_path, monkeypatch
+    ):
+        storage = _Storage(tmp_path)
+        source = tmp_path / "bronze"
+        source.mkdir()
+        raw_file = source / "raw.csv"
+        raw_file.write_text("a,b\n1,2\n", encoding="utf-8")
+
+        state_file = tmp_path / "state.json"
+        DatabricksStateStore(state_file).mark_success(
+            uc_volume_copy_state_key(
+                layer="bronze",
+                source=source,
+                destination="/Volumes/uat_sandbox/gov_programs/bronze",
+            ),
+            snapshot_local_path(source, recursive=True),
+            operation="uc-volume-copy",
+            metadata={},
+        )
 
         time.sleep(0.01)
         raw_file.write_text("a,b\n3,4\n", encoding="utf-8")
 
+        _FakeDatabricksCli.entries = [
+            FsEntry(
+                path="/Volumes/uat_sandbox/gov_programs/bronze/raw.csv",
+                name="raw.csv",
+                is_dir=False,
+                size=raw_file.stat().st_size,
+                modification_time=1,
+            )
+        ]
+        monkeypatch.setattr(uc_volume, "StorageBackend", lambda profile=None: storage)
+        monkeypatch.setattr(uc_volume, "DatabricksCli", _FakeDatabricksCli)
+        monkeypatch.setattr(uc_volume.shutil, "which", lambda value: value)
+
+        calls: list[list[str]] = []
+        monkeypatch.setattr(
+            uc_volume,
+            "run_command",
+            lambda command, *, dry_run: calls.append(command),
+        )
+
+        args = argparse.Namespace(
+            aco_profile=None,
+            databricks_bin="databricks",
+            destination=None,
+            dry_run=False,
+            force=False,
+            layer="bronze",
+            overwrite=True,
+            profile=None,
+            skip_mkdir=True,
+            source=None,
+            state_file=str(state_file),
+            target=None,
+            concurrency=4,
+        )
+
         assert copy_to_uc_volumes(args) == 0
-        assert len(calls) == 2
+        assert len(calls) == 1
 
     @pytest.mark.unit
     def test_copy_to_uc_volumes_bootstraps_from_matching_destination_volume(

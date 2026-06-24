@@ -18,6 +18,7 @@ import argparse
 import hashlib
 import importlib
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -27,8 +28,10 @@ import time
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
+from time import perf_counter
 from typing import Any, cast
 
+from .._log import LogWriter
 from .._store import StorageBackend
 from ._state import (
     DatabricksStateStore,
@@ -58,6 +61,9 @@ TABLE_SOURCE_FINGERPRINT_PROPERTY = "acoharmony.source.fingerprint"
 TABLE_SOURCE_ENTRY_COUNT_PROPERTY = "acoharmony.source.entry_count"
 TABLE_SOURCE_TOTAL_SIZE_PROPERTY = "acoharmony.source.total_size"
 TABLE_SOURCE_MAX_MTIME_NS_PROPERTY = "acoharmony.source.max_mtime_ns"
+WAREHOUSE_ID_ENV_VAR = "DATABRICKS_WAREHOUSE_ID"
+
+logger = LogWriter("databricks.uc_tables")
 
 
 @dataclass(frozen=True)
@@ -1196,6 +1202,39 @@ def source_snapshot_for_registration(
     raise RuntimeError(f"No filesystem listing method is available for {source_path}")
 
 
+def log_writer_from_args(args: argparse.Namespace) -> LogWriter:
+    return getattr(args, "log_writer", None) or logger
+
+
+def log_event(args: argparse.Namespace, level: str, message: str, **kwargs) -> None:
+    log_writer = log_writer_from_args(args)
+    log_writer.log(
+        level,
+        message,
+        pipeline=getattr(args, "pipeline_name", None),
+        step="create-tables",
+        **kwargs,
+    )
+
+
+def resolve_warehouse_id(args: argparse.Namespace) -> str | None:
+    """Return explicit warehouse ID, then DATABRICKS_WAREHOUSE_ID if available."""
+    warehouse_id = getattr(args, "warehouse_id", None)
+    if warehouse_id:
+        return str(warehouse_id)
+
+    env_warehouse_id = os.getenv(WAREHOUSE_ID_ENV_VAR)
+    return env_warehouse_id or None
+
+
+def warehouse_id_source(args: argparse.Namespace) -> str | None:
+    if getattr(args, "warehouse_id", None):
+        return "argument"
+    if os.getenv(WAREHOUSE_ID_ENV_VAR):
+        return "environment"
+    return None
+
+
 def build_registrations(
     parquet_paths: list[str],
     *,
@@ -1440,6 +1479,7 @@ def run_managed_delta_create_with_retries(
 
 def create_tables(args: argparse.Namespace) -> int:
     """Create UC tables from parquet files using parsed CLI arguments."""
+    started = perf_counter()
     storage = StorageBackend(profile=getattr(args, "aco_profile", None))
     state_store = DatabricksStateStore(
         default_databricks_state_file(
@@ -1449,6 +1489,8 @@ def create_tables(args: argparse.Namespace) -> int:
     )
     force = bool(getattr(args, "force", False))
     volume_specs = [parse_volume_fqn(value) for value in args.volume_fqns or []]
+    warehouse_id = resolve_warehouse_id(args)
+    warehouse_source = warehouse_id_source(args)
 
     if volume_specs and (args.catalog is None or args.schema is None):
         catalog_schemas = {(spec.catalog, spec.schema) for spec in volume_specs}
@@ -1461,6 +1503,48 @@ def create_tables(args: argparse.Namespace) -> int:
     storage_catalog, storage_schema = storage_uc_catalog_schema(storage)
     catalog = args.catalog or (volume_specs[0].catalog if volume_specs else storage_catalog)
     schema = args.schema or (volume_specs[0].schema if volume_specs else storage_schema)
+    log_event(
+        args,
+        "INFO",
+        "Starting UC table update",
+        action="start_step",
+        aco_profile=getattr(args, "aco_profile", None),
+        databricks_profile=args.profile,
+        target=args.target,
+        warehouse_id=warehouse_id,
+        warehouse_id_source=warehouse_source,
+        catalog=catalog,
+        schema=schema,
+        layers=args.layers,
+        table_mode=args.table_mode,
+        replace_existing=args.replace_existing,
+        force=force,
+        dry_run=args.dry_run,
+        state_file=str(state_store.state_file),
+    )
+    if warehouse_source == "environment":
+        log_event(
+            args,
+            "INFO",
+            "Using Databricks SQL warehouse from environment",
+            action="resolve_warehouse_id",
+            warehouse_id=warehouse_id,
+            env_var=WAREHOUSE_ID_ENV_VAR,
+        )
+    elif warehouse_id is None and not args.dry_run:
+        log_event(
+            args,
+            "WARNING",
+            "Databricks SQL warehouse ID is not configured",
+            action="resolve_warehouse_id",
+            env_var=WAREHOUSE_ID_ENV_VAR,
+            fallback="local_spark",
+        )
+        print(
+            f"WARNING: {WAREHOUSE_ID_ENV_VAR} is not set and --warehouse-id was not "
+            "passed; falling back to local Spark if available.",
+            file=sys.stderr,
+        )
 
     volume_roots = list(args.volume_roots or [])
     volume_roots.extend(spec.root_path for spec in volume_specs)
@@ -1470,23 +1554,23 @@ def create_tables(args: argparse.Namespace) -> int:
 
     recursive = not args.no_recurse
 
-    spark_session = get_spark_session(required=not args.dry_run and not args.warehouse_id)
+    spark_session = get_spark_session(required=not args.dry_run and not warehouse_id)
     dbutils = get_dbutils(spark_session)
     databricks_cli = DatabricksCli(
         databricks_bin=args.databricks_bin,
         profile=args.profile,
         target=args.target,
-        warehouse_id=args.warehouse_id,
+        warehouse_id=warehouse_id,
         wait_timeout_seconds=args.wait_timeout_seconds,
         poll_interval_seconds=args.poll_interval_seconds,
     )
 
     if spark_session is None and not args.dry_run:
-        if not args.warehouse_id:
+        if not warehouse_id:
             raise RuntimeError(
                 "No Spark session is available locally. Pass --warehouse-id to execute "
-                "through Databricks SQL, add --dry-run to print SQL only, or run this "
-                "script on a Databricks cluster."
+                f"through Databricks SQL, set {WAREHOUSE_ID_ENV_VAR}, add --dry-run "
+                "to print SQL only, or run this script on a Databricks cluster."
             )
         if not databricks_cli.available:
             raise RuntimeError(f"Databricks CLI not found: {args.databricks_bin}")
@@ -1497,7 +1581,23 @@ def create_tables(args: argparse.Namespace) -> int:
             "Remote UC volume paths cannot be listed locally.",
             file=sys.stderr,
         )
+        log_event(
+            args,
+            "WARNING",
+            "Databricks CLI not found for remote UC table discovery",
+            action="validate_databricks_cli",
+            databricks_bin=args.databricks_bin,
+        )
 
+    log_event(
+        args,
+        "INFO",
+        "Discovering parquet sources for UC table update",
+        action="discover_parquet_sources",
+        roots=volume_roots,
+        recursive=recursive,
+        skip_missing_roots=args.skip_missing_roots,
+    )
     parquet_paths = discover_parquet_paths(
         volume_roots,
         dbutils=dbutils,
@@ -1505,8 +1605,26 @@ def create_tables(args: argparse.Namespace) -> int:
         recursive=recursive,
         skip_missing_roots=args.skip_missing_roots,
     )
+    log_event(
+        args,
+        "INFO",
+        "Discovered parquet sources for UC table update",
+        action="discover_parquet_sources_complete",
+        root_count=len(volume_roots),
+        parquet_count=len(parquet_paths),
+    )
 
     if not parquet_paths:
+        log_event(
+            args,
+            "WARNING",
+            "No parquet files found for UC table update",
+            action="complete_step",
+            success=False,
+            catalog=catalog,
+            schema=schema,
+            duration_seconds=round(perf_counter() - started, 3),
+        )
         print("No parquet files found.", file=sys.stderr)
         return 1
 
@@ -1514,6 +1632,16 @@ def create_tables(args: argparse.Namespace) -> int:
         parquet_paths,
         table_prefix=args.table_prefix,
         include_volume_prefix=args.include_volume_prefix,
+        duplicate_strategy=args.duplicate_strategy,
+    )
+    log_event(
+        args,
+        "INFO",
+        "Built UC table registrations",
+        action="build_registrations",
+        catalog=catalog,
+        schema=schema,
+        registration_count=len(registrations),
         duplicate_strategy=args.duplicate_strategy,
     )
 
@@ -1528,8 +1656,20 @@ def create_tables(args: argparse.Namespace) -> int:
     skipped_unchanged_registrations: list[TableRegistration] = []
 
     for registration in registrations:
+        table_started = perf_counter()
         source_snapshot: SourceSnapshot | None = None
         table = table_identifier(catalog, schema, registration.table_name)
+        log_event(
+            args,
+            "INFO",
+            "Inspecting UC table source",
+            action="inspect_table_source",
+            catalog=catalog,
+            schema=schema,
+            table=registration.table_name,
+            source_path=registration.source_location,
+            table_mode=args.table_mode,
+        )
         state_key = uc_table_state_key(
             catalog=catalog,
             schema=schema,
@@ -1545,20 +1685,37 @@ def create_tables(args: argparse.Namespace) -> int:
                     databricks_cli=databricks_cli if dbutils is None else None,
                 )
             except (FileNotFoundError, RuntimeError) as exc:
+                log_event(
+                    args,
+                    "WARNING",
+                    "Could not snapshot source parquet for UC table",
+                    action="snapshot_table_source_failed",
+                    catalog=catalog,
+                    schema=schema,
+                    table=registration.table_name,
+                    source_path=registration.source_location,
+                    error=str(exc),
+                )
                 print(
                     "WARNING: Could not snapshot source parquet for "
                     f"{registration.table_name}; table replacement will proceed: {exc}",
                     file=sys.stderr,
                 )
             else:
-                if not force and state_store.is_unchanged(state_key, source_snapshot):
-                    print(
-                        "Skipping "
-                        f"{registration.table_name}: source parquet unchanged since "
-                        "last successful replacement."
-                    )
-                    skipped_unchanged_registrations.append(registration)
-                    continue
+                log_event(
+                    args,
+                    "INFO",
+                    "Snapshot complete for UC table source",
+                    action="snapshot_table_source_complete",
+                    catalog=catalog,
+                    schema=schema,
+                    table=registration.table_name,
+                    source_path=registration.source_location,
+                    source_entries=source_snapshot.entry_count,
+                    source_total_bytes=source_snapshot.total_size,
+                    source_max_mtime_ns=source_snapshot.max_mtime_ns,
+                )
+                table_snapshot = None
                 if not force and not args.dry_run:
                     table_snapshot = catalog_source_snapshot(
                         table=table,
@@ -1569,6 +1726,18 @@ def create_tables(args: argparse.Namespace) -> int:
                         table_snapshot is not None
                         and table_snapshot.digest == source_snapshot.digest
                     ):
+                        log_event(
+                            args,
+                            "INFO",
+                            "Skipping UC table because catalog table state matches source",
+                            action="skip_table",
+                            reason="catalog_state_matches_source",
+                            catalog=catalog,
+                            schema=schema,
+                            table=registration.table_name,
+                            source_path=registration.source_location,
+                            duration_seconds=round(perf_counter() - table_started, 3),
+                        )
                         print(
                             "Skipping "
                             f"{registration.table_name}: catalog table state already "
@@ -1589,6 +1758,30 @@ def create_tables(args: argparse.Namespace) -> int:
                         )
                         skipped_unchanged_registrations.append(registration)
                         continue
+                if (
+                    not force
+                    and args.dry_run
+                    and state_store.is_unchanged(state_key, source_snapshot)
+                ):
+                    log_event(
+                        args,
+                        "INFO",
+                        "Skipping UC table because source parquet is unchanged",
+                        action="skip_table",
+                        reason="local_state_matches_source",
+                        catalog=catalog,
+                        schema=schema,
+                        table=registration.table_name,
+                        source_path=registration.source_location,
+                        duration_seconds=round(perf_counter() - table_started, 3),
+                    )
+                    print(
+                        "Skipping "
+                        f"{registration.table_name}: source parquet unchanged since "
+                        "last successful replacement."
+                    )
+                    skipped_unchanged_registrations.append(registration)
+                    continue
 
         source_location = registration.source_location
         if (
@@ -1601,6 +1794,19 @@ def create_tables(args: argparse.Namespace) -> int:
                 databricks_cli,
             )
 
+        log_event(
+            args,
+            "INFO",
+            "Applying UC table registration",
+            action="apply_table",
+            catalog=catalog,
+            schema=schema,
+            table=registration.table_name,
+            source_path=registration.source_location,
+            source_location=source_location,
+            table_mode=args.table_mode,
+            replace_existing=args.replace_existing,
+        )
         skipped = False
         for sql in sql_statements_for_registration(
             registration,
@@ -1630,6 +1836,18 @@ def create_tables(args: argparse.Namespace) -> int:
                 run_sql(spark_session, databricks_cli, sql, dry_run=args.dry_run)
 
         if skipped:
+            log_event(
+                args,
+                "WARNING",
+                "Skipped UC table because parquet schema was not usable",
+                action="skip_table",
+                reason="unusable_schema",
+                catalog=catalog,
+                schema=schema,
+                table=registration.table_name,
+                source_path=registration.source_location,
+                duration_seconds=round(perf_counter() - table_started, 3),
+            )
             skipped_registrations.append(registration)
             continue
 
@@ -1653,6 +1871,18 @@ def create_tables(args: argparse.Namespace) -> int:
                         "source_path": registration.source_location,
                     },
                 )
+        log_event(
+            args,
+            "INFO",
+            "Completed UC table registration",
+            action="complete_table",
+            catalog=catalog,
+            schema=schema,
+            table=registration.table_name,
+            source_path=registration.source_location,
+            table_mode=args.table_mode,
+            duration_seconds=round(perf_counter() - table_started, 3),
+        )
 
     action = "Would register" if args.dry_run else "Registered"
     processed_count = (
@@ -1672,12 +1902,39 @@ def create_tables(args: argparse.Namespace) -> int:
             f"{skipped_tables}.",
             file=sys.stderr,
         )
+    log_event(
+        args,
+        "INFO",
+        "Completed UC table update",
+        action="complete_step",
+        catalog=catalog,
+        schema=schema,
+        success=True,
+        registration_count=len(registrations),
+        processed_count=processed_count,
+        skipped_unchanged_count=len(skipped_unchanged_registrations),
+        skipped_unusable_count=len(skipped_registrations),
+        duration_seconds=round(perf_counter() - started, 3),
+    )
     return 0
 
 
 def cmd_create_tables(args: argparse.Namespace) -> int:
     """Entry point used by ``aco databricks create-tables``."""
-    return create_tables(args)
+    try:
+        return create_tables(args)
+    except Exception as exc:  # noqa: BLE001 - CLI should return clean failures.
+        log_event(
+            args,
+            "ERROR",
+            "UC table update failed",
+            action="complete_step",
+            success=False,
+            error_type=type(exc).__name__,
+            error=str(exc),
+        )
+        print(f"ERROR: Databricks table update failed: {exc}", file=sys.stderr)
+        return 1
 
 
 def main(argv: list[str] | None = None) -> int:

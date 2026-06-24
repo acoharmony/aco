@@ -98,6 +98,81 @@ def main():
     pipeline_parser.add_argument(
         "--force", action="store_true", help="Force reprocessing all pipeline steps"
     )
+    pipeline_parser.add_argument(
+        "--aco-profile",
+        help="For 'databricks', ACO storage profile for local source and UC volume defaults",
+    )
+    pipeline_parser.add_argument(
+        "--warehouse-id",
+        help="For 'databricks', Databricks SQL warehouse ID for local table updates",
+    )
+    pipeline_parser.add_argument(
+        "--profile",
+        help="For 'databricks', optional ~/.databrickscfg profile for Databricks CLI",
+    )
+    pipeline_parser.add_argument(
+        "--target", help="For 'databricks', optional Databricks bundle target"
+    )
+    pipeline_parser.add_argument(
+        "--databricks-bin",
+        default="databricks",
+        help="For 'databricks', Databricks CLI executable name or path",
+    )
+    pipeline_parser.add_argument(
+        "--state-file", help="For 'databricks', path to Databricks state JSON file"
+    )
+    pipeline_parser.add_argument(
+        "--layer",
+        action="append",
+        choices=["bronze", "silver", "gold"],
+        dest="layers",
+        help="For 'databricks', medallion layer to sync; may be passed more than once",
+    )
+    pipeline_parser.add_argument(
+        "--copy-only", action="store_true", help="For 'databricks', only sync UC volumes"
+    )
+    pipeline_parser.add_argument(
+        "--tables-only", action="store_true", help="For 'databricks', only update UC tables"
+    )
+    pipeline_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="For 'databricks', print Databricks commands and SQL without executing",
+    )
+    pipeline_parser.add_argument(
+        "--concurrency",
+        type=int,
+        default=8,
+        help="For 'databricks', parallel copy operations",
+    )
+    pipeline_parser.add_argument(
+        "--table-mode",
+        choices=("managed-delta", "external-parquet"),
+        default="managed-delta",
+        help="For 'databricks', table creation mode",
+    )
+    pipeline_parser.add_argument(
+        "--skip-missing-roots",
+        action="store_true",
+        help="For 'databricks', warn and continue when table roots cannot be listed",
+    )
+    pipeline_parser.add_argument(
+        "--no-recurse",
+        action="store_true",
+        help="For 'databricks', only scan files directly under UC volume roots",
+    )
+    pipeline_parser.add_argument(
+        "--wait-timeout-seconds",
+        type=int,
+        default=30,
+        help="For 'databricks', initial SQL statement wait timeout",
+    )
+    pipeline_parser.add_argument(
+        "--poll-interval-seconds",
+        type=float,
+        default=2.0,
+        help="For 'databricks', SQL statement polling interval",
+    )
 
     # List command
     list_parser = subparsers.add_parser("list", help="List available tables and pipelines")
@@ -902,6 +977,11 @@ notes:
             return 1
 
     elif args.command == "pipeline":
+        if args.name == "databricks":
+            from acoharmony._databricks._pipeline import cmd_databricks_pipeline
+
+            return cmd_databricks_pipeline(args)
+
         _require_full_package()
         config = get_config()
         # Initialize components for pipeline command

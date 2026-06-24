@@ -62,6 +62,34 @@ class _SparkWithTableProperties:
         return _Rows([])
 
 
+class _SqlDatabricksCli:
+    instances: list[_SqlDatabricksCli] = []
+
+    def __init__(self, **kwargs):
+        self.warehouse_id = kwargs.get("warehouse_id")
+        self.calls: list[tuple[str, str]] = []
+        self.instances.append(self)
+
+    @property
+    def available(self) -> bool:
+        return True
+
+    def execute_query(self, sql: str):
+        self.calls.append(("query", sql))
+        return []
+
+    def execute_sql(self, sql: str) -> None:
+        self.calls.append(("execute", sql))
+
+
+class _LogWriter:
+    def __init__(self):
+        self.entries = []
+
+    def log(self, level, message, **kwargs):
+        self.entries.append({"level": level, "message": message, **kwargs})
+
+
 class TestUcTables:
     @pytest.mark.unit
     def test_storage_uc_catalog_schema_uses_storage_config(self):
@@ -97,7 +125,7 @@ class TestUcTables:
         parquet.parent.mkdir()
         parquet.write_text("fake parquet bytes", encoding="utf-8")
 
-        spark = _Spark()
+        spark = _SparkWithTableProperties({})
         storage = _Storage(tmp_path)
         monkeypatch.setattr(uc_tables, "StorageBackend", lambda profile=None: storage)
         monkeypatch.setattr(uc_tables, "get_spark_session", lambda required: spark)
@@ -132,10 +160,18 @@ class TestUcTables:
         first_run_queries = list(spark.queries)
         assert any(query.startswith("DROP TABLE IF EXISTS") for query in first_run_queries)
 
+        snapshot = uc_tables.source_snapshot_for_registration(
+            TableRegistration(table_name="alignment", source_path=str(parquet)),
+            dbutils=None,
+            databricks_cli=None,
+        )
+        spark.properties = uc_tables.source_snapshot_table_properties(snapshot)
+
         assert create_tables(args) == 0
         second_run_queries = spark.queries[len(first_run_queries) :]
-        assert len(second_run_queries) == 1
+        assert len(second_run_queries) == 2
         assert second_run_queries[0].startswith("CREATE SCHEMA IF NOT EXISTS")
+        assert second_run_queries[1].startswith("SHOW TBLPROPERTIES")
         assert "Skipping alignment" in capsys.readouterr().out
 
         time.sleep(0.01)
@@ -144,6 +180,52 @@ class TestUcTables:
         assert create_tables(args) == 0
         third_run_queries = spark.queries[len(first_run_queries) + len(second_run_queries) :]
         assert any(query.startswith("DROP TABLE IF EXISTS") for query in third_run_queries)
+
+    @pytest.mark.unit
+    def test_create_tables_replaces_when_catalog_table_state_is_missing(
+        self, tmp_path, monkeypatch
+    ):
+        parquet = tmp_path / "gold" / "alignment.parquet"
+        parquet.parent.mkdir()
+        parquet.write_text("fake parquet bytes", encoding="utf-8")
+
+        spark = _SparkWithTableProperties({})
+        storage = _Storage(tmp_path)
+        monkeypatch.setattr(uc_tables, "StorageBackend", lambda profile=None: storage)
+        monkeypatch.setattr(uc_tables, "get_spark_session", lambda required: spark)
+        monkeypatch.setattr(uc_tables, "get_dbutils", lambda spark_session: None)
+
+        args = argparse.Namespace(
+            aco_profile=None,
+            catalog="uat_sandbox",
+            databricks_bin="databricks-that-is-not-installed",
+            dry_run=False,
+            duplicate_strategy="prefix-volume",
+            force=False,
+            include_volume_prefix=False,
+            layers=None,
+            no_recurse=False,
+            poll_interval_seconds=0.01,
+            profile=None,
+            replace_existing=True,
+            schema="gov_programs",
+            skip_missing_roots=False,
+            state_file=str(tmp_path / "databricks_state.json"),
+            table_mode="managed-delta",
+            table_prefix="",
+            target=None,
+            volume_fqns=[],
+            volume_roots=[str(tmp_path / "gold")],
+            wait_timeout_seconds=1,
+            warehouse_id=None,
+        )
+
+        assert create_tables(args) == 0
+        first_run_query_count = len(spark.queries)
+
+        assert create_tables(args) == 0
+        second_run_queries = spark.queries[first_run_query_count:]
+        assert any(query.startswith("DROP TABLE IF EXISTS") for query in second_run_queries)
 
     @pytest.mark.unit
     def test_create_tables_bootstraps_from_catalog_table_properties(
@@ -196,3 +278,85 @@ class TestUcTables:
         assert not any(query.startswith("CREATE TABLE") for query in spark.queries)
         assert "catalog table state already matches source" in capsys.readouterr().out
         assert state_file.exists()
+
+    @pytest.mark.unit
+    def test_create_tables_uses_environment_warehouse_without_requiring_spark(
+        self, tmp_path, monkeypatch
+    ):
+        parquet = tmp_path / "gold" / "alignment.parquet"
+        parquet.parent.mkdir()
+        parquet.write_text("fake parquet bytes", encoding="utf-8")
+
+        storage = _Storage(tmp_path)
+        spark_required: list[bool] = []
+        _SqlDatabricksCli.instances = []
+
+        monkeypatch.setenv("DATABRICKS_WAREHOUSE_ID", "env-warehouse")
+        monkeypatch.setattr(uc_tables, "StorageBackend", lambda profile=None: storage)
+        monkeypatch.setattr(
+            uc_tables,
+            "get_spark_session",
+            lambda required: spark_required.append(required) or None,
+        )
+        monkeypatch.setattr(uc_tables, "DatabricksCli", _SqlDatabricksCli)
+
+        args = argparse.Namespace(
+            aco_profile=None,
+            catalog="uat_sandbox",
+            databricks_bin="databricks",
+            dry_run=False,
+            duplicate_strategy="prefix-volume",
+            force=False,
+            include_volume_prefix=False,
+            layers=None,
+            no_recurse=False,
+            poll_interval_seconds=0.01,
+            profile=None,
+            replace_existing=True,
+            schema="gov_programs",
+            skip_missing_roots=False,
+            state_file=str(tmp_path / "databricks_state.json"),
+            table_mode="managed-delta",
+            table_prefix="",
+            target=None,
+            volume_fqns=[],
+            volume_roots=[str(tmp_path / "gold")],
+            wait_timeout_seconds=1,
+            warehouse_id=None,
+        )
+
+        assert create_tables(args) == 0
+        assert spark_required == [False]
+        cli = _SqlDatabricksCli.instances[0]
+        assert cli.warehouse_id == "env-warehouse"
+        assert any(sql.startswith("CREATE SCHEMA") for kind, sql in cli.calls if kind == "execute")
+        assert any(sql.startswith("CREATE TABLE") for kind, sql in cli.calls if kind == "execute")
+
+    @pytest.mark.unit
+    def test_resolve_warehouse_id_prefers_argument(self, monkeypatch):
+        monkeypatch.setenv("DATABRICKS_WAREHOUSE_ID", "env-warehouse")
+
+        assert (
+            uc_tables.resolve_warehouse_id(argparse.Namespace(warehouse_id="arg-warehouse"))
+            == "arg-warehouse"
+        )
+
+    @pytest.mark.unit
+    def test_cmd_create_tables_returns_clean_error(self, monkeypatch, capsys):
+        log_writer = _LogWriter()
+
+        def raise_create_tables(args):
+            raise RuntimeError("warehouse permission denied")
+
+        monkeypatch.setattr(uc_tables, "create_tables", raise_create_tables)
+
+        result = uc_tables.cmd_create_tables(
+            argparse.Namespace(log_writer=log_writer, pipeline_name="databricks")
+        )
+
+        assert result == 1
+        assert "ERROR: Databricks table update failed" in capsys.readouterr().err
+        assert any(
+            entry.get("action") == "complete_step" and entry.get("success") is False
+            for entry in log_writer.entries
+        )
