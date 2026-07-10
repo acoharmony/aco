@@ -13,7 +13,7 @@ snapshot diff + duplicate-name analysis.
 
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -80,6 +80,24 @@ def _default_provider_states() -> pl.DataFrame:
         rows,
         schema={"prvdr_npi": pl.String, "provider_state": pl.String},
     )
+
+
+def _coerce_date(value: Any, fallback: date) -> date:
+    if value is None:
+        return fallback
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    if isinstance(value, str):
+        parsed = value.strip()
+        if not parsed:
+            return fallback
+        try:
+            return date.fromisoformat(parsed[:10])
+        except ValueError:
+            return fallback
+    return fallback
 
 
 class SvaSubmissionsPlugins(PluginRegistry):
@@ -163,8 +181,7 @@ class SvaSubmissionsPlugins(PluginRegistry):
 
     def default_date_range(self, df_sva: pl.DataFrame) -> tuple[date, date]:
         if df_sva.height > 0 and "file_date" in df_sva.columns:
-            sva_str = df_sva.select("file_date").max().item()
-            sva_date = date.fromisoformat(sva_str) if sva_str else date(2025, 11, 1)
+            sva_date = _coerce_date(df_sva.select("file_date").max().item(), date(2025, 11, 1))
             start = sva_date + timedelta(days=1)
         else:
             start = date(2025, 11, 1)

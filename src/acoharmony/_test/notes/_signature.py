@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 from unittest.mock import patch
 
@@ -194,6 +194,21 @@ class TestLoaders:
         assert out["most_recent_pbvar"] == date(2024, 6, 30)
 
     @pytest.mark.unit
+    def test_load_sva_with_string_pbvar_file_date(self, tmp_path: Path) -> None:
+        _sva_df().write_parquet(tmp_path / "sva.parquet")
+        pl.DataFrame(
+            {
+                "bene_mbi": ["M1"],
+                "file_date": ["2024-06-30"],
+            }
+        ).write_parquet(tmp_path / "pbvar.parquet")
+        mbi_map = {"M1": "M1", "M2": "M2", "M4": "M4"}
+        out = SignaturePlugins().load_sva(tmp_path, mbi_map)
+        assert out["pending"].height == 2
+        assert out["approved"].height == 1
+        assert out["most_recent_pbvar"] == date(2024, 6, 30)
+
+    @pytest.mark.unit
     def test_load_sva_empty_pbvar(self, tmp_path: Path) -> None:
         # PBVAR file exists but empty → most_recent_pbvar stays None
         # (line 125→128 branch — `if pbvar.height > 0:` False)
@@ -261,6 +276,35 @@ class TestLoaders:
         assert out.height == 1
         assert "sva_provider_name" in out.columns
 
+    @pytest.mark.unit
+    def test_load_pbvar_for_history_string_lineage_columns(self, tmp_path: Path) -> None:
+        pbvar = pl.DataFrame(
+            {
+                "aco_id": ["A1"],
+                "bene_mbi": ["M1"],
+                "bene_first_name": ["A"],
+                "bene_last_name": ["X"],
+                "bene_line_1_address": ["123 Main"],
+                "bene_city": ["Detroit"],
+                "bene_state": ["MI"],
+                "bene_zipcode": ["48226"],
+                "provider_name": ["Org A"],
+                "practitioner_name": ["Doc One"],
+                "sva_npi": ["N1"],
+                "sva_tin": ["T1"],
+                "sva_signature_date": [date(2024, 1, 1)],
+                "processed_at": ["2024-01-05T10:30:00"],
+                "source_file": ["pbvar1.txt"],
+                "source_filename": ["PBVAR.txt"],
+                "file_date": ["2024-01-05"],
+                "medallion_layer": ["silver"],
+            }
+        )
+        pbvar.write_parquet(tmp_path / "pbvar.parquet")
+        out = SignaturePlugins().load_pbvar_for_history(tmp_path, {"M1": "M1"})
+        assert out["file_date"].dtype == pl.Date
+        assert out["processed_at"].dtype == pl.Datetime
+
 
 # ---------------------------------------------------------------------------
 # History
@@ -306,6 +350,29 @@ class TestSignatureHistory:
         )
         out = SignaturePlugins().combine_signatures(pbvar, sva)
         assert out.height == 2
+
+    @pytest.mark.unit
+    def test_combine_signatures_aligns_lineage_dtypes(self) -> None:
+        pbvar = pl.DataFrame(
+            {
+                "normalized_mbi": ["M1"],
+                "sva_signature_date": [date(2024, 1, 1)],
+                "file_date": ["2024-01-05"],
+                "processed_at": ["2024-01-05T10:30:00"],
+            }
+        )
+        sva = pl.DataFrame(
+            {
+                "normalized_mbi": ["M2"],
+                "sva_signature_date": [date(2024, 2, 1)],
+                "file_date": [date(2024, 2, 5)],
+                "processed_at": [datetime(2024, 2, 5, 10, 30)],
+            }
+        )
+        out = SignaturePlugins().combine_signatures(pbvar, sva)
+        assert out.height == 2
+        assert out["file_date"].dtype == pl.Date
+        assert out["processed_at"].dtype == pl.Datetime
 
     @pytest.mark.unit
     def test_signature_history(self) -> None:
@@ -385,9 +452,7 @@ class TestCurrentCohort:
 
     @pytest.mark.unit
     def test_no_algc25_falls_back(self) -> None:
-        df = _bar_df().with_columns(
-            pl.lit("OTHER_2024.txt").alias("source_filename")
-        )
+        df = _bar_df().with_columns(pl.lit("OTHER_2024.txt").alias("source_filename"))
         out = SignaturePlugins().current_cohort(
             df,
             mbi_map={},
@@ -777,3 +842,11 @@ class TestSvaValidation:
         )
         out = SignaturePlugins().most_recent_pbvar_date(tmp_path)
         assert out is None
+
+    @pytest.mark.unit
+    def test_most_recent_pbvar_date_string_column(self, tmp_path: Path) -> None:
+        pl.DataFrame({"file_date": ["2024-01-01", "2024-06-30"]}).write_parquet(
+            tmp_path / "pbvar.parquet"
+        )
+        out = SignaturePlugins().most_recent_pbvar_date(tmp_path)
+        assert out == date(2024, 6, 30)

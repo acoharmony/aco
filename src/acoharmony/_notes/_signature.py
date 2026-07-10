@@ -14,13 +14,61 @@ from __future__ import annotations
 
 from datetime import date, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import polars as pl
 
 from ._base import PluginRegistry
 
 JANNETTE_NPI = "1285636043"
+
+
+def _coerce_date(value: Any) -> date | None:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    if isinstance(value, str):
+        parsed = value.strip()
+        if not parsed:
+            return None
+        try:
+            return date.fromisoformat(parsed[:10])
+        except ValueError:
+            return None
+    return None
+
+
+def _with_file_date_for_compare(df: pl.DataFrame) -> pl.DataFrame:
+    expr = _file_date_expr(df.schema, "file_date")
+    return df.with_columns(expr.alias("_file_date_for_compare"))
+
+
+def _file_date_expr(schema: pl.Schema, column: str) -> pl.Expr:
+    dtype = schema.get(column)
+    if dtype == pl.Utf8:
+        return pl.col(column).str.to_date(strict=False)
+    elif dtype == pl.Datetime:
+        return pl.col(column).dt.date()
+    return pl.col(column).cast(pl.Date, strict=False)
+
+
+def _processed_at_expr(schema: pl.Schema, column: str) -> pl.Expr:
+    dtype = schema.get(column)
+    if dtype == pl.Utf8:
+        return pl.col(column).str.to_datetime(strict=False)
+    return pl.col(column).cast(pl.Datetime, strict=False)
+
+
+def _with_signature_lineage_types(df: pl.DataFrame) -> pl.DataFrame:
+    exprs: list[pl.Expr] = []
+    if "file_date" in df.columns:
+        exprs.append(_file_date_expr(df.schema, "file_date").alias("file_date"))
+    if "processed_at" in df.columns:
+        exprs.append(_processed_at_expr(df.schema, "processed_at").alias("processed_at"))
+    return df.with_columns(exprs) if exprs else df
 
 
 class SignaturePlugins(PluginRegistry):
@@ -110,9 +158,7 @@ class SignaturePlugins(PluginRegistry):
             "unique_npis": len(all_npis),
         }
 
-    def load_sva(
-        self, silver_path: Path, mbi_map: dict[str, str]
-    ) -> dict[str, Any]:
+    def load_sva(self, silver_path: Path, mbi_map: dict[str, str]) -> dict[str, Any]:
         """Loads SVA, normalises MBIs, splits into pending vs approved."""
         sva = pl.read_parquet(Path(silver_path) / "sva.parquet")
         normalised = [mbi_map.get(m, m) for m in sva["bene_mbi"].to_list()]
@@ -123,11 +169,16 @@ class SignaturePlugins(PluginRegistry):
         if pbvar_path.exists():
             pbvar = pl.read_parquet(pbvar_path)
             if pbvar.height > 0:
-                most_recent_pbvar = pbvar.select(pl.col("file_date").max()).item()
+                most_recent_pbvar = _coerce_date(pbvar.select(pl.col("file_date").max()).item())
 
         if most_recent_pbvar:
-            pending = sva.filter(pl.col("file_date") > most_recent_pbvar)
-            approved = sva.filter(pl.col("file_date") <= most_recent_pbvar)
+            sva_for_compare = _with_file_date_for_compare(sva)
+            pending = sva_for_compare.filter(
+                pl.col("_file_date_for_compare") > most_recent_pbvar
+            ).drop("_file_date_for_compare")
+            approved = sva_for_compare.filter(
+                pl.col("_file_date_for_compare") <= most_recent_pbvar
+            ).drop("_file_date_for_compare")
         else:
             pending = pl.DataFrame()
             approved = sva
@@ -146,9 +197,7 @@ class SignaturePlugins(PluginRegistry):
             "most_recent_pbvar": most_recent_pbvar,
         }
 
-    def load_pbvar_for_history(
-        self, silver_path: Path, mbi_map: dict[str, str]
-    ) -> pl.DataFrame:
+    def load_pbvar_for_history(self, silver_path: Path, mbi_map: dict[str, str]) -> pl.DataFrame:
         """Reshape PBVAR to match the SVA schema for downstream concat."""
         pbvar_path = Path(silver_path) / "pbvar.parquet"
         if not pbvar_path.exists():
@@ -158,6 +207,7 @@ class SignaturePlugins(PluginRegistry):
             return pl.DataFrame()
         normalised = [mbi_map.get(m, m) for m in pbvar["bene_mbi"].to_list()]
         pbvar = pbvar.with_columns(pl.Series("normalized_mbi", normalised))
+        pbvar = _with_signature_lineage_types(pbvar)
         return pbvar.select(
             pl.col("aco_id"),
             pl.col("bene_mbi"),
@@ -183,25 +233,21 @@ class SignaturePlugins(PluginRegistry):
 
     # ---- signature history -------------------------------------------
 
-    def combine_signatures(
-        self, pbvar_df: pl.DataFrame, signed_sva: pl.DataFrame
-    ) -> pl.DataFrame:
+    def combine_signatures(self, pbvar_df: pl.DataFrame, signed_sva: pl.DataFrame) -> pl.DataFrame:
         """Concat PBVAR + SVA via diagonal so missing columns null-fill."""
         if pbvar_df.height == 0:
             return signed_sva
-        pbvar_clean = pbvar_df
+        pbvar_clean = _with_signature_lineage_types(pbvar_df)
         for col in pbvar_clean.columns:
             if pbvar_clean[col].dtype == pl.Categorical:
                 pbvar_clean = pbvar_clean.with_columns(pl.col(col).cast(pl.String))
-        sva_clean = signed_sva
+        sva_clean = _with_signature_lineage_types(signed_sva)
         for col in sva_clean.columns:
             if sva_clean[col].dtype == pl.Categorical:
                 sva_clean = sva_clean.with_columns(pl.col(col).cast(pl.String))
         return pl.concat([pbvar_clean, sva_clean], how="diagonal")
 
-    def signature_history(
-        self, all_signatures: pl.DataFrame
-    ) -> tuple[pl.DataFrame, pl.DataFrame]:
+    def signature_history(self, all_signatures: pl.DataFrame) -> tuple[pl.DataFrame, pl.DataFrame]:
         """Per-MBI signature history + frequency distribution table."""
         sorted_sigs = all_signatures.sort("sva_signature_date").with_columns(
             pl.when(pl.col("sva_provider_name").is_not_null())
@@ -240,27 +286,19 @@ class SignaturePlugins(PluginRegistry):
             }
         pbvar_path = Path(silver_path) / "pbvar.parquet"
         if pbvar_path.exists():
-            pbvar = all_signatures.filter(
-                pl.col("source_filename").str.contains("PBVAR")
-            )
-            sva = all_signatures.filter(
-                ~pl.col("source_filename").str.contains("PBVAR")
-            )
+            pbvar = all_signatures.filter(pl.col("source_filename").str.contains("PBVAR"))
+            sva = all_signatures.filter(~pl.col("source_filename").str.contains("PBVAR"))
             return {
                 "total_records": all_signatures.height,
                 "pbvar_records": pbvar.height,
                 "sva_records": sva.height,
-                "unique_beneficiaries": all_signatures.select(
-                    "normalized_mbi"
-                ).n_unique(),
+                "unique_beneficiaries": all_signatures.select("normalized_mbi").n_unique(),
             }
         return {
             "total_records": all_signatures.height,
             "pbvar_records": 0,
             "sva_records": all_signatures.height,
-            "unique_beneficiaries": all_signatures.select(
-                "normalized_mbi"
-            ).n_unique(),
+            "unique_beneficiaries": all_signatures.select("normalized_mbi").n_unique(),
         }
 
     # ---- BAR cohort -------------------------------------------------
@@ -349,18 +387,18 @@ class SignaturePlugins(PluginRegistry):
         for row in joined.iter_rows(named=True):
             tin = row.get("most_recent_provider_tin")
             npi = row.get("most_recent_provider_npi")
-            valid_results.append(
-                bool(tin and npi and (str(tin), str(npi)) in valid_combos)
-            )
-            provider_names.append(
-                npi_to_name.get(str(npi), "") if npi else ""
-            )
+            valid_results.append(bool(tin and npi and (str(tin), str(npi)) in valid_combos))
+            provider_names.append(npi_to_name.get(str(npi), "") if npi else "")
         joined = joined.with_columns(
             pl.Series("has_valid_provider", valid_results),
             pl.Series("provider_name_from_list", provider_names),
         )
 
-        cy = thresholds["current_year"]
+        cy = cast(int, thresholds["current_year"])
+        current_year_start = cast(date, thresholds["current_year_start"])
+        last_year_h2_start = cast(date, thresholds["last_year_h2_start"])
+        last_year_start = cast(date, thresholds["last_year_start"])
+        two_years_ago_start = cast(date, thresholds["two_years_ago_start"])
         return joined.with_columns(
             pl.when(pl.col("total_signature_count").is_null())
             .then(pl.lit("Never Signed"))
@@ -368,22 +406,21 @@ class SignaturePlugins(PluginRegistry):
             .then(pl.lit("Invalid Provider"))
             .when(
                 pl.col("most_recent_signature_date").cast(pl.Date, strict=False)
-                >= thresholds["current_year_start"]
+                >= current_year_start
             )
             .then(pl.lit(f"Current Year ({cy})"))
             .when(
                 pl.col("most_recent_signature_date").cast(pl.Date, strict=False)
-                >= thresholds["last_year_h2_start"]
+                >= last_year_h2_start
             )
             .then(pl.lit(f"Recent ({cy - 1} H2)"))
             .when(
-                pl.col("most_recent_signature_date").cast(pl.Date, strict=False)
-                >= thresholds["last_year_start"]
+                pl.col("most_recent_signature_date").cast(pl.Date, strict=False) >= last_year_start
             )
             .then(pl.lit(f"Aging ({cy - 1} H1)"))
             .when(
                 pl.col("most_recent_signature_date").cast(pl.Date, strict=False)
-                >= thresholds["two_years_ago_start"]
+                >= two_years_ago_start
             )
             .then(pl.lit(f"Old ({cy - 2})"))
             .otherwise(pl.lit(f"Very Old (Pre-{cy - 2})"))
@@ -405,8 +442,8 @@ class SignaturePlugins(PluginRegistry):
         pending_sva: pl.DataFrame,
         thresholds: dict[str, date | int],
     ) -> dict[str, Any]:
-        cy = thresholds["current_year"]
-        cutoff = thresholds["signature_cutoff"]
+        cy = cast(int, thresholds["current_year"])
+        cutoff = cast(date, thresholds["signature_cutoff"])
         pending_mbis = (
             set(pending_sva.select("normalized_mbi").unique().to_series().to_list())
             if pending_sva.height
@@ -417,10 +454,7 @@ class SignaturePlugins(PluginRegistry):
             & ~pl.col("normalized_mbi").is_in(list(pending_mbis))
             & (
                 pl.col("total_signature_count").is_null()
-                | (
-                    pl.col("most_recent_signature_date").cast(pl.Date, strict=False)
-                    < cutoff
-                )
+                | (pl.col("most_recent_signature_date").cast(pl.Date, strict=False) < cutoff)
                 | (pl.col("signature_recency_status") == "Invalid Provider")
                 | (pl.col("most_recent_provider_npi") == JANNETTE_NPI)
             )
@@ -432,9 +466,7 @@ class SignaturePlugins(PluginRegistry):
             .then(pl.lit("Jannette Alignment"))
             .when(pl.col("signature_recency_status") == "Invalid Provider")
             .then(pl.lit("Invalid TIN/NPI Combo"))
-            .when(
-                pl.col("most_recent_signature_date").cast(pl.Date, strict=False) < cutoff
-            )
+            .when(pl.col("most_recent_signature_date").cast(pl.Date, strict=False) < cutoff)
             .then(pl.lit(f"Signature Before {cy - 1}"))
             .otherwise(pl.lit("Other"))
             .alias("chase_reason")
@@ -467,9 +499,7 @@ class SignaturePlugins(PluginRegistry):
             .agg(pl.len().alias("count"))
             .sort("count", descending=True)
         )
-        jannette_count = chase.filter(
-            pl.col("most_recent_provider_npi") == JANNETTE_NPI
-        ).height
+        jannette_count = chase.filter(pl.col("most_recent_provider_npi") == JANNETTE_NPI).height
         requirement_summary = (
             status_categories.group_by("signature_recency_status")
             .agg(
@@ -478,9 +508,7 @@ class SignaturePlugins(PluginRegistry):
             )
             .sort("beneficiary_count", descending=True)
         )
-        stats = self._chase_stats(
-            chase, status_categories, pending_mbis
-        )
+        stats = self._chase_stats(chase, status_categories, pending_mbis)
         return {
             "chase_list": chase,
             "with_reason": with_reason,
@@ -508,9 +536,7 @@ class SignaturePlugins(PluginRegistry):
                 "pending_count": len(pending_mbis),
             }
         never = chase.filter(pl.col("total_signature_count").is_null()).height
-        invalid = chase.filter(
-            pl.col("signature_recency_status") == "Invalid Provider"
-        ).height
+        invalid = chase.filter(pl.col("signature_recency_status") == "Invalid Provider").height
         old = chase.height - never - invalid
         return {
             "total_chase": chase.height,
@@ -523,12 +549,8 @@ class SignaturePlugins(PluginRegistry):
 
     # ---- provider analysis -------------------------------------------
 
-    def invalid_provider_summary(
-        self, status_categories: pl.DataFrame
-    ) -> pl.DataFrame:
-        invalid = status_categories.filter(
-            pl.col("signature_recency_status") == "Invalid Provider"
-        )
+    def invalid_provider_summary(self, status_categories: pl.DataFrame) -> pl.DataFrame:
+        invalid = status_categories.filter(pl.col("signature_recency_status") == "Invalid Provider")
         if invalid.is_empty():
             return invalid
         return (
@@ -546,19 +568,12 @@ class SignaturePlugins(PluginRegistry):
             .sort("affected_beneficiaries", descending=True)
         )
 
-    def provider_signature_stats(
-        self, status_categories: pl.DataFrame
-    ) -> pl.DataFrame:
+    def provider_signature_stats(self, status_categories: pl.DataFrame) -> pl.DataFrame:
         return (
-            status_categories.filter(
-                pl.col("most_recent_provider_npi").is_not_null()
-            )
+            status_categories.filter(pl.col("most_recent_provider_npi").is_not_null())
             .group_by("most_recent_provider_npi")
             .agg(
-                pl.col("most_recent_provider_name")
-                .mode()
-                .first()
-                .alias("provider_name"),
+                pl.col("most_recent_provider_name").mode().first().alias("provider_name"),
                 pl.len().alias("active_beneficiary_count"),
                 pl.col("most_recent_signature_date").max().alias("latest_signature_date"),
                 pl.col("signature_recency_status").mode().first().alias("most_common_status"),
@@ -567,15 +582,11 @@ class SignaturePlugins(PluginRegistry):
         )
 
     def chase_provider_summary(self, with_reason: pl.DataFrame) -> pl.DataFrame:
-        has_sigs = with_reason.filter(
-            pl.col("most_recent_provider_npi").is_not_null()
-        )
+        has_sigs = with_reason.filter(pl.col("most_recent_provider_npi").is_not_null())
         if has_sigs.is_empty():
             return has_sigs
         return (
-            has_sigs.group_by(
-                ["most_recent_provider_npi", "most_recent_provider_name"]
-            )
+            has_sigs.group_by(["most_recent_provider_npi", "most_recent_provider_name"])
             .agg(
                 pl.len().alias("beneficiaries_needing_signature"),
                 pl.col("chase_reason").mode().first().alias("primary_reason"),
@@ -642,7 +653,7 @@ class SignaturePlugins(PluginRegistry):
         df = pl.read_parquet(path)
         if df.is_empty():
             return None
-        return df.select(pl.col("file_date").max()).item()
+        return _coerce_date(df.select(pl.col("file_date").max()).item())
 
     def most_recent_pbvar_date(self, silver_path: Path) -> Any:
         path = Path(silver_path) / "pbvar.parquet"
@@ -651,7 +662,7 @@ class SignaturePlugins(PluginRegistry):
         df = pl.read_parquet(path)
         if df.is_empty():
             return None
-        return df.select(pl.col("file_date").max()).item()
+        return _coerce_date(df.select(pl.col("file_date").max()).item())
 
     def validate_sva_tin_npi(
         self, silver_path: Path, valid_combos: set[tuple[str, str]]

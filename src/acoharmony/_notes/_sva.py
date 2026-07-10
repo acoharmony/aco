@@ -14,10 +14,26 @@ from __future__ import annotations
 
 from datetime import date as _date
 from pathlib import Path
+from typing import Any
 
 import polars as pl
 
 from ._base import PluginRegistry
+
+
+def _file_date_expr(lf: pl.LazyFrame, column: str = "file_date") -> pl.Expr:
+    dtype = lf.collect_schema().get(column)
+    if dtype == pl.Utf8:
+        return pl.col(column).str.to_date(strict=False)
+    if dtype == pl.Datetime:
+        return pl.col(column).dt.date()
+    return pl.col(column).cast(pl.Date, strict=False)
+
+
+def _format_event_date(value: Any) -> str:
+    if isinstance(value, _date):
+        return value.strftime("%b %d, %Y")
+    return "N/A"
 
 
 class SvaPlugins(PluginRegistry):
@@ -36,8 +52,9 @@ class SvaPlugins(PluginRegistry):
         Returns ``(rows, counts_by_date, distinct_dates)``.
         """
         sva_lf = pl.scan_parquet(str(Path(silver_path) / "sva.parquet"))
+        file_date = _file_date_expr(sva_lf)
         unique_dates = (
-            sva_lf.select(pl.col("file_date").str.to_date())
+            sva_lf.select(file_date.alias("file_date"))
             .unique()
             .sort("file_date", descending=True)
             .head(n)
@@ -45,10 +62,11 @@ class SvaPlugins(PluginRegistry):
         )
         sva_dates = unique_dates["file_date"].to_list()
         rows = (
-            sva_lf.filter(pl.col("file_date").str.to_date().is_in(sva_dates))
+            sva_lf.with_columns(file_date.alias("_file_date"))
+            .filter(pl.col("_file_date").is_in(sva_dates))
             .select(
                 pl.col("bene_mbi").alias("mbi"),
-                pl.col("file_date").str.to_date().alias("submission_date"),
+                pl.col("_file_date").alias("submission_date"),
             )
             .collect()
         )
@@ -65,14 +83,14 @@ class SvaPlugins(PluginRegistry):
     ) -> tuple[pl.DataFrame, _date]:
         """Most-recent file_date BAR rows + the file_date itself."""
         bar_lf = pl.scan_parquet(str(Path(silver_path) / "bar.parquet"))
-        bar_date = (
-            bar_lf.select(pl.col("file_date").str.to_date().max()).collect().item()
-        )
+        file_date = _file_date_expr(bar_lf)
+        bar_date = bar_lf.select(file_date.max()).collect().item()
         rows = (
-            bar_lf.filter(pl.col("file_date").str.to_date() == bar_date)
+            bar_lf.with_columns(file_date.alias("_file_date"))
+            .filter(pl.col("_file_date") == bar_date)
             .select(
                 pl.col("bene_mbi").alias("mbi"),
-                pl.col("file_date").str.to_date().alias("file_date"),
+                pl.col("_file_date").alias("file_date"),
             )
             .collect()
         )
@@ -81,11 +99,13 @@ class SvaPlugins(PluginRegistry):
     def load_pbvar(self, silver_path: Path) -> pl.DataFrame:
         """One row per MBI with most-recent PBVAR response codes + signature date."""
         pbvar_lf = pl.scan_parquet(str(Path(silver_path) / "pbvar.parquet"))
+        file_date = _file_date_expr(pbvar_lf)
         return (
-            pbvar_lf.group_by("bene_mbi")
+            pbvar_lf.with_columns(file_date.alias("_file_date"))
+            .group_by("bene_mbi")
             .agg(
                 pl.col("sva_response_code_list").last().alias("pbvar_response_codes"),
-                pl.col("file_date").str.to_date().max().alias("pbvar_file_date"),
+                pl.col("_file_date").max().alias("pbvar_file_date"),
                 pl.col("sva_signature_date").max().alias("most_recent_sva_date"),
             )
             .select(
@@ -160,9 +180,7 @@ class SvaPlugins(PluginRegistry):
         with_hcmpi = (
             consolidated.lazy()
             .join(
-                xwalk.select(["crnt_num", "hcmpi"]).unique(
-                    subset=["crnt_num"], keep="first"
-                ),
+                xwalk.select(["crnt_num", "hcmpi"]).unique(subset=["crnt_num"], keep="first"),
                 left_on="mbi",
                 right_on="crnt_num",
                 how="left",
@@ -172,9 +190,7 @@ class SvaPlugins(PluginRegistry):
         return (
             with_hcmpi.lazy()
             .join(
-                pbvar.lazy().select(
-                    "mbi", "pbvar_response_codes", "pbvar_file_date"
-                ),
+                pbvar.lazy().select("mbi", "pbvar_response_codes", "pbvar_file_date"),
                 on="mbi",
                 how="left",
             )
@@ -200,6 +216,8 @@ class SvaPlugins(PluginRegistry):
         total_uploads = df_uploads.height
         days_active = df_daily.height
         sessions_with_uploads = df_sessions.filter(pl.col("files_uploaded") > 0).height
+        first_timestamp = df_events["timestamp"].min() if df_events.height > 0 else None
+        last_timestamp = df_events["timestamp"].max() if df_events.height > 0 else None
         return {
             "total_sessions": df_sessions.height,
             "total_uploads": total_uploads,
@@ -212,16 +230,8 @@ class SvaPlugins(PluginRegistry):
             "avg_per_day": round(total_uploads / max(days_active, 1), 1),
             "sessions_with_uploads": sessions_with_uploads,
             "idle_sessions": df_sessions.height - sessions_with_uploads,
-            "first_date": (
-                df_events["timestamp"].min().strftime("%b %d, %Y")
-                if df_events.height > 0
-                else "N/A"
-            ),
-            "last_date": (
-                df_events["timestamp"].max().strftime("%b %d, %Y")
-                if df_events.height > 0
-                else "N/A"
-            ),
+            "first_date": _format_event_date(first_timestamp),
+            "last_date": _format_event_date(last_timestamp),
         }
 
     def filter_sessions(self, df_sessions: pl.DataFrame, kind: str) -> pl.DataFrame:
@@ -267,9 +277,7 @@ class SvaPlugins(PluginRegistry):
     def session_health(self, df_sessions: pl.DataFrame) -> dict:
         return {
             "auth_failures": df_sessions.filter(~pl.col("auth_succeeded")).height,
-            "dirty_disconnects": df_sessions.filter(
-                ~pl.col("disconnected_cleanly")
-            ).height,
+            "dirty_disconnects": df_sessions.filter(~pl.col("disconnected_cleanly")).height,
         }
 
     def source_breakdown(self, final_list: pl.DataFrame) -> list[dict]:
@@ -277,8 +285,7 @@ class SvaPlugins(PluginRegistry):
         sva = final_list.filter(pl.col("sources").str.contains("SVA")).height
         bar = final_list.filter(pl.col("sources").str.contains("BAR")).height
         both = final_list.filter(
-            pl.col("sources").str.contains("SVA")
-            & pl.col("sources").str.contains("BAR")
+            pl.col("sources").str.contains("SVA") & pl.col("sources").str.contains("BAR")
         ).height
         return [
             {"Source": "SVA Only", "Count": sva - both},

@@ -39,6 +39,20 @@ class TestLoadSvaLastN:
         assert rows.height == 2
         assert counts.height == 2
 
+    @pytest.mark.unit
+    def test_accepts_native_date_file_date(self, tmp_path: Path) -> None:
+        df = pl.DataFrame(
+            {
+                "bene_mbi": ["A", "B", "C"],
+                "file_date": [date(2024, 1, 1), date(2024, 6, 1), date(2024, 6, 1)],
+            }
+        )
+        _write(tmp_path / "sva.parquet", df)
+        rows, counts, dates = SvaPlugins().load_sva_last_n(tmp_path, n=1)
+        assert dates == [date(2024, 6, 1)]
+        assert rows.height == 2
+        assert counts["count"].to_list() == [2]
+
 
 # ---------------------------------------------------------------------------
 # load_bar_latest
@@ -59,6 +73,19 @@ class TestLoadBarLatest:
         assert bar_date == date(2024, 6, 1)
         assert rows.height == 2
         assert sorted(rows["mbi"].to_list()) == ["B", "C"]
+
+    @pytest.mark.unit
+    def test_accepts_native_date_file_date(self, tmp_path: Path) -> None:
+        df = pl.DataFrame(
+            {
+                "bene_mbi": ["A", "B", "C"],
+                "file_date": [date(2024, 1, 1), date(2024, 6, 1), date(2024, 6, 1)],
+            }
+        )
+        _write(tmp_path / "bar.parquet", df)
+        rows, bar_date = SvaPlugins().load_bar_latest(tmp_path)
+        assert bar_date == date(2024, 6, 1)
+        assert rows.height == 2
 
 
 # ---------------------------------------------------------------------------
@@ -84,6 +111,21 @@ class TestLoadPbvar:
         assert as_dict["A"]["pbvar_file_date"] == date(2024, 6, 1)
         assert as_dict["A"]["most_recent_sva_date"] == date(2024, 6, 1)
         assert as_dict["B"]["pbvar_response_codes"] == "z"
+
+    @pytest.mark.unit
+    def test_accepts_native_date_file_date(self, tmp_path: Path) -> None:
+        df = pl.DataFrame(
+            {
+                "bene_mbi": ["A", "A", "B"],
+                "file_date": [date(2024, 1, 1), date(2024, 6, 1), date(2024, 3, 1)],
+                "sva_response_code_list": ["x", "y", "z"],
+                "sva_signature_date": [date(2024, 1, 1), date(2024, 6, 1), date(2024, 3, 1)],
+            }
+        )
+        _write(tmp_path / "pbvar.parquet", df)
+        out = SvaPlugins().load_pbvar(tmp_path)
+        as_dict = {row["mbi"]: row for row in out.iter_rows(named=True)}
+        assert as_dict["A"]["pbvar_file_date"] == date(2024, 6, 1)
 
 
 # ---------------------------------------------------------------------------
@@ -176,9 +218,7 @@ class TestEnrich:
                 "most_recent_sva_date": [date(2024, 6, 1)],
             }
         )
-        xwalk = pl.LazyFrame(
-            {"crnt_num": ["A", "C"], "hcmpi": ["HC_A", "HC_C"]}
-        )
+        xwalk = pl.LazyFrame({"crnt_num": ["A", "C"], "hcmpi": ["HC_A", "HC_C"]})
         with patch(
             "acoharmony._transforms._identity_timeline.current_mbi_with_hcmpi_lookup_lazy",
             return_value=xwalk,
@@ -206,10 +246,9 @@ class TestMabelLogKpis:
     @pytest.mark.unit
     def test_kpi_calc(self) -> None:
         from datetime import datetime as _dt
+
         events = pl.DataFrame({"timestamp": [_dt(2025, 1, 1), _dt(2025, 1, 5)]})
-        sessions = pl.DataFrame(
-            {"session_id": ["s1", "s2"], "files_uploaded": [3, 0]}
-        )
+        sessions = pl.DataFrame({"session_id": ["s1", "s2"], "files_uploaded": [3, 0]})
         uploads = pl.DataFrame(
             {
                 "patient_name": ["A", "A", "B"],
@@ -230,7 +269,6 @@ class TestMabelLogKpis:
 
     @pytest.mark.unit
     def test_empty_events_uses_na_dates(self) -> None:
-        from datetime import datetime as _dt
         events = pl.DataFrame({"timestamp": pl.Series([], dtype=pl.Datetime("us"))})
         sessions = pl.DataFrame({"session_id": [], "files_uploaded": pl.Series([], dtype=pl.Int64)})
         uploads = pl.DataFrame(
@@ -248,9 +286,7 @@ class TestMabelLogKpis:
 class TestFilterSessions:
     @pytest.mark.unit
     def test_filters(self) -> None:
-        sessions = pl.DataFrame(
-            {"session_id": ["a", "b"], "files_uploaded": [3, 0]}
-        )
+        sessions = pl.DataFrame({"session_id": ["a", "b"], "files_uploaded": [3, 0]})
         plugin = SvaPlugins()
         assert plugin.filter_sessions(sessions, "all").height == 2
         assert plugin.filter_sessions(sessions, "uploads").height == 1
@@ -311,6 +347,7 @@ class TestPatientUploadSummary:
     @pytest.mark.unit
     def test_aggregates(self) -> None:
         from datetime import datetime as _dt
+
         df = pl.DataFrame(
             {
                 "patient_name": ["A", "A", "B", None],

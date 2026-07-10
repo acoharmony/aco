@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
 import polars as pl
@@ -129,6 +129,24 @@ class TestDateHelpers:
         assert start == date(2024, 7, 1)
 
     @pytest.mark.unit
+    def test_default_with_native_date_sva(self) -> None:
+        sva = pl.DataFrame({"file_date": [date(2024, 6, 30)]})
+        start, end = SvaSubmissionsPlugins().default_date_range(sva)
+        assert start == date(2024, 7, 1)
+
+    @pytest.mark.unit
+    def test_default_with_native_datetime_sva(self) -> None:
+        sva = pl.DataFrame({"file_date": [datetime(2024, 6, 30, 8, 15)]})
+        start, end = SvaSubmissionsPlugins().default_date_range(sva)
+        assert start == date(2024, 7, 1)
+
+    @pytest.mark.unit
+    def test_default_with_invalid_sva_date_falls_back(self) -> None:
+        sva = pl.DataFrame({"file_date": ["not-a-date"]})
+        start, end = SvaSubmissionsPlugins().default_date_range(sva)
+        assert start == date(2025, 11, 2)
+
+    @pytest.mark.unit
     def test_default_no_sva(self) -> None:
         start, end = SvaSubmissionsPlugins().default_date_range(pl.DataFrame())
         assert start == date(2025, 11, 1)
@@ -142,8 +160,6 @@ class TestDateHelpers:
     @pytest.mark.unit
     def test_parse_dates_signature_already_datetime(self) -> None:
         # signature_date typed as Datetime → take the cast-to-datetime branch (line 134)
-        from datetime import datetime
-
         df = pl.DataFrame(
             {
                 "created_at": ["June 01, 2024, 09:00 AM"],
