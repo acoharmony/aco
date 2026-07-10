@@ -57,7 +57,32 @@ class MailersPlugins(PluginRegistry):
 
     def load_mailed(self) -> pl.DataFrame:
         df = self.catalog.scan_table("mailed").collect()
-        return df.with_columns(self._send_date_expr(df))
+        return self._dedupe_mailed_letters(df.with_columns(self._send_date_expr(df)))
+
+    def _dedupe_mailed_letters(self, mailed_df: pl.DataFrame) -> pl.DataFrame:
+        """Return one mailed row per physical letter.
+
+        The mailed catalog can contain repeated snapshots/source-file copies of the
+        same ``letter_id``. Dashboard letter totals should count physical letters,
+        not catalog rows, so keep the most recent copy when snapshot metadata is
+        present.
+        """
+        if "letter_id" not in mailed_df.columns:
+            return mailed_df
+
+        sort_cols = [
+            col
+            for col in ("processed_at", "file_date", "source_filename", "source_file")
+            if col in mailed_df.columns
+        ]
+        if sort_cols:
+            mailed_df = mailed_df.sort(sort_cols, descending=[True] * len(sort_cols))
+
+        return mailed_df.unique(subset=["letter_id"], keep="first", maintain_order=True)
+
+    def _count_letters_expr(self, alias: str) -> pl.Expr:
+        """Count unique letters for mailed rollups."""
+        return pl.col("letter_id").n_unique().alias(alias)
 
     def load_emails(self) -> pl.DataFrame:
         df = self.catalog.scan_table("emails").collect()
@@ -73,9 +98,7 @@ class MailersPlugins(PluginRegistry):
 
     def load_pbvar(self) -> pl.DataFrame:
         return (
-            self.catalog.scan_table("pbvar")
-            .select(["bene_mbi", "aco_id", "file_date"])
-            .collect()
+            self.catalog.scan_table("pbvar").select(["bene_mbi", "aco_id", "file_date"]).collect()
         )
 
     def load_bar(self) -> pl.DataFrame:
@@ -104,27 +127,27 @@ class MailersPlugins(PluginRegistry):
     # ---- mailing rollups ---------------------------------------------
 
     def mailing_status_counts(self, mailed_df: pl.DataFrame) -> pl.DataFrame:
+        mailed_df = self._dedupe_mailed_letters(mailed_df)
         return (
             mailed_df.group_by("status")
-            .agg(pl.count("letter_id").alias("count"))
+            .agg(self._count_letters_expr("count"))
             .sort("count", descending=True)
         )
 
     def campaign_stats(self, mailed_df: pl.DataFrame) -> pl.DataFrame:
+        mailed_df = self._dedupe_mailed_letters(mailed_df)
         return (
             mailed_df.group_by("campaign_name")
             .agg(
-                pl.count("letter_id").alias("letters_sent"),
+                self._count_letters_expr("letters_sent"),
                 pl.col("mbi").n_unique().alias("unique_beneficiaries"),
-                pl.col("status")
+                pl.col("letter_id")
                 .filter(pl.col("status") == "Delivered")
-                .count()
+                .n_unique()
                 .alias("delivered"),
             )
             .with_columns(
-                (pl.col("delivered") / pl.col("letters_sent") * 100)
-                .round(1)
-                .alias("delivery_rate")
+                (pl.col("delivered") / pl.col("letters_sent") * 100).round(1).alias("delivery_rate")
             )
             .sort("letters_sent", descending=True)
         )
@@ -134,9 +157,7 @@ class MailersPlugins(PluginRegistry):
         if bar_df.is_empty():
             return bar_df.rename({"bene_mbi": "mbi"}) if "bene_mbi" in bar_df.columns else bar_df
         latest = bar_df["file_date"].max()
-        return bar_df.filter(pl.col("file_date") == latest).rename(
-            {"bene_mbi": "mbi"}
-        )
+        return bar_df.filter(pl.col("file_date") == latest).rename({"bene_mbi": "mbi"})
 
     def latest_sva(self, sva_df: pl.DataFrame) -> pl.DataFrame:
         """One row per MBI: most recent signed SVA."""
@@ -156,6 +177,7 @@ class MailersPlugins(PluginRegistry):
         sva_df: pl.DataFrame,
     ) -> dict[str, Any]:
         """Join mailed beneficiaries with current alignment + SVA history."""
+        mailed_df = self._dedupe_mailed_letters(mailed_df)
         mailed_benes = mailed_df.select(
             pl.col("mbi"),
             pl.col("aco_id").alias("mailed_aco_id"),
@@ -206,9 +228,7 @@ class MailersPlugins(PluginRegistry):
         total_mailed = with_sva.height
         has_sva = with_sva.filter(pl.col("sva_status") == "Has SVA")
         sva_aligned = has_sva.filter(pl.col("alignment_status") == "Currently Aligned")
-        sva_not_aligned = has_sva.filter(
-            pl.col("alignment_status") == "Not Aligned"
-        )
+        sva_not_aligned = has_sva.filter(pl.col("alignment_status") == "Not Aligned")
 
         return {
             "with_bar": with_bar,
@@ -222,6 +242,7 @@ class MailersPlugins(PluginRegistry):
         }
 
     def recent_activity(self, mailed_df: pl.DataFrame) -> pl.DataFrame:
+        mailed_df = self._dedupe_mailed_letters(mailed_df)
         return (
             mailed_df.with_columns(
                 pl.col("send_date").dt.year().alias("year"),
@@ -229,7 +250,7 @@ class MailersPlugins(PluginRegistry):
             )
             .group_by(["year", "month", "aco_id"])
             .agg(
-                pl.count("letter_id").alias("letters_sent"),
+                self._count_letters_expr("letters_sent"),
                 pl.col("mbi").n_unique().alias("unique_beneficiaries"),
             )
             .sort(["year", "month"], descending=True)
@@ -237,10 +258,11 @@ class MailersPlugins(PluginRegistry):
         )
 
     def aco_summary(self, mailed_df: pl.DataFrame) -> pl.DataFrame:
+        mailed_df = self._dedupe_mailed_letters(mailed_df)
         return (
             mailed_df.group_by("aco_id")
             .agg(
-                pl.count("letter_id").alias("total_letters"),
+                self._count_letters_expr("total_letters"),
                 pl.col("mbi").n_unique().alias("unique_beneficiaries"),
                 pl.col("campaign_name").n_unique().alias("campaigns"),
                 pl.col("send_date").max().alias("last_mailing"),
@@ -248,10 +270,9 @@ class MailersPlugins(PluginRegistry):
             .sort("total_letters", descending=True)
         )
 
-    def performance_summary(
-        self, mailed_df: pl.DataFrame, bar_df: pl.DataFrame
-    ) -> dict[str, Any]:
+    def performance_summary(self, mailed_df: pl.DataFrame, bar_df: pl.DataFrame) -> dict[str, Any]:
         """High-level mailing + alignment KPIs."""
+        mailed_df = self._dedupe_mailed_letters(mailed_df)
         total = mailed_df.height
         latest_bar = self.latest_bar(bar_df)
         mailed_mbis = set(mailed_df["mbi"].unique().to_list())
@@ -263,16 +284,12 @@ class MailersPlugins(PluginRegistry):
             "total_mailings": total,
             "unique_beneficiaries": mailed_df["mbi"].n_unique(),
             "delivery_rate": (
-                (mailed_df["status"] == "Delivered").sum() / total * 100
-                if total
-                else 0.0
+                (mailed_df["status"] == "Delivered").sum() / total * 100 if total else 0.0
             ),
             "campaigns": mailed_df["campaign_name"].n_unique(),
             "mailed_and_currently_aligned": intersect,
             "mailed_not_aligned": len(mailed_mbis - aligned_mbis),
-            "current_alignment_rate": (
-                intersect / len(mailed_mbis) * 100 if mailed_mbis else 0.0
-            ),
+            "current_alignment_rate": (intersect / len(mailed_mbis) * 100 if mailed_mbis else 0.0),
         }
 
     # ---- email rollups -----------------------------------------------
@@ -383,9 +400,7 @@ class MailersPlugins(PluginRegistry):
             )
             .with_columns(
                 pl.col("weekday")
-                .map_elements(
-                    lambda x: WEEKDAY_MAP.get(x, str(x)), return_dtype=pl.Utf8
-                )
+                .map_elements(lambda x: WEEKDAY_MAP.get(x, str(x)), return_dtype=pl.Utf8)
                 .alias("day_name"),
                 (pl.col("avg_open_rate") * 100).round(1).alias("open_rate"),
                 (pl.col("avg_click_rate") * 100).round(1).alias("click_rate"),
@@ -495,9 +510,7 @@ class MailersPlugins(PluginRegistry):
         )
         return out.sort(sort_col, descending=True)
 
-    def practice_unsubscribes(
-        self, unsubscribes_df: pl.DataFrame, top_n: int = 10
-    ) -> pl.DataFrame:
+    def practice_unsubscribes(self, unsubscribes_df: pl.DataFrame, top_n: int = 10) -> pl.DataFrame:
         df = unsubscribes_df.filter(pl.col("event_name").is_not_null())
         out = (
             df.group_by(["practice_id", "event_name"])
@@ -506,28 +519,19 @@ class MailersPlugins(PluginRegistry):
             .fill_null(0)
         )
         cols = out.columns
-        unsub_expr = (
-            pl.col("unsubscribed").fill_null(0) if "unsubscribed" in cols else pl.lit(0)
-        )
-        comp_expr = (
-            pl.col("complained").fill_null(0) if "complained" in cols else pl.lit(0)
-        )
+        unsub_expr = pl.col("unsubscribed").fill_null(0) if "unsubscribed" in cols else pl.lit(0)
+        comp_expr = pl.col("complained").fill_null(0) if "complained" in cols else pl.lit(0)
         return (
             out.with_columns((unsub_expr + comp_expr).alias("total_events"))
             .sort("total_events", descending=True)
             .head(top_n)
         )
 
-    def domain_unsubscribes(
-        self, unsubscribes_df: pl.DataFrame, top_n: int = 15
-    ) -> pl.DataFrame:
+    def domain_unsubscribes(self, unsubscribes_df: pl.DataFrame, top_n: int = 15) -> pl.DataFrame:
         df = unsubscribes_df.filter(pl.col("event_name").is_not_null())
         out = (
             df.with_columns(
-                pl.col("email")
-                .str.extract(r"@(.+)$", 1)
-                .fill_null("unknown")
-                .alias("email_domain")
+                pl.col("email").str.extract(r"@(.+)$", 1).fill_null("unknown").alias("email_domain")
             )
             .group_by(["email_domain", "event_name"])
             .agg(pl.len().alias("count"))
@@ -535,12 +539,8 @@ class MailersPlugins(PluginRegistry):
             .fill_null(0)
         )
         cols = out.columns
-        unsub_expr = (
-            pl.col("unsubscribed").fill_null(0) if "unsubscribed" in cols else pl.lit(0)
-        )
-        comp_expr = (
-            pl.col("complained").fill_null(0) if "complained" in cols else pl.lit(0)
-        )
+        unsub_expr = pl.col("unsubscribed").fill_null(0) if "unsubscribed" in cols else pl.lit(0)
+        comp_expr = pl.col("complained").fill_null(0) if "complained" in cols else pl.lit(0)
         return (
             out.with_columns((unsub_expr + comp_expr).alias("total_events"))
             .sort("total_events", descending=True)
@@ -548,10 +548,14 @@ class MailersPlugins(PluginRegistry):
         )
 
     def quarterly_trends(self, unsubscribes_df: pl.DataFrame) -> pl.DataFrame:
-        df = unsubscribes_df.filter(pl.col("event_name").is_not_null()).with_columns(
-            pl.col("campaign_name").str.extract(r"(\d{4})\s+Q(\d+)", 1).alias("year"),
-            pl.col("campaign_name").str.extract(r"(\d{4})\s+Q(\d+)", 2).alias("quarter"),
-        ).filter(pl.col("year").is_not_null())
+        df = (
+            unsubscribes_df.filter(pl.col("event_name").is_not_null())
+            .with_columns(
+                pl.col("campaign_name").str.extract(r"(\d{4})\s+Q(\d+)", 1).alias("year"),
+                pl.col("campaign_name").str.extract(r"(\d{4})\s+Q(\d+)", 2).alias("quarter"),
+            )
+            .filter(pl.col("year").is_not_null())
+        )
         return (
             df.group_by(["year", "quarter", "event_name"])
             .agg(
@@ -569,7 +573,8 @@ class MailersPlugins(PluginRegistry):
 
     def language_breakdown(self, unsubscribes_df: pl.DataFrame) -> pl.DataFrame:
         return (
-            unsubscribes_df.filter(pl.col("event_name").is_not_null()).with_columns(
+            unsubscribes_df.filter(pl.col("event_name").is_not_null())
+            .with_columns(
                 pl.when(pl.col("campaign_name").str.contains(r"\(EN\)"))
                 .then(pl.lit("English"))
                 .when(pl.col("campaign_name").str.contains(r"\(ES\)"))
@@ -583,18 +588,12 @@ class MailersPlugins(PluginRegistry):
             .fill_null(0)
         )
 
-    def list_health(
-        self, emails_df: pl.DataFrame, unsubscribes_df: pl.DataFrame
-    ) -> dict[str, Any]:
+    def list_health(self, emails_df: pl.DataFrame, unsubscribes_df: pl.DataFrame) -> dict[str, Any]:
         unsub_patients = set(
-            unsubscribes_df.filter(pl.col("event_name") == "unsubscribed")[
-                "patient_id"
-            ].to_list()
+            unsubscribes_df.filter(pl.col("event_name") == "unsubscribed")["patient_id"].to_list()
         )
         comp_patients = set(
-            unsubscribes_df.filter(pl.col("event_name") == "complained")[
-                "patient_id"
-            ].to_list()
+            unsubscribes_df.filter(pl.col("event_name") == "complained")["patient_id"].to_list()
         )
         if emails_df.is_empty():
             return {
@@ -609,9 +608,7 @@ class MailersPlugins(PluginRegistry):
                 "list_health_score": 0.0,
             }
         total = emails_df["patient_id"].n_unique()
-        engaged = (
-            emails_df.filter(pl.col("opened") | pl.col("clicked"))["patient_id"].n_unique()
-        )
+        engaged = emails_df.filter(pl.col("opened") | pl.col("clicked"))["patient_id"].n_unique()
         bad = unsub_patients | comp_patients
         healthy = total - len(bad)
         return {
@@ -619,13 +616,9 @@ class MailersPlugins(PluginRegistry):
             "engaged_recipients": engaged,
             "engagement_rate": (engaged / total * 100) if total else 0.0,
             "unsubscribed_recipients": len(unsub_patients),
-            "unsubscribe_recipient_rate": (
-                len(unsub_patients) / total * 100 if total else 0.0
-            ),
+            "unsubscribe_recipient_rate": (len(unsub_patients) / total * 100 if total else 0.0),
             "complained_recipients": len(comp_patients),
-            "complaint_recipient_rate": (
-                len(comp_patients) / total * 100 if total else 0.0
-            ),
+            "complaint_recipient_rate": (len(comp_patients) / total * 100 if total else 0.0),
             "healthy_recipients": healthy,
             "list_health_score": (healthy / total * 100) if total else 0.0,
         }
@@ -665,9 +658,7 @@ class MailersPlugins(PluginRegistry):
                 pl.col("death_date").is_not_null()
                 & (pl.col("send_date_only") > pl.col("death_date"))
             )
-            .select(
-                ["mbi", "campaign_name", "send_date_only", "death_date", "status"]
-            )
+            .select(["mbi", "campaign_name", "send_date_only", "death_date", "status"])
             .with_columns(
                 (pl.col("send_date_only") - pl.col("death_date"))
                 .dt.total_days()
@@ -760,9 +751,7 @@ class MailersPlugins(PluginRegistry):
             "emails_after_end": emails_after_end,
         }
 
-    def invalid_summary_df(
-        self, invalid: dict[str, pl.DataFrame]
-    ) -> pl.DataFrame:
+    def invalid_summary_df(self, invalid: dict[str, pl.DataFrame]) -> pl.DataFrame:
         return pl.DataFrame(
             {
                 "Report Type": [
@@ -821,14 +810,30 @@ class MailersPlugins(PluginRegistry):
         sheets.append("Summary")
 
         sheet_specs = [
-            ("mailed_after_death", "Letters After Death", "Table Style Medium 2",
-             {"mbi": 15, "campaign_name": 40, "days_after_death": 20}),
-            ("mailed_after_end", "Letters After End Date", "Table Style Medium 3",
-             {"mbi": 15, "campaign_name": 40, "days_after_end": 20}),
-            ("emails_after_death", "Emails After Death", "Table Style Medium 4",
-             {"mbi": 15, "campaign": 30, "days_after_death": 20}),
-            ("emails_after_end", "Emails After End Date", "Table Style Medium 5",
-             {"mbi": 15, "campaign": 30, "days_after_end": 20}),
+            (
+                "mailed_after_death",
+                "Letters After Death",
+                "Table Style Medium 2",
+                {"mbi": 15, "campaign_name": 40, "days_after_death": 20},
+            ),
+            (
+                "mailed_after_end",
+                "Letters After End Date",
+                "Table Style Medium 3",
+                {"mbi": 15, "campaign_name": 40, "days_after_end": 20},
+            ),
+            (
+                "emails_after_death",
+                "Emails After Death",
+                "Table Style Medium 4",
+                {"mbi": 15, "campaign": 30, "days_after_death": 20},
+            ),
+            (
+                "emails_after_end",
+                "Emails After End Date",
+                "Table Style Medium 5",
+                {"mbi": 15, "campaign": 30, "days_after_end": 20},
+            ),
         ]
         for key, sheet_name, style, widths in sheet_specs:
             df = invalid[key]
