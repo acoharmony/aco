@@ -14,6 +14,7 @@ from acoharmony._test._import_magic import auto_import
 class _:
     pass  # noqa: E701
 
+
 import tempfile
 from datetime import date
 from pathlib import Path
@@ -22,8 +23,8 @@ from typing import TYPE_CHECKING
 import polars as pl
 import pytest
 
-from acoharmony._parsers._xml import parse_xml
 from acoharmony._catalog import Catalog
+from acoharmony._parsers._xml import parse_xml
 
 if TYPE_CHECKING:
     pass
@@ -45,7 +46,7 @@ class TestBnexXmlParser:
 </PFDCACOBeneData>"""
 
         # Write to temp file
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.xml', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".xml", delete=False) as f:
             f.write(xml_data)
             temp_path = Path(f.name)
 
@@ -73,7 +74,7 @@ class TestBnexXmlParser:
 </Beneficiarys>
 </PFDCACOBeneData>"""
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.xml', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".xml", delete=False) as f:
             f.write(xml_data)
             temp_path = Path(f.name)
 
@@ -99,7 +100,7 @@ class TestBnexXmlParser:
 </Beneficiarys>
 </PFDCACOBeneData>"""
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.xml', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".xml", delete=False) as f:
             f.write(xml_data)
             temp_path = Path(f.name)
 
@@ -128,7 +129,7 @@ class TestBnexXmlParser:
 </Beneficiarys>
 </PFDCACOBeneData>"""
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.xml', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".xml", delete=False) as f:
             f.write(xml_data)
             temp_path = Path(f.name)
 
@@ -151,20 +152,24 @@ class TestBnexDataTransformations:
     @pytest.mark.unit
     def test_parse_dob_to_date(self) -> None:
         """Test parsing DOB from YYYYMMDD string to date."""
-        df = pl.DataFrame({
-            "DOB": ["19270412", "19470330", "19410621"]
-        })
+        df = pl.DataFrame({"DOB": ["19270412", "19470330", "19410621"]})
 
         # Parse DOB to date
-        df = df.with_columns([
-            pl.concat_str([
-                pl.col("DOB").str.slice(0, 4),
-                pl.lit("-"),
-                pl.col("DOB").str.slice(4, 2),
-                pl.lit("-"),
-                pl.col("DOB").str.slice(6, 2),
-            ]).str.to_date("%Y-%m-%d").alias("bene_date_of_birth")
-        ])
+        df = df.with_columns(
+            [
+                pl.concat_str(
+                    [
+                        pl.col("DOB").str.slice(0, 4),
+                        pl.lit("-"),
+                        pl.col("DOB").str.slice(4, 2),
+                        pl.lit("-"),
+                        pl.col("DOB").str.slice(6, 2),
+                    ]
+                )
+                .str.to_date("%Y-%m-%d")
+                .alias("bene_date_of_birth")
+            ]
+        )
 
         assert "bene_date_of_birth" in df.columns
         assert df["bene_date_of_birth"][0].year == 1927
@@ -175,23 +180,31 @@ class TestBnexDataTransformations:
     def test_calculate_age_from_dob(self) -> None:
         """Test calculating beneficiary age from DOB."""
 
-        df = pl.DataFrame({
-            "DOB": ["19270412", "19470330", "20000101"]
-        })
+        df = pl.DataFrame({"DOB": ["19270412", "19470330", "20000101"]})
 
         # Parse DOB and calculate age
         today = date.today()
-        df = df.with_columns([
-            pl.concat_str([
-                pl.col("DOB").str.slice(0, 4),
-                pl.lit("-"),
-                pl.col("DOB").str.slice(4, 2),
-                pl.lit("-"),
-                pl.col("DOB").str.slice(6, 2),
-            ]).str.to_date("%Y-%m-%d").alias("bene_date_of_birth")
-        ]).with_columns([
-            ((pl.lit(today) - pl.col("bene_date_of_birth")).dt.total_days() / 365.25).cast(pl.Int32).alias("age")
-        ])
+        df = df.with_columns(
+            [
+                pl.concat_str(
+                    [
+                        pl.col("DOB").str.slice(0, 4),
+                        pl.lit("-"),
+                        pl.col("DOB").str.slice(4, 2),
+                        pl.lit("-"),
+                        pl.col("DOB").str.slice(6, 2),
+                    ]
+                )
+                .str.to_date("%Y-%m-%d")
+                .alias("bene_date_of_birth")
+            ]
+        ).with_columns(
+            [
+                ((pl.lit(today) - pl.col("bene_date_of_birth")).dt.total_days() / 365.25)
+                .cast(pl.Int32)
+                .alias("age")
+            ]
+        )
 
         assert "age" in df.columns
         # Age should be reasonable for beneficiaries
@@ -202,19 +215,19 @@ class TestBnexDataTransformations:
     @pytest.mark.unit
     def test_exclusion_reason_categorization(self) -> None:
         """Test categorizing exclusion reasons."""
-        df = pl.DataFrame({
-            "BeneExcReason": ["PC", "BD", "PC", "OT"]
-        })
+        df = pl.DataFrame({"BeneExcReason": ["PC", "BD", "PC", "OT"]})
 
         # Categorize reasons
-        df = df.with_columns([
-            pl.when(pl.col("BeneExcReason") == "PC")
-            .then(pl.lit("Patient Choice"))
-            .when(pl.col("BeneExcReason") == "BD")
-            .then(pl.lit("Beneficiary Death"))
-            .otherwise(pl.lit("Other"))
-            .alias("exclusion_category")
-        ])
+        df = df.with_columns(
+            [
+                pl.when(pl.col("BeneExcReason") == "PC")
+                .then(pl.lit("Patient Choice"))
+                .when(pl.col("BeneExcReason") == "BD")
+                .then(pl.lit("Beneficiary Death"))
+                .otherwise(pl.lit("Other"))
+                .alias("exclusion_category")
+            ]
+        )
 
         assert df["exclusion_category"][0] == "Patient Choice"
         assert df["exclusion_category"][1] == "Beneficiary Death"
@@ -224,19 +237,19 @@ class TestBnexDataTransformations:
     @pytest.mark.unit
     def test_gender_normalization(self) -> None:
         """Test gender field normalization."""
-        df = pl.DataFrame({
-            "Gender": ["F", "M", "F", "M"]
-        })
+        df = pl.DataFrame({"Gender": ["F", "M", "F", "M"]})
 
         # Expand gender codes
-        df = df.with_columns([
-            pl.when(pl.col("Gender") == "M")
-            .then(pl.lit("Male"))
-            .when(pl.col("Gender") == "F")
-            .then(pl.lit("Female"))
-            .otherwise(pl.lit("Unknown"))
-            .alias("gender_full")
-        ])
+        df = df.with_columns(
+            [
+                pl.when(pl.col("Gender") == "M")
+                .then(pl.lit("Male"))
+                .when(pl.col("Gender") == "F")
+                .then(pl.lit("Female"))
+                .otherwise(pl.lit("Unknown"))
+                .alias("gender_full")
+            ]
+        )
 
         assert df["gender_full"][0] == "Female"
         assert df["gender_full"][1] == "Male"
@@ -255,9 +268,15 @@ class TestBnexFileProcessing:
             # In CI, create a temporary bronze directory with a mock BNEX file
             bronze_path = tmp_path / "bronze"
             bronze_path.mkdir()
-            (bronze_path / "P.A9999.BNEX.Y25.D240101.T1234567.xml").write_text("<xml/>")
 
         bnex_files = list(bronze_path.glob("P.A*.BNEX.Y*.D*.T*.xml"))
+        if not bnex_files:
+            # Clean CI runners may have the workspace directory without private
+            # bronze fixtures, so create a minimal file that exercises the pattern.
+            bronze_path = tmp_path / "bronze"
+            bronze_path.mkdir(exist_ok=True)
+            (bronze_path / "P.A9999.BNEX.Y25.D240101.T1234567.xml").write_text("<xml/>")
+            bnex_files = list(bronze_path.glob("P.A*.BNEX.Y*.D*.T*.xml"))
 
         # Should have at least one BNEX file
         assert len(bnex_files) > 0
@@ -265,7 +284,6 @@ class TestBnexFileProcessing:
     @pytest.mark.slow
     def test_parse_actual_bnex_file(self) -> None:
         """Test parsing an actual BNEX XML file."""
-
 
         bronze_path = Path("/opt/s3/data/workspace/bronze")
         bnex_files = sorted(bronze_path.glob("P.A*.BNEX.Y*.D*.T*.xml"))
@@ -305,7 +323,6 @@ class TestBnexFileProcessing:
     @pytest.mark.slow
     def test_bnex_schema_compliance(self) -> None:
         """Test that BNEX files comply with schema definition."""
-
 
         # Load schema
         catalog = Catalog()
