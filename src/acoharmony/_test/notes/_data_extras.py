@@ -5,7 +5,8 @@ from __future__ import annotations
 
 from datetime import date
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from typing import Any, cast
+from unittest.mock import MagicMock
 
 import polars as pl
 import pytest
@@ -62,9 +63,7 @@ class TestDatasetMetadata:
         _write_parquet(tmp_path / "gold" / "demo.parquet", df)
         tracking = tmp_path / "logs" / "tracking"
         tracking.mkdir(parents=True)
-        (tracking / "demo_state.json").write_text(
-            '{"last_run": "2024-04-01T08:00:00.000"}'
-        )
+        (tracking / "demo_state.json").write_text('{"last_run": "2024-04-01T08:00:00.000"}')
         out = plugin.dataset_metadata({"demo": ("demo.parquet", "d")})
         assert out["demo"]["last_run"] == "2024-04-01T08:00:00"
 
@@ -101,7 +100,9 @@ class TestResolveIdentity:
     @pytest.mark.unit
     def test_unknown_mbi_returns_self(self) -> None:
         plugin = DataPlugins()
-        timeline = pl.LazyFrame({"mbi": ["A", "B"], "chain_id": [1, 2], "hcmpi": [None, "H"], "hop_index": [0, 0]})
+        timeline = pl.LazyFrame(
+            {"mbi": ["A", "B"], "chain_id": [1, 2], "hcmpi": [None, "H"], "hop_index": [0, 0]}
+        )
         result = plugin.resolve_identity("ZZZ", timeline_lf=timeline)
         assert result["hcmpi"] is None
         assert result["current_mbi"] == "ZZZ"
@@ -145,9 +146,7 @@ class TestResolveIdentity:
     def test_no_leaf_falls_back_to_input(self) -> None:
         plugin = DataPlugins()
         # All hop_indexes nonzero — no leaf row.
-        timeline = pl.LazyFrame(
-            {"mbi": ["A"], "chain_id": [1], "hcmpi": [None], "hop_index": [1]}
-        )
+        timeline = pl.LazyFrame({"mbi": ["A"], "chain_id": [1], "hcmpi": [None], "hop_index": [1]})
         result = plugin.resolve_identity("A", timeline_lf=timeline)
         assert result["current_mbi"] == "A"
 
@@ -159,7 +158,9 @@ class TestResolveIdentity:
         # shape on the first call (chain id lookup) and an empty frame on
         # the second (chain rows lookup).
         first = pl.LazyFrame({"mbi": ["A"], "chain_id": [1]})
-        empty = pl.DataFrame({"mbi": pl.Series([], dtype=pl.Utf8), "chain_id": pl.Series([], dtype=pl.Int64)})
+        empty = pl.DataFrame(
+            {"mbi": pl.Series([], dtype=pl.Utf8), "chain_id": pl.Series([], dtype=pl.Int64)}
+        )
 
         class StubLF:
             def __init__(self, calls):
@@ -180,7 +181,7 @@ class TestResolveIdentity:
                     return first.collect()  # first call: chain_id lookup
                 return empty  # second call: chain rows lookup
 
-        result = plugin.resolve_identity("A", timeline_lf=StubLF([]))
+        result = plugin.resolve_identity("A", timeline_lf=cast(Any, StubLF([])))
         assert result["chain_df"] is None
         assert result["current_mbi"] == "A"
 
@@ -194,8 +195,22 @@ class TestGetDemographics:
     def test_match(self) -> None:
         lf = pl.LazyFrame({"bene_mbi_id": ["A", "B"], "bene_age": [70, 65]})
         df = DataPlugins().get_demographics("A", demographics_lf=lf)
-        assert df is not None and df.height == 1
+        assert df is not None
+        assert df.height == 1
         assert df["bene_age"][0] == 70
+
+    @pytest.mark.unit
+    def test_match_current_bene_mbi_id(self) -> None:
+        lf = pl.LazyFrame(
+            {
+                "current_bene_mbi_id": ["A", "B"],
+                "bene_dob": [date(1950, 1, 1), date(1955, 1, 1)],
+            }
+        )
+        df = DataPlugins().get_demographics("A", demographics_lf=lf)
+        assert df is not None
+        assert df.height == 1
+        assert "bene_age" in df.columns
 
     @pytest.mark.unit
     def test_no_match(self) -> None:
@@ -203,12 +218,28 @@ class TestGetDemographics:
         assert DataPlugins().get_demographics("A", demographics_lf=lf) is None
 
     @pytest.mark.unit
+    def test_loads_default_deduped_silver(self, tmp_path: Path) -> None:
+        plugin, _ = _patched_data(tmp_path)
+        df = pl.DataFrame(
+            {
+                "current_bene_mbi_id": ["A"],
+                "bene_dob": [date(1960, 1, 1)],
+                "file_date": ["2024-01-01"],
+            }
+        )
+        _write_parquet(tmp_path / "silver" / "int_beneficiary_demographics_deduped.parquet", df)
+        out = plugin.get_demographics("A")
+        assert out is not None
+        assert out.height == 1
+
+    @pytest.mark.unit
     def test_loads_default_silver(self, tmp_path: Path) -> None:
         plugin, _ = _patched_data(tmp_path)
         df = pl.DataFrame({"bene_mbi_id": ["A"], "bene_age": [60]})
         _write_parquet(tmp_path / "silver" / "beneficiary_demographics.parquet", df)
         out = plugin.get_demographics("A")
-        assert out is not None and out["bene_age"][0] == 60
+        assert out is not None
+        assert out["bene_age"][0] == 60
 
 
 class TestGetAlignment:
@@ -220,7 +251,8 @@ class TestGetAlignment:
     def test_match(self) -> None:
         lf = pl.LazyFrame({"current_mbi": ["A", "B"], "year": [2024, 2024]})
         df = DataPlugins().get_alignment("A", alignment_lf=lf)
-        assert df is not None and df.height == 1
+        assert df is not None
+        assert df.height == 1
 
     @pytest.mark.unit
     def test_no_match(self) -> None:
@@ -233,7 +265,8 @@ class TestGetAlignment:
         df = pl.DataFrame({"current_mbi": ["A"], "y": [1]})
         _write_parquet(tmp_path / "gold" / "consolidated_alignment.parquet", df)
         out = plugin.get_alignment("A")
-        assert out is not None and out.height == 1
+        assert out is not None
+        assert out.height == 1
 
 
 class TestGetChronicConditions:
@@ -245,13 +278,15 @@ class TestGetChronicConditions:
     def test_matches_current_mbi(self) -> None:
         lf = pl.LazyFrame({"person_id": ["A"], "diabetes": [True]})
         df = DataPlugins().get_chronic_conditions("A", conditions_lf=lf)
-        assert df is not None and df.height == 1
+        assert df is not None
+        assert df.height == 1
 
     @pytest.mark.unit
     def test_falls_back_to_hcmpi(self) -> None:
         lf = pl.LazyFrame({"person_id": ["HC1"], "diabetes": [True]})
         df = DataPlugins().get_chronic_conditions("MBI", hcmpi="HC1", conditions_lf=lf)
-        assert df is not None and df.height == 1
+        assert df is not None
+        assert df.height == 1
 
     @pytest.mark.unit
     def test_no_match(self) -> None:
@@ -264,7 +299,8 @@ class TestGetChronicConditions:
         df = pl.DataFrame({"person_id": ["A"], "v": [1]})
         _write_parquet(tmp_path / "gold" / "chronic_conditions_wide.parquet", df)
         out = plugin.get_chronic_conditions("A")
-        assert out is not None and out.height == 1
+        assert out is not None
+        assert out.height == 1
 
 
 class TestPatientLines:
@@ -282,7 +318,8 @@ class TestPatientLines:
             }
         )
         df = DataPlugins().get_patient_medical_lines("A", medical_lf=lf)
-        assert df is not None and df.height == 2
+        assert df is not None
+        assert df.height == 2
         # sorted descending by date
         assert df["claim_start_date"][0] == date(2024, 6, 1)
 
@@ -300,7 +337,9 @@ class TestPatientLines:
             {"person_id": ["A"], "claim_start_date": [date(2024, 1, 1)], "paid_amount": [1.0]}
         )
         _write_parquet(tmp_path / "gold" / "medical_claim.parquet", df)
-        assert plugin.get_patient_medical_lines("A").height == 1
+        out = plugin.get_patient_medical_lines("A")
+        assert out is not None
+        assert out.height == 1
 
     @pytest.mark.unit
     def test_pharmacy_lines_empty(self) -> None:
@@ -316,7 +355,8 @@ class TestPatientLines:
             }
         )
         df = DataPlugins().get_patient_pharmacy_lines("A", pharmacy_lf=lf)
-        assert df is not None and df.height == 1
+        assert df is not None
+        assert df.height == 1
 
     @pytest.mark.unit
     def test_pharmacy_lines_no_match(self) -> None:
@@ -332,7 +372,9 @@ class TestPatientLines:
             {"person_id": ["A"], "dispensing_date": [date(2024, 1, 1)], "paid_amount": [5.0]}
         )
         _write_parquet(tmp_path / "gold" / "pharmacy_claim.parquet", df)
-        assert plugin.get_patient_pharmacy_lines("A").height == 1
+        out = plugin.get_patient_pharmacy_lines("A")
+        assert out is not None
+        assert out.height == 1
 
 
 def _medical_lf() -> pl.LazyFrame:
@@ -458,53 +500,107 @@ class TestSearchDefaultLazyframes:
     def test_eligibility_loads_default(self, tmp_path: Path) -> None:
         plugin, _ = _patched_data(tmp_path)
         df = pl.DataFrame(
-            {col: [None] for col in [
-                "person_id", "member_id", "subscriber_id", "gender", "race",
-                "birth_date", "death_date", "death_flag",
-                "enrollment_start_date", "enrollment_end_date",
-                "payer", "payer_type", "plan",
-            ]}
+            {
+                col: [None]
+                for col in [
+                    "person_id",
+                    "member_id",
+                    "subscriber_id",
+                    "gender",
+                    "race",
+                    "birth_date",
+                    "death_date",
+                    "death_flag",
+                    "enrollment_start_date",
+                    "enrollment_end_date",
+                    "payer",
+                    "payer_type",
+                    "plan",
+                ]
+            }
         ).with_columns(pl.col("member_id").fill_null("M1"))
         _write_parquet(tmp_path / "gold" / "eligibility.parquet", df)
         out = plugin.get_member_eligibility(["M1"])
-        assert out is not None and out.height == 1
+        assert out is not None
+        assert out.height == 1
 
     @pytest.mark.unit
     def test_medical_claims_loads_default(self, tmp_path: Path) -> None:
         plugin, _ = _patched_data(tmp_path)
-        cols = {col: [None] for col in [
-            "claim_id", "claim_line_number", "claim_type", "member_id", "person_id",
-            "claim_start_date", "claim_end_date", "claim_line_start_date",
-            "claim_line_end_date", "admission_date", "discharge_date",
-            "place_of_service_code", "bill_type_code", "revenue_center_code",
-            "hcpcs_code", "hcpcs_modifier_1", "hcpcs_modifier_2",
-            "rendering_npi", "rendering_tin", "billing_npi", "billing_tin",
-            "facility_npi", "paid_amount", "allowed_amount", "charge_amount",
-            "diagnosis_code_1", "diagnosis_code_2", "diagnosis_code_3",
-        ]}
+        cols = {
+            col: [None]
+            for col in [
+                "claim_id",
+                "claim_line_number",
+                "claim_type",
+                "member_id",
+                "person_id",
+                "claim_start_date",
+                "claim_end_date",
+                "claim_line_start_date",
+                "claim_line_end_date",
+                "admission_date",
+                "discharge_date",
+                "place_of_service_code",
+                "bill_type_code",
+                "revenue_center_code",
+                "hcpcs_code",
+                "hcpcs_modifier_1",
+                "hcpcs_modifier_2",
+                "rendering_npi",
+                "rendering_tin",
+                "billing_npi",
+                "billing_tin",
+                "facility_npi",
+                "paid_amount",
+                "allowed_amount",
+                "charge_amount",
+                "diagnosis_code_1",
+                "diagnosis_code_2",
+                "diagnosis_code_3",
+            ]
+        }
         df = pl.DataFrame(cols).with_columns(
             pl.col("member_id").fill_null("M1"),
             pl.col("claim_start_date").cast(pl.Date),
         )
         _write_parquet(tmp_path / "gold" / "medical_claim.parquet", df)
         out = plugin.get_medical_claims({"member_ids": ["M1"]})
-        assert out is not None and out.height == 1
+        assert out is not None
+        assert out.height == 1
 
     @pytest.mark.unit
     def test_pharmacy_claims_loads_default(self, tmp_path: Path) -> None:
         plugin, _ = _patched_data(tmp_path)
-        cols = {col: [None] for col in [
-            "claim_id", "claim_line_number", "member_id", "person_id",
-            "dispensing_date", "ndc_code", "prescribing_provider_npi",
-            "dispensing_provider_npi", "quantity", "days_supply", "refills",
-            "paid_date", "paid_amount", "allowed_amount", "charge_amount",
-            "coinsurance_amount", "copayment_amount", "deductible_amount",
-            "in_network_flag",
-        ]}
+        cols = {
+            col: [None]
+            for col in [
+                "claim_id",
+                "claim_line_number",
+                "member_id",
+                "person_id",
+                "dispensing_date",
+                "ndc_code",
+                "prescribing_provider_npi",
+                "dispensing_provider_npi",
+                "quantity",
+                "days_supply",
+                "refills",
+                "paid_date",
+                "paid_amount",
+                "allowed_amount",
+                "charge_amount",
+                "coinsurance_amount",
+                "copayment_amount",
+                "deductible_amount",
+                "in_network_flag",
+            ]
+        }
         df = pl.DataFrame(cols).with_columns(
             pl.col("member_id").fill_null("M1"),
             pl.col("dispensing_date").cast(pl.Date),
         )
         _write_parquet(tmp_path / "gold" / "pharmacy_claim.parquet", df)
         out = plugin.get_pharmacy_claims(["M1"])
-        assert out is not None and out.height == 1
+        assert out is not None
+        assert out.height == 1

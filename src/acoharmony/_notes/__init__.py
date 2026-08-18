@@ -37,9 +37,10 @@ from ._sva import SvaPlugins
 from ._sva_pdf_extract import SvaPdfExtractPlugins
 from ._sva_submissions import SvaSubmissionsPlugins
 from ._tparc import TparcPlugins
-from ._wound_care import WoundCarePlugins
+from ._transitions import TransitionsPlugins
 from ._ui import UIPlugins
 from ._utils import UtilityPlugins
+from ._wound_care import WoundCarePlugins
 from .config import NotebookConfig
 from .generator import NotebookGenerator
 
@@ -72,6 +73,7 @@ sva = SvaPlugins()
 sva_pdf_extract = SvaPdfExtractPlugins()
 sva_submissions = SvaSubmissionsPlugins()
 tparc = TparcPlugins()
+transitions = TransitionsPlugins()
 wound_care = WoundCarePlugins()
 
 __all__ = [
@@ -107,6 +109,7 @@ __all__ = [
     "SvaPdfExtractPlugins",
     "SvaSubmissionsPlugins",
     "TparcPlugins",
+    "TransitionsPlugins",
     "WoundCarePlugins",
     "setup",
     "ui",
@@ -137,5 +140,6 @@ __all__ = [
     "sva_pdf_extract",
     "sva_submissions",
     "tparc",
+    "transitions",
     "wound_care",
 ]

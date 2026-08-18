@@ -12,8 +12,9 @@ notebooks. Notebooks call these directly — no inline polars logic.
 from __future__ import annotations
 
 import json
+from datetime import date
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 import polars as pl
 
@@ -126,6 +127,12 @@ class DataPlugins(PluginRegistry):
     ) -> pl.LazyFrame | pl.DataFrame:
         return self._load_dataset("silver", dataset_name, lazy, path)
 
+    def _load_gold_lazy(self, dataset_name: str, path: Path | None = None) -> pl.LazyFrame:
+        return cast(pl.LazyFrame, self.load_gold_dataset(dataset_name, lazy=True, path=path))
+
+    def _load_silver_lazy(self, dataset_name: str, path: Path | None = None) -> pl.LazyFrame:
+        return cast(pl.LazyFrame, self.load_silver_dataset(dataset_name, lazy=True, path=path))
+
     # ---- header metadata ------------------------------------------------
 
     def dataset_metadata(
@@ -196,14 +203,9 @@ class DataPlugins(PluginRegistry):
         if not mbi:
             return empty
         if timeline_lf is None:
-            timeline_lf = self.load_silver_dataset("identity_timeline", lazy=True)
+            timeline_lf = self._load_silver_lazy("identity_timeline")
 
-        chain_id_df = (
-            timeline_lf.filter(pl.col("mbi") == mbi)
-            .select("chain_id")
-            .unique()
-            .collect()
-        )
+        chain_id_df = timeline_lf.filter(pl.col("mbi") == mbi).select("chain_id").unique().collect()
         if chain_id_df.height == 0:
             return empty
         chain_id = chain_id_df["chain_id"][0]
@@ -233,8 +235,27 @@ class DataPlugins(PluginRegistry):
         if not mbi:
             return None
         if demographics_lf is None:
-            demographics_lf = self.load_silver_dataset("beneficiary_demographics", lazy=True)
-        df = demographics_lf.filter(pl.col("bene_mbi_id") == mbi).collect()
+            try:
+                demographics_lf = self._load_silver_lazy("int_beneficiary_demographics_deduped")
+            except FileNotFoundError:
+                demographics_lf = self._load_silver_lazy("beneficiary_demographics")
+
+        schema = demographics_lf.collect_schema()
+        columns = set(schema.names())
+        mbi_columns = [c for c in ("current_bene_mbi_id", "bene_mbi_id") if c in columns]
+        if not mbi_columns:
+            return None
+
+        query = demographics_lf.filter(pl.any_horizontal([pl.col(c) == mbi for c in mbi_columns]))
+        if "file_date" in columns:
+            query = query.sort("file_date", descending=True)
+        df = query.collect()
+        if df.height > 0 and "bene_age" not in df.columns and "bene_dob" in df.columns:
+            df = df.with_columns(
+                ((pl.lit(date.today()) - pl.col("bene_dob")).dt.total_days() // 365).alias(
+                    "bene_age"
+                )
+            )
         return df if df.height > 0 else None
 
     def get_alignment(
@@ -245,7 +266,7 @@ class DataPlugins(PluginRegistry):
         if not mbi:
             return None
         if alignment_lf is None:
-            alignment_lf = self.load_gold_dataset("consolidated_alignment", lazy=True)
+            alignment_lf = self._load_gold_lazy("consolidated_alignment")
         df = alignment_lf.filter(pl.col("current_mbi") == mbi).collect()
         return df if df.height > 0 else None
 
@@ -259,7 +280,7 @@ class DataPlugins(PluginRegistry):
         if not current_mbi:
             return None
         if conditions_lf is None:
-            conditions_lf = self.load_gold_dataset("chronic_conditions_wide", lazy=True)
+            conditions_lf = self._load_gold_lazy("chronic_conditions_wide")
         df = conditions_lf.filter(pl.col("person_id") == current_mbi).collect()
         if df.height == 0 and hcmpi:
             df = conditions_lf.filter(pl.col("person_id") == str(hcmpi)).collect()
@@ -273,7 +294,7 @@ class DataPlugins(PluginRegistry):
         if not mbi:
             return None
         if medical_lf is None:
-            medical_lf = self.load_gold_dataset("medical_claim", lazy=True)
+            medical_lf = self._load_gold_lazy("medical_claim")
         df = (
             medical_lf.filter(pl.col("person_id") == mbi)
             .sort("claim_start_date", descending=True)
@@ -289,7 +310,7 @@ class DataPlugins(PluginRegistry):
         if not mbi:
             return None
         if pharmacy_lf is None:
-            pharmacy_lf = self.load_gold_dataset("pharmacy_claim", lazy=True)
+            pharmacy_lf = self._load_gold_lazy("pharmacy_claim")
         df = (
             pharmacy_lf.filter(pl.col("person_id") == mbi)
             .sort("dispensing_date", descending=True)
@@ -312,9 +333,9 @@ class DataPlugins(PluginRegistry):
         DataFrame when the patient has no claims.
         """
         if medical_lf is None:
-            medical_lf = self.load_gold_dataset("medical_claim", lazy=True)
+            medical_lf = self._load_gold_lazy("medical_claim")
         if pharmacy_lf is None:
-            pharmacy_lf = self.load_gold_dataset("pharmacy_claim", lazy=True)
+            pharmacy_lf = self._load_gold_lazy("pharmacy_claim")
 
         medical = (
             medical_lf.filter(pl.col("person_id") == mbi)
@@ -324,42 +345,90 @@ class DataPlugins(PluginRegistry):
                 pl.when(
                     pl.col("bill_type_code").str.starts_with("11")
                     | pl.col("bill_type_code").str.starts_with("12")
-                ).then(pl.col("paid_amount")).otherwise(0).sum().alias("inpatient_spend"),
+                )
+                .then(pl.col("paid_amount"))
+                .otherwise(0)
+                .sum()
+                .alias("inpatient_spend"),
                 pl.when(pl.col("bill_type_code").str.starts_with("13"))
-                .then(pl.col("paid_amount")).otherwise(0).sum().alias("outpatient_spend"),
+                .then(pl.col("paid_amount"))
+                .otherwise(0)
+                .sum()
+                .alias("outpatient_spend"),
                 pl.when(
                     pl.col("bill_type_code").str.starts_with("21")
                     | pl.col("bill_type_code").str.starts_with("22")
-                ).then(pl.col("paid_amount")).otherwise(0).sum().alias("snf_spend"),
+                )
+                .then(pl.col("paid_amount"))
+                .otherwise(0)
+                .sum()
+                .alias("snf_spend"),
                 pl.when(
                     pl.col("bill_type_code").str.starts_with("81")
                     | pl.col("bill_type_code").str.starts_with("82")
-                ).then(pl.col("paid_amount")).otherwise(0).sum().alias("hospice_spend"),
+                )
+                .then(pl.col("paid_amount"))
+                .otherwise(0)
+                .sum()
+                .alias("hospice_spend"),
                 pl.when(
                     pl.col("bill_type_code").str.starts_with("32")
                     | pl.col("bill_type_code").str.starts_with("33")
                     | pl.col("bill_type_code").str.starts_with("34")
-                ).then(pl.col("paid_amount")).otherwise(0).sum().alias("home_health_spend"),
+                )
+                .then(pl.col("paid_amount"))
+                .otherwise(0)
+                .sum()
+                .alias("home_health_spend"),
                 pl.when(pl.col("bill_type_code").is_null() | (pl.col("bill_type_code") == ""))
-                .then(pl.col("paid_amount")).otherwise(0).sum().alias("part_b_carrier_spend"),
+                .then(pl.col("paid_amount"))
+                .otherwise(0)
+                .sum()
+                .alias("part_b_carrier_spend"),
                 pl.col("paid_amount").sum().alias("total_medical_spend"),
                 pl.when(
                     pl.col("bill_type_code").str.starts_with("11")
                     | pl.col("bill_type_code").str.starts_with("12")
-                ).then(1).otherwise(0).sum().alias("ip_admissions"),
+                )
+                .then(1)
+                .otherwise(0)
+                .sum()
+                .alias("ip_admissions"),
                 pl.when(
                     pl.col("revenue_center_code").is_in(
-                        ["0450", "0451", "0452", "0453", "0454", "0455", "0456", "0457", "0458", "0459"]
+                        [
+                            "0450",
+                            "0451",
+                            "0452",
+                            "0453",
+                            "0454",
+                            "0455",
+                            "0456",
+                            "0457",
+                            "0458",
+                            "0459",
+                        ]
                     )
                     | (pl.col("place_of_service_code") == "23")
-                ).then(1).otherwise(0).sum().alias("er_visits"),
+                )
+                .then(1)
+                .otherwise(0)
+                .sum()
+                .alias("er_visits"),
                 pl.when(
                     ((pl.col("hcpcs_code") >= "99201") & (pl.col("hcpcs_code") <= "99215"))
                     | ((pl.col("hcpcs_code") >= "99241") & (pl.col("hcpcs_code") <= "99245"))
                     | ((pl.col("hcpcs_code") >= "99281") & (pl.col("hcpcs_code") <= "99285"))
-                ).then(1).otherwise(0).sum().alias("em_visits"),
+                )
+                .then(1)
+                .otherwise(0)
+                .sum()
+                .alias("em_visits"),
                 pl.when(pl.col("hcpcs_code").is_in(["G0438", "G0439"]))
-                .then(1).otherwise(0).sum().alias("awv_visits"),
+                .then(1)
+                .otherwise(0)
+                .sum()
+                .alias("awv_visits"),
             )
             .sort("year", descending=True)
             .collect()
@@ -380,8 +449,13 @@ class DataPlugins(PluginRegistry):
             return pl.DataFrame()
 
         zero_spend = [
-            "inpatient_spend", "outpatient_spend", "snf_spend", "hospice_spend",
-            "home_health_spend", "part_b_carrier_spend", "total_medical_spend",
+            "inpatient_spend",
+            "outpatient_spend",
+            "snf_spend",
+            "hospice_spend",
+            "home_health_spend",
+            "part_b_carrier_spend",
+            "total_medical_spend",
         ]
         zero_util = ["ip_admissions", "er_visits", "em_visits", "awv_visits"]
 
@@ -412,7 +486,7 @@ class DataPlugins(PluginRegistry):
         if not member_ids:
             return None
         if eligibility_lf is None:
-            eligibility_lf = self.load_gold_dataset("eligibility", lazy=True)
+            eligibility_lf = self._load_gold_lazy("eligibility")
         result = (
             eligibility_lf.filter(pl.col("member_id").is_in(member_ids))
             .select(_ELIGIBILITY_COLUMNS)
@@ -428,7 +502,7 @@ class DataPlugins(PluginRegistry):
         """Member ID / HCPCS / NPI / TIN / date-range claim line search."""
         filters = filters or {}
         if medical_claim_lf is None:
-            medical_claim_lf = self.load_gold_dataset("medical_claim", lazy=True)
+            medical_claim_lf = self._load_gold_lazy("medical_claim")
         query = medical_claim_lf
 
         if filters.get("member_ids"):
@@ -455,9 +529,7 @@ class DataPlugins(PluginRegistry):
             query = query.filter(pl.col("claim_start_date") <= filters["end_date"])
 
         result = (
-            query.select(_MEDICAL_CLAIM_COLUMNS)
-            .sort("claim_start_date", descending=True)
-            .collect()
+            query.select(_MEDICAL_CLAIM_COLUMNS).sort("claim_start_date", descending=True).collect()
         )
         return result if result.height > 0 else None
 
@@ -469,7 +541,7 @@ class DataPlugins(PluginRegistry):
         if not member_ids:
             return None
         if pharmacy_claim_lf is None:
-            pharmacy_claim_lf = self.load_gold_dataset("pharmacy_claim", lazy=True)
+            pharmacy_claim_lf = self._load_gold_lazy("pharmacy_claim")
         result = (
             pharmacy_claim_lf.filter(pl.col("member_id").is_in(member_ids))
             .select(_PHARMACY_CLAIM_COLUMNS)
