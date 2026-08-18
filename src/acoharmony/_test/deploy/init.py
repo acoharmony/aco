@@ -3,7 +3,6 @@ Tests for medium-coverage-gap modules: _deploy/_manager, _runner/_pipeline_execu
 _runner/_schema_transformer (additional), parsers.py, _tuva/_depends/setup.py
 """
 
-
 # Magic auto-import: brings in ALL exports from module under test
 from acoharmony._test._import_magic import auto_import
 
@@ -11,6 +10,7 @@ from acoharmony._test._import_magic import auto_import
 @auto_import
 class _:
     pass  # noqa: E701
+
 
 import os
 import subprocess
@@ -83,8 +83,11 @@ class TestDockerComposeManagerRunCompose:
             call_args = mock_run.call_args
             cmd = call_args[0][0]
             assert cmd == [
-                "docker", "compose", "-f",
-                str(docker_mgr.compose_file), "ps",
+                "docker",
+                "compose",
+                "-f",
+                str(docker_mgr.compose_file),
+                "ps",
             ]
             assert call_args[1]["cwd"] == docker_mgr.compose_dir
             assert call_args[1]["capture_output"] is True
@@ -479,9 +482,7 @@ class TestDeploymentManagerGetComposePath:
                 current = current.parent
             fallback = tmp_path / "deploy" / "docker-compose.yml"
             if not fallback.exists():
-                raise FileNotFoundError(
-                    "Could not locate deploy/docker-compose.yml."
-                )
+                raise FileNotFoundError("Could not locate deploy/docker-compose.yml.")
             return fallback
 
         with (
@@ -531,7 +532,9 @@ class TestDeploymentManagerGetComposePath:
             mock_path_cls.return_value.parent = mock_current
             mock_no_compose = MagicMock()
             mock_no_compose.exists.return_value = False
-            mock_current.__truediv__ = MagicMock(return_value=MagicMock(__truediv__=MagicMock(return_value=mock_no_compose)))
+            mock_current.__truediv__ = MagicMock(
+                return_value=MagicMock(__truediv__=MagicMock(return_value=mock_no_compose))
+            )
 
             # cwd fallback finds it
             mock_path_cls.cwd.return_value = tmp_path
@@ -568,6 +571,7 @@ class TestDeploymentManagerGetServicesForGroup:
         mgr = _make_manager("dev")
         result = mgr.get_services_for_group("infrastructure")
         assert "4icli" in result
+        assert "acoms" in result
 
     @pytest.mark.unit
     def test_invalid_group_raises(self) -> None:
@@ -584,6 +588,7 @@ class TestDeploymentManagerGetAllServices:
         mgr = _make_manager("dev")
         result = mgr.get_all_services()
         assert "4icli" in result
+        assert "acoms" in result
         assert isinstance(result, list)
 
 
@@ -593,8 +598,9 @@ class TestDeploymentManagerValidateServices:
     @pytest.mark.unit
     def test_delegates_to_mapper(self) -> None:
         mgr = _make_manager("dev")
-        valid, invalid = mgr.validate_services(["4icli", "fake"])
+        valid, invalid = mgr.validate_services(["4icli", "acoms", "fake"])
         assert "4icli" in valid
+        assert "acoms" in valid
         assert "fake" in invalid
 
 
@@ -1321,6 +1327,32 @@ class TestBuildCommand:
         assert "Built OK" in capsys.readouterr().out
 
     @pytest.mark.unit
+    def test_build_records_built_image_state(self) -> None:
+        mgr = _mock_manager("dev")
+        mgr.docker.compose_file = Path("/fake/compose.yml")
+        mgr.docker.build.return_value = _ok_result()
+        tracker = MagicMock()
+
+        with (
+            patch(
+                "acoharmony._deploy._commands._build.latest_release_tag",
+                return_value="v0.0.47",
+            ),
+            patch(
+                "acoharmony._deploy._commands._build.service_images",
+                return_value={"acoms": "ghcr.io/acoharmony/acoms"},
+            ),
+            patch(
+                "acoharmony._deploy._commands._build.deploy_state_tracker",
+                return_value=tracker,
+            ),
+        ):
+            result = BuildCommand(mgr).execute(services=["acoms"])
+
+        assert result == 0
+        tracker.record.assert_called_once_with("ghcr.io/acoharmony/acoms", "v0.0.47")
+
+    @pytest.mark.unit
     def test_build_prints_service_names_or_all(self, capsys) -> None:
         mgr = _mock_manager("dev")
         mgr.docker.build.return_value = _ok_result()
@@ -1391,6 +1423,7 @@ class TestEdgeCases:
     @pytest.mark.unit
     def test_registry_overwrite(self) -> None:
         """Registering the same name twice overwrites."""
+
         @register_deploy_command("_test_overwrite")
         class First:
             pass
@@ -1405,8 +1438,8 @@ class TestEdgeCases:
     @pytest.mark.unit
     def test_validate_services_preserves_order(self) -> None:
         mapper = ProfileServiceMapper("dev")
-        valid, invalid = mapper.validate_services(["4icli", "marimo", "fake", "docs"])
-        assert valid == ["4icli", "marimo", "docs"]
+        valid, invalid = mapper.validate_services(["4icli", "acoms", "marimo", "fake", "docs"])
+        assert valid == ["4icli", "acoms", "marimo", "docs"]
         assert invalid == ["fake"]
 
     @pytest.mark.unit
@@ -1446,8 +1479,8 @@ class TestEdgeCases:
 
 # ===== From test_deploy_gap.py =====
 
-class TestDeployCore:
 
+class TestDeployCore:
     @pytest.mark.unit
     def test_deploy_core_compose_not_found(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)

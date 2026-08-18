@@ -41,6 +41,9 @@ class SchemaRegistry:
     # Schema name -> fourIcli config
     _four_icli: dict[str, dict[str, Any]] = {}
 
+    # Schema name -> ACOMS config
+    _acoms: dict[str, dict[str, Any]] = {}
+
     # Schema name -> polars config
     _polars: dict[str, dict[str, Any]] = {}
 
@@ -166,6 +169,11 @@ class SchemaRegistry:
         return cls._four_icli.get(schema_name, {})
 
     @classmethod
+    def get_acoms_config(cls, schema_name: str) -> dict[str, Any]:
+        """Get ACOMS configuration for a schema."""
+        return cls._acoms.get(schema_name, {})
+
+    @classmethod
     def get_polars_config(cls, schema_name: str) -> dict[str, Any]:
         """Get Polars processing configuration for a schema."""
         return cls._polars.get(schema_name, {})
@@ -201,6 +209,10 @@ class SchemaRegistry:
         four_icli = cls.get_four_icli_config(schema_name)
         if four_icli:
             config["fourIcli"] = four_icli
+
+        acoms = cls.get_acoms_config(schema_name)
+        if acoms:
+            config["acoms"] = acoms
 
         polars = cls.get_polars_config(schema_name)
         if polars:
@@ -270,7 +282,14 @@ class SchemaRegistry:
             pydantic_field = dc_field.default
             extra = getattr(pydantic_field, "json_schema_extra", None)
             if extra and isinstance(extra, dict):
-                for pos_key in ("start_pos", "end_pos", "length", "width", "date_format", "source_name"):
+                for pos_key in (
+                    "start_pos",
+                    "end_pos",
+                    "length",
+                    "width",
+                    "date_format",
+                    "source_name",
+                ):
                     if pos_key in extra:
                         col[pos_key] = extra[pos_key]
 
@@ -298,6 +317,7 @@ class SchemaRegistry:
         cls._record_types.clear()
         cls._sheets.clear()
         cls._four_icli.clear()
+        cls._acoms.clear()
         cls._polars.clear()
 
 

@@ -1,4 +1,5 @@
 """Tests for cli module."""
+
 from __future__ import annotations
 
 # Magic auto-import: brings in ALL exports from module under test
@@ -8,6 +9,7 @@ from acoharmony._test._import_magic import auto_import
 @auto_import
 class _:
     pass  # noqa: E701
+
 
 from pathlib import Path
 from unittest.mock import MagicMock, mock_open, patch
@@ -33,6 +35,7 @@ class TestModuleStructure:
         """Version is accessible."""
         assert __version__ is not None
 
+
 class TestRequireFullPackage:
     """Test the _require_full_package function."""
 
@@ -51,7 +54,7 @@ class TestRequireFullPackage:
 class TestMainHelp:
     """Test CLI help and version."""
 
-    @patch('sys.argv', ['aco', '--version'])
+    @patch("sys.argv", ["aco", "--version"])
     @pytest.mark.unit
     def test_version_flag(self):
         """Test --version flag."""
@@ -59,13 +62,13 @@ class TestMainHelp:
             acoharmony.cli.main()
         assert exc_info.value.code == 0
 
-    @patch('sys.argv', ['aco'])
+    @patch("sys.argv", ["aco"])
     @pytest.mark.unit
     def test_no_command_shows_help(self):
         """Test that no command shows help."""
         acoharmony.cli.main()
 
-    @patch('sys.argv', ['aco', '--help'])
+    @patch("sys.argv", ["aco", "--help"])
     @pytest.mark.unit
     def test_help_flag(self):
         """Test --help flag."""
@@ -73,16 +76,17 @@ class TestMainHelp:
             acoharmony.cli.main()
         assert exc_info.value.code == 0
 
+
 class TestTransformCommand:
     """Test the transform command."""
 
-    @patch('acoharmony.cli._require_full_package')
-    @patch('acoharmony.cli.get_config')
-    @patch('acoharmony.cli.Catalog')
-    @patch('acoharmony.cli.TransformRunner')
-    @patch('acoharmony.cli.StorageBackend')
-    @patch('acoharmony._utils.unpack.unpack_bronze_zips')
-    @patch('sys.argv', ['aco', 'transform', '--help'])
+    @patch("acoharmony.cli._require_full_package")
+    @patch("acoharmony.cli.get_config")
+    @patch("acoharmony.cli.Catalog")
+    @patch("acoharmony.cli.TransformRunner")
+    @patch("acoharmony.cli.StorageBackend")
+    @patch("acoharmony._utils.unpack.unpack_bronze_zips")
+    @patch("sys.argv", ["aco", "transform", "--help"])
     @pytest.mark.unit
     def test_transform_help(self, *mocks):
         """Test transform --help."""
@@ -90,220 +94,277 @@ class TestTransformCommand:
             acoharmony.cli.main()
         assert exc_info.value.code == 0
 
-    @patch('acoharmony.cli._require_full_package')
-    @patch('acoharmony.cli.get_config')
-    @patch('acoharmony.cli.Catalog')
-    @patch('acoharmony.cli.TransformRunner')
-    @patch('acoharmony.cli.StorageBackend')
-    @patch('acoharmony._utils.unpack.unpack_bronze_zips')
-    @patch('sys.argv', ['aco', 'transform', 'test_table'])
+    @patch("acoharmony.cli._require_full_package")
+    @patch("acoharmony.cli.get_config")
+    @patch("acoharmony.cli.Catalog")
+    @patch("acoharmony.cli.TransformRunner")
+    @patch("acoharmony.cli.StorageBackend")
+    @patch("acoharmony._utils.unpack.unpack_bronze_zips")
+    @patch("sys.argv", ["aco", "transform", "test_table"])
     @pytest.mark.unit
-    def test_transform_single_table(self, mock_unpack, mock_storage, mock_runner_class, mock_catalog, mock_config, mock_require):
+    def test_transform_single_table(
+        self, mock_unpack, mock_storage, mock_runner_class, mock_catalog, mock_config, mock_require
+    ):
         """Test transforming a single table."""
-        mock_unpack.return_value = {'found': 0, 'processed': 0, 'extracted': 0}
+        mock_unpack.return_value = {"found": 0, "processed": 0, "extracted": 0}
         mock_runner = MagicMock()
-        mock_result = MagicMock(success=True, status='OK')
+        mock_result = MagicMock(success=True, status="OK")
         mock_runner.transform_table.return_value = mock_result
         mock_runner_class.return_value = mock_runner
         result = acoharmony.cli.main()
         mock_runner.transform_table.assert_called_once()
         assert result == 0
 
-    @patch('acoharmony.cli._require_full_package')
-    @patch('acoharmony.cli.get_config')
-    @patch('acoharmony.cli.Catalog')
-    @patch('acoharmony.cli.TransformRunner')
-    @patch('acoharmony.cli.StorageBackend')
-    @patch('acoharmony._utils.unpack.unpack_bronze_zips')
-    @patch('sys.argv', ['aco', 'transform', '--all'])
+    @patch("acoharmony.cli._require_full_package")
+    @patch("acoharmony.cli.get_config")
+    @patch("acoharmony.cli.Catalog")
+    @patch("acoharmony.cli.TransformRunner")
+    @patch("acoharmony.cli.StorageBackend")
+    @patch("acoharmony._utils.unpack.unpack_bronze_zips")
+    @patch("sys.argv", ["aco", "transform", "--all"])
     @pytest.mark.unit
-    def test_transform_all(self, mock_unpack, mock_storage, mock_runner_class, mock_catalog, mock_config, mock_require):
+    def test_transform_all(
+        self, mock_unpack, mock_storage, mock_runner_class, mock_catalog, mock_config, mock_require
+    ):
         """Test transforming all tables."""
-        mock_unpack.return_value = {'found': 2, 'processed': 2, 'extracted': 5}
+        mock_unpack.return_value = {"found": 2, "processed": 2, "extracted": 5}
         mock_runner = MagicMock()
         mock_runner.transform_all.return_value = None
         mock_runner_class.return_value = mock_runner
         acoharmony.cli.main()
-        mock_runner.transform_all.assert_called_once_with(force=False, no_tracking=False, chunk_size=None)
+        mock_runner.transform_all.assert_called_once_with(
+            force=False, no_tracking=False, chunk_size=None
+        )
 
-    @patch('acoharmony.cli._require_full_package')
-    @patch('acoharmony.cli.get_config')
-    @patch('acoharmony.cli.Catalog')
-    @patch('acoharmony.cli.TransformRunner')
-    @patch('acoharmony.cli.StorageBackend')
-    @patch('acoharmony.cli.MedallionLayer')
-    @patch('acoharmony._utils.unpack.unpack_bronze_zips')
-    @patch('sys.argv', ['aco', 'transform', '--layer', 'bronze'])
+    @patch("acoharmony.cli._require_full_package")
+    @patch("acoharmony.cli.get_config")
+    @patch("acoharmony.cli.Catalog")
+    @patch("acoharmony.cli.TransformRunner")
+    @patch("acoharmony.cli.StorageBackend")
+    @patch("acoharmony.cli.MedallionLayer")
+    @patch("acoharmony._utils.unpack.unpack_bronze_zips")
+    @patch("sys.argv", ["aco", "transform", "--layer", "bronze"])
     @pytest.mark.unit
-    def test_transform_layer(self, mock_unpack, mock_medallion, mock_storage, mock_runner_class, mock_catalog, mock_config, mock_require):
+    def test_transform_layer(
+        self,
+        mock_unpack,
+        mock_medallion,
+        mock_storage,
+        mock_runner_class,
+        mock_catalog,
+        mock_config,
+        mock_require,
+    ):
         """Test transforming a medallion layer."""
-        mock_unpack.return_value = {'found': 0, 'processed': 0, 'extracted': 0}
+        mock_unpack.return_value = {"found": 0, "processed": 0, "extracted": 0}
         mock_runner = MagicMock()
-        mock_results = {'table1': MagicMock(success=True, status='OK'), 'table2': MagicMock(success=True, status='OK')}
+        mock_results = {
+            "table1": MagicMock(success=True, status="OK"),
+            "table2": MagicMock(success=True, status="OK"),
+        }
         mock_runner.transform_medallion_layer.return_value = mock_results
         mock_runner_class.return_value = mock_runner
         mock_layer = MagicMock()
-        mock_layer.data_tier = 'raw'
+        mock_layer.data_tier = "raw"
         mock_medallion.from_tier.return_value = mock_layer
         result = acoharmony.cli.main()
         mock_runner.transform_medallion_layer.assert_called_once()
         assert result == 0
 
-    @patch('acoharmony.cli._require_full_package')
-    @patch('acoharmony.cli.get_config')
-    @patch('acoharmony.cli.Catalog')
-    @patch('acoharmony.cli.TransformRunner')
-    @patch('acoharmony.cli.StorageBackend')
-    @patch('acoharmony._utils.unpack.unpack_bronze_zips')
-    @patch('sys.argv', ['aco', 'transform', '--pattern', 'cclf*'])
+    @patch("acoharmony.cli._require_full_package")
+    @patch("acoharmony.cli.get_config")
+    @patch("acoharmony.cli.Catalog")
+    @patch("acoharmony.cli.TransformRunner")
+    @patch("acoharmony.cli.StorageBackend")
+    @patch("acoharmony._utils.unpack.unpack_bronze_zips")
+    @patch("sys.argv", ["aco", "transform", "--pattern", "cclf*"])
     @pytest.mark.unit
-    def test_transform_pattern(self, mock_unpack, mock_storage, mock_runner_class, mock_catalog, mock_config, mock_require):
+    def test_transform_pattern(
+        self, mock_unpack, mock_storage, mock_runner_class, mock_catalog, mock_config, mock_require
+    ):
         """Test transforming tables by pattern."""
-        mock_unpack.return_value = {'found': 0, 'processed': 0, 'extracted': 0}
+        mock_unpack.return_value = {"found": 0, "processed": 0, "extracted": 0}
         mock_runner = MagicMock()
-        mock_results = {'cclf0': MagicMock(success=True, status='OK'), 'cclf1': MagicMock(success=True, status='OK')}
+        mock_results = {
+            "cclf0": MagicMock(success=True, status="OK"),
+            "cclf1": MagicMock(success=True, status="OK"),
+        }
         mock_runner.transform_pattern.return_value = mock_results
         mock_runner_class.return_value = mock_runner
         result = acoharmony.cli.main()
         mock_runner.transform_pattern.assert_called_once()
         assert result == 0
 
-    @patch('acoharmony.cli._require_full_package')
-    @patch('acoharmony.cli.get_config')
-    @patch('acoharmony.cli.Catalog')
-    @patch('acoharmony.cli.TransformRunner')
-    @patch('acoharmony.cli.StorageBackend')
-    @patch('acoharmony._utils.unpack.unpack_bronze_zips')
-    @patch('sys.argv', ['aco', 'transform'])
+    @patch("acoharmony.cli._require_full_package")
+    @patch("acoharmony.cli.get_config")
+    @patch("acoharmony.cli.Catalog")
+    @patch("acoharmony.cli.TransformRunner")
+    @patch("acoharmony.cli.StorageBackend")
+    @patch("acoharmony._utils.unpack.unpack_bronze_zips")
+    @patch("sys.argv", ["aco", "transform"])
     @pytest.mark.unit
-    def test_transform_no_args_shows_help(self, mock_unpack, mock_storage, mock_runner_class, mock_catalog, mock_config, mock_require):
+    def test_transform_no_args_shows_help(
+        self, mock_unpack, mock_storage, mock_runner_class, mock_catalog, mock_config, mock_require
+    ):
         """Test transform with no args shows help."""
-        mock_unpack.return_value = {'found': 0, 'processed': 0, 'extracted': 0}
+        mock_unpack.return_value = {"found": 0, "processed": 0, "extracted": 0}
         mock_runner = MagicMock()
         mock_runner_class.return_value = mock_runner
         result = acoharmony.cli.main()
         assert result == 1
 
-    @patch('acoharmony.cli._require_full_package')
-    @patch('acoharmony.cli.get_config')
-    @patch('acoharmony.cli.Catalog')
-    @patch('acoharmony.cli.TransformRunner')
-    @patch('acoharmony.cli.StorageBackend')
-    @patch('acoharmony._utils.unpack.unpack_bronze_zips')
-    @patch('sys.argv', ['aco', 'transform', 'test_table', '--force'])
+    @patch("acoharmony.cli._require_full_package")
+    @patch("acoharmony.cli.get_config")
+    @patch("acoharmony.cli.Catalog")
+    @patch("acoharmony.cli.TransformRunner")
+    @patch("acoharmony.cli.StorageBackend")
+    @patch("acoharmony._utils.unpack.unpack_bronze_zips")
+    @patch("sys.argv", ["aco", "transform", "test_table", "--force"])
     @pytest.mark.unit
-    def test_transform_with_force(self, mock_unpack, mock_storage, mock_runner_class, mock_catalog, mock_config, mock_require):
+    def test_transform_with_force(
+        self, mock_unpack, mock_storage, mock_runner_class, mock_catalog, mock_config, mock_require
+    ):
         """Test transform with --force flag."""
-        mock_unpack.return_value = {'found': 0, 'processed': 0, 'extracted': 0}
+        mock_unpack.return_value = {"found": 0, "processed": 0, "extracted": 0}
         mock_runner = MagicMock()
-        mock_result = MagicMock(success=True, status='OK')
+        mock_result = MagicMock(success=True, status="OK")
         mock_runner.transform_table.return_value = mock_result
         mock_runner_class.return_value = mock_runner
         acoharmony.cli.main()
-        mock_runner.transform_table.assert_called_once_with('test_table', force=True, no_tracking=False, chunk_size=None)
+        mock_runner.transform_table.assert_called_once_with(
+            "test_table", force=True, no_tracking=False, chunk_size=None
+        )
 
-    @patch('acoharmony.cli._require_full_package')
-    @patch('acoharmony.cli.get_config')
-    @patch('acoharmony.cli.Catalog')
-    @patch('acoharmony.cli.TransformRunner')
-    @patch('acoharmony.cli.StorageBackend')
-    @patch('acoharmony._utils.unpack.unpack_bronze_zips')
-    @patch('sys.argv', ['aco', 'transform', 'test_table', '--no-tracking'])
+    @patch("acoharmony.cli._require_full_package")
+    @patch("acoharmony.cli.get_config")
+    @patch("acoharmony.cli.Catalog")
+    @patch("acoharmony.cli.TransformRunner")
+    @patch("acoharmony.cli.StorageBackend")
+    @patch("acoharmony._utils.unpack.unpack_bronze_zips")
+    @patch("sys.argv", ["aco", "transform", "test_table", "--no-tracking"])
     @pytest.mark.unit
-    def test_transform_with_no_tracking(self, mock_unpack, mock_storage, mock_runner_class, mock_catalog, mock_config, mock_require):
+    def test_transform_with_no_tracking(
+        self, mock_unpack, mock_storage, mock_runner_class, mock_catalog, mock_config, mock_require
+    ):
         """Test transform with --no-tracking flag."""
-        mock_unpack.return_value = {'found': 0, 'processed': 0, 'extracted': 0}
+        mock_unpack.return_value = {"found": 0, "processed": 0, "extracted": 0}
         mock_runner = MagicMock()
-        mock_result = MagicMock(success=True, status='OK')
+        mock_result = MagicMock(success=True, status="OK")
         mock_runner.transform_table.return_value = mock_result
         mock_runner_class.return_value = mock_runner
         acoharmony.cli.main()
-        mock_runner.transform_table.assert_called_once_with('test_table', force=False, no_tracking=True, chunk_size=None)
+        mock_runner.transform_table.assert_called_once_with(
+            "test_table", force=False, no_tracking=True, chunk_size=None
+        )
 
-    @patch('acoharmony.cli._require_full_package')
-    @patch('acoharmony.cli.get_config')
-    @patch('acoharmony.cli.Catalog')
-    @patch('acoharmony.cli.TransformRunner')
-    @patch('acoharmony.cli.StorageBackend')
-    @patch('acoharmony._utils.unpack.unpack_bronze_zips')
-    @patch('sys.argv', ['aco', 'transform', 'test_table', '--chunk-size', '5000'])
+    @patch("acoharmony.cli._require_full_package")
+    @patch("acoharmony.cli.get_config")
+    @patch("acoharmony.cli.Catalog")
+    @patch("acoharmony.cli.TransformRunner")
+    @patch("acoharmony.cli.StorageBackend")
+    @patch("acoharmony._utils.unpack.unpack_bronze_zips")
+    @patch("sys.argv", ["aco", "transform", "test_table", "--chunk-size", "5000"])
     @pytest.mark.unit
-    def test_transform_with_chunk_size(self, mock_unpack, mock_storage, mock_runner_class, mock_catalog, mock_config, mock_require):
+    def test_transform_with_chunk_size(
+        self, mock_unpack, mock_storage, mock_runner_class, mock_catalog, mock_config, mock_require
+    ):
         """Test transform with --chunk-size."""
-        mock_unpack.return_value = {'found': 0, 'processed': 0, 'extracted': 0}
+        mock_unpack.return_value = {"found": 0, "processed": 0, "extracted": 0}
         mock_runner = MagicMock()
-        mock_result = MagicMock(success=True, status='OK')
+        mock_result = MagicMock(success=True, status="OK")
         mock_runner.transform_table.return_value = mock_result
         mock_runner_class.return_value = mock_runner
         acoharmony.cli.main()
-        mock_runner.transform_table.assert_called_once_with('test_table', force=False, no_tracking=False, chunk_size=5000)
+        mock_runner.transform_table.assert_called_once_with(
+            "test_table", force=False, no_tracking=False, chunk_size=5000
+        )
 
-    @patch('acoharmony.cli._require_full_package')
-    @patch('acoharmony.cli.get_config')
-    @patch('acoharmony.cli.Catalog')
-    @patch('acoharmony.cli.TransformRunner')
-    @patch('acoharmony.cli.StorageBackend')
-    @patch('acoharmony._utils.unpack.unpack_bronze_zips')
-    @patch('sys.argv', ['aco', 'transform', 'test_table'])
+    @patch("acoharmony.cli._require_full_package")
+    @patch("acoharmony.cli.get_config")
+    @patch("acoharmony.cli.Catalog")
+    @patch("acoharmony.cli.TransformRunner")
+    @patch("acoharmony.cli.StorageBackend")
+    @patch("acoharmony._utils.unpack.unpack_bronze_zips")
+    @patch("sys.argv", ["aco", "transform", "test_table"])
     @pytest.mark.unit
-    def test_transform_failure(self, mock_unpack, mock_storage, mock_runner_class, mock_catalog, mock_config, mock_require):
+    def test_transform_failure(
+        self, mock_unpack, mock_storage, mock_runner_class, mock_catalog, mock_config, mock_require
+    ):
         """Test transform with failed result."""
-        mock_unpack.return_value = {'found': 0, 'processed': 0, 'extracted': 0}
+        mock_unpack.return_value = {"found": 0, "processed": 0, "extracted": 0}
         mock_runner = MagicMock()
-        mock_result = MagicMock(success=False, status='FAILED')
+        mock_result = MagicMock(success=False, status="FAILED")
         mock_runner.transform_table.return_value = mock_result
         mock_runner_class.return_value = mock_runner
         result = acoharmony.cli.main()
         assert result == 1
 
-    @patch('acoharmony.cli._require_full_package')
-    @patch('acoharmony.cli.get_config')
-    @patch('acoharmony.cli.Catalog')
-    @patch('acoharmony.cli.TransformRunner')
-    @patch('acoharmony.cli.StorageBackend')
-    @patch('acoharmony.cli.MedallionLayer')
-    @patch('acoharmony._utils.unpack.unpack_bronze_zips')
-    @patch('sys.argv', ['aco', 'transform', '--layer', 'bronze'])
+    @patch("acoharmony.cli._require_full_package")
+    @patch("acoharmony.cli.get_config")
+    @patch("acoharmony.cli.Catalog")
+    @patch("acoharmony.cli.TransformRunner")
+    @patch("acoharmony.cli.StorageBackend")
+    @patch("acoharmony.cli.MedallionLayer")
+    @patch("acoharmony._utils.unpack.unpack_bronze_zips")
+    @patch("sys.argv", ["aco", "transform", "--layer", "bronze"])
     @pytest.mark.unit
-    def test_transform_layer_partial_failure(self, mock_unpack, mock_medallion, mock_storage, mock_runner_class, mock_catalog, mock_config, mock_require):
+    def test_transform_layer_partial_failure(
+        self,
+        mock_unpack,
+        mock_medallion,
+        mock_storage,
+        mock_runner_class,
+        mock_catalog,
+        mock_config,
+        mock_require,
+    ):
         """Test transforming layer with some failures."""
-        mock_unpack.return_value = {'found': 0, 'processed': 0, 'extracted': 0}
+        mock_unpack.return_value = {"found": 0, "processed": 0, "extracted": 0}
         mock_runner = MagicMock()
-        mock_results = {'table1': MagicMock(success=True, status='OK'), 'table2': MagicMock(success=False, status='FAILED')}
+        mock_results = {
+            "table1": MagicMock(success=True, status="OK"),
+            "table2": MagicMock(success=False, status="FAILED"),
+        }
         mock_runner.transform_medallion_layer.return_value = mock_results
         mock_runner_class.return_value = mock_runner
         mock_layer = MagicMock()
-        mock_layer.data_tier = 'raw'
+        mock_layer.data_tier = "raw"
         mock_medallion.from_tier.return_value = mock_layer
         result = acoharmony.cli.main()
         assert result == 1
 
-    @patch('acoharmony.cli._require_full_package')
-    @patch('acoharmony.cli.get_config')
-    @patch('acoharmony.cli.Catalog')
-    @patch('acoharmony.cli.TransformRunner')
-    @patch('acoharmony.cli.StorageBackend')
-    @patch('acoharmony._utils.unpack.unpack_bronze_zips')
-    @patch('sys.argv', ['aco', 'transform', '--pattern', 'cclf*'])
+    @patch("acoharmony.cli._require_full_package")
+    @patch("acoharmony.cli.get_config")
+    @patch("acoharmony.cli.Catalog")
+    @patch("acoharmony.cli.TransformRunner")
+    @patch("acoharmony.cli.StorageBackend")
+    @patch("acoharmony._utils.unpack.unpack_bronze_zips")
+    @patch("sys.argv", ["aco", "transform", "--pattern", "cclf*"])
     @pytest.mark.unit
-    def test_transform_pattern_partial_failure(self, mock_unpack, mock_storage, mock_runner_class, mock_catalog, mock_config, mock_require):
+    def test_transform_pattern_partial_failure(
+        self, mock_unpack, mock_storage, mock_runner_class, mock_catalog, mock_config, mock_require
+    ):
         """Test transforming pattern with some failures."""
-        mock_unpack.return_value = {'found': 0, 'processed': 0, 'extracted': 0}
+        mock_unpack.return_value = {"found": 0, "processed": 0, "extracted": 0}
         mock_runner = MagicMock()
-        mock_results = {'cclf0': MagicMock(success=True, status='OK'), 'cclf1': MagicMock(success=False, status='FAILED')}
+        mock_results = {
+            "cclf0": MagicMock(success=True, status="OK"),
+            "cclf1": MagicMock(success=False, status="FAILED"),
+        }
         mock_runner.transform_pattern.return_value = mock_results
         mock_runner_class.return_value = mock_runner
         result = acoharmony.cli.main()
         assert result == 1
 
+
 class TestPipelineCommand:
     """Test the pipeline command."""
 
-    @patch('acoharmony.cli._require_full_package')
-    @patch('acoharmony.cli.get_config')
-    @patch('acoharmony.cli.TransformRunner')
-    @patch('acoharmony._utils.unpack.unpack_bronze_zips')
-    @patch('sys.argv', ['aco', 'pipeline', '--help'])
+    @patch("acoharmony.cli._require_full_package")
+    @patch("acoharmony.cli.get_config")
+    @patch("acoharmony.cli.TransformRunner")
+    @patch("acoharmony._utils.unpack.unpack_bronze_zips")
+    @patch("sys.argv", ["aco", "pipeline", "--help"])
     @pytest.mark.unit
     def test_pipeline_help(self, *mocks):
         """Test pipeline --help."""
@@ -311,49 +372,49 @@ class TestPipelineCommand:
             acoharmony.cli.main()
         assert exc_info.value.code == 0
 
-    @patch('acoharmony.cli._require_full_package')
-    @patch('acoharmony.cli.get_config')
-    @patch('acoharmony.cli.TransformRunner')
-    @patch('acoharmony._utils.unpack.unpack_bronze_zips')
-    @patch('sys.argv', ['aco', 'pipeline', 'medical_claim'])
+    @patch("acoharmony.cli._require_full_package")
+    @patch("acoharmony.cli.get_config")
+    @patch("acoharmony.cli.TransformRunner")
+    @patch("acoharmony._utils.unpack.unpack_bronze_zips")
+    @patch("sys.argv", ["aco", "pipeline", "medical_claim"])
     @pytest.mark.unit
     def test_pipeline_run(self, mock_unpack, mock_runner_class, mock_config, mock_require):
         """Test running a pipeline."""
-        mock_unpack.return_value = {'found': 0, 'processed': 0, 'extracted': 0}
+        mock_unpack.return_value = {"found": 0, "processed": 0, "extracted": 0}
         mock_runner = MagicMock()
         mock_result = MagicMock(success=True)
         mock_runner.run_pipeline.return_value = mock_result
         mock_runner_class.return_value = mock_runner
         result = acoharmony.cli.main()
-        mock_runner.run_pipeline.assert_called_once_with('medical_claim', force=False)
+        mock_runner.run_pipeline.assert_called_once_with("medical_claim", force=False)
         assert result == 0
 
-    @patch('acoharmony.cli._require_full_package')
-    @patch('acoharmony.cli.get_config')
-    @patch('acoharmony.cli.TransformRunner')
-    @patch('acoharmony._utils.unpack.unpack_bronze_zips')
-    @patch('sys.argv', ['aco', 'pipeline', 'medical_claim', '--force'])
+    @patch("acoharmony.cli._require_full_package")
+    @patch("acoharmony.cli.get_config")
+    @patch("acoharmony.cli.TransformRunner")
+    @patch("acoharmony._utils.unpack.unpack_bronze_zips")
+    @patch("sys.argv", ["aco", "pipeline", "medical_claim", "--force"])
     @pytest.mark.unit
     def test_pipeline_run_force(self, mock_unpack, mock_runner_class, mock_config, mock_require):
         """Test running a pipeline with --force."""
-        mock_unpack.return_value = {'found': 0, 'processed': 0, 'extracted': 0}
+        mock_unpack.return_value = {"found": 0, "processed": 0, "extracted": 0}
         mock_runner = MagicMock()
         mock_result = MagicMock(success=True)
         mock_runner.run_pipeline.return_value = mock_result
         mock_runner_class.return_value = mock_runner
         result = acoharmony.cli.main()
-        mock_runner.run_pipeline.assert_called_once_with('medical_claim', force=True)
+        mock_runner.run_pipeline.assert_called_once_with("medical_claim", force=True)
         assert result == 0
 
-    @patch('acoharmony.cli._require_full_package')
-    @patch('acoharmony.cli.get_config')
-    @patch('acoharmony.cli.TransformRunner')
-    @patch('acoharmony._utils.unpack.unpack_bronze_zips')
-    @patch('sys.argv', ['aco', 'pipeline', 'medical_claim'])
+    @patch("acoharmony.cli._require_full_package")
+    @patch("acoharmony.cli.get_config")
+    @patch("acoharmony.cli.TransformRunner")
+    @patch("acoharmony._utils.unpack.unpack_bronze_zips")
+    @patch("sys.argv", ["aco", "pipeline", "medical_claim"])
     @pytest.mark.unit
     def test_pipeline_failure(self, mock_unpack, mock_runner_class, mock_config, mock_require):
         """Test pipeline failure."""
-        mock_unpack.return_value = {'found': 0, 'processed': 0, 'extracted': 0}
+        mock_unpack.return_value = {"found": 0, "processed": 0, "extracted": 0}
         mock_runner = MagicMock()
         mock_result = MagicMock(success=False)
         mock_runner.run_pipeline.return_value = mock_result
@@ -361,78 +422,85 @@ class TestPipelineCommand:
         result = acoharmony.cli.main()
         assert result == 1
 
+
 class TestListCommand:
     """Test the list command."""
 
-    @patch('acoharmony.cli._require_full_package')
-    @patch('acoharmony.cli.get_config')
-    @patch('acoharmony.cli.Catalog')
-    @patch('acoharmony.cli.StorageBackend')
-    @patch('sys.argv', ['aco', 'list'])
+    @patch("acoharmony.cli._require_full_package")
+    @patch("acoharmony.cli.get_config")
+    @patch("acoharmony.cli.Catalog")
+    @patch("acoharmony.cli.StorageBackend")
+    @patch("sys.argv", ["aco", "list"])
     @pytest.mark.unit
     def test_list_tables(self, mock_storage, mock_catalog_class, mock_config, mock_require):
         """Test listing tables."""
         mock_catalog = MagicMock()
-        mock_catalog.list_tables.return_value = ['table1', 'table2', 'table3']
+        mock_catalog.list_tables.return_value = ["table1", "table2", "table3"]
         mock_catalog_class.return_value = mock_catalog
         result = acoharmony.cli.main()
         mock_catalog.list_tables.assert_called_once()
         assert result == 0
 
-    @patch('acoharmony.cli._require_full_package')
-    @patch('acoharmony.cli.get_config')
-    @patch('acoharmony.cli.TransformRunner')
-    @patch('sys.argv', ['aco', 'list', '--pipelines'])
+    @patch("acoharmony.cli._require_full_package")
+    @patch("acoharmony.cli.get_config")
+    @patch("acoharmony.cli.TransformRunner")
+    @patch("sys.argv", ["aco", "list", "--pipelines"])
     @pytest.mark.unit
     def test_list_pipelines(self, mock_runner_class, mock_config, mock_require):
         """Test listing pipelines."""
         mock_runner = MagicMock()
-        mock_runner.list_pipelines.return_value = ['pipeline1', 'pipeline2']
+        mock_runner.list_pipelines.return_value = ["pipeline1", "pipeline2"]
         mock_runner_class.return_value = mock_runner
         result = acoharmony.cli.main()
         mock_runner.list_pipelines.assert_called_once()
         assert result == 0
 
-    @patch('acoharmony.cli._require_full_package')
-    @patch('acoharmony.cli.get_config')
-    @patch('acoharmony.cli.Catalog')
-    @patch('acoharmony.cli.StorageBackend')
-    @patch('acoharmony.cli.MedallionLayer')
-    @patch('sys.argv', ['aco', 'list', '--layer', 'bronze'])
+    @patch("acoharmony.cli._require_full_package")
+    @patch("acoharmony.cli.get_config")
+    @patch("acoharmony.cli.Catalog")
+    @patch("acoharmony.cli.StorageBackend")
+    @patch("acoharmony.cli.MedallionLayer")
+    @patch("sys.argv", ["aco", "list", "--layer", "bronze"])
     @pytest.mark.unit
-    def test_list_by_layer(self, mock_medallion, mock_storage, mock_catalog_class, mock_config, mock_require):
+    def test_list_by_layer(
+        self, mock_medallion, mock_storage, mock_catalog_class, mock_config, mock_require
+    ):
         """Test listing tables by medallion layer."""
         mock_catalog = MagicMock()
-        mock_catalog.list_tables.return_value = ['bronze_table1', 'bronze_table2']
-        mock_catalog.get_table_metadata.return_value = MagicMock(description='Test table', data_tier='raw', medallion_layer=MagicMock())
+        mock_catalog.list_tables.return_value = ["bronze_table1", "bronze_table2"]
+        mock_catalog.get_table_metadata.return_value = MagicMock(
+            description="Test table", data_tier="raw", medallion_layer=MagicMock()
+        )
         mock_catalog_class.return_value = mock_catalog
         mock_layer = MagicMock()
         mock_medallion.from_tier.return_value = mock_layer
         acoharmony.cli.main()
         mock_catalog.list_tables.assert_called_once_with(mock_layer)
 
-class TestConfigCommand:
+
+class TestConfigCommandExtendedCoverage:
     """Test the config command."""
 
-    @patch('acoharmony.cli._require_full_package')
-    @patch('acoharmony.cli.get_config')
-    @patch('sys.argv', ['aco', 'config'])
+    @patch("acoharmony.cli._require_full_package")
+    @patch("acoharmony.cli.get_config")
+    @patch("sys.argv", ["aco", "config"])
     @pytest.mark.unit
     def test_config_show(self, mock_config, mock_require):
         """Test showing configuration."""
         mock_cfg = MagicMock()
-        mock_cfg.profile = 'local'
+        mock_cfg.profile = "local"
         mock_config.return_value = mock_cfg
         result = acoharmony.cli.main()
         assert result == 0
 
+
 class TestCleanCommand:
     """Test the clean command."""
 
-    @patch('acoharmony.cli._require_full_package')
-    @patch('acoharmony.cli.get_config')
-    @patch('acoharmony.cli.StorageBackend')
-    @patch('sys.argv', ['aco', 'clean'])
+    @patch("acoharmony.cli._require_full_package")
+    @patch("acoharmony.cli.get_config")
+    @patch("acoharmony.cli.StorageBackend")
+    @patch("sys.argv", ["aco", "clean"])
     @pytest.mark.unit
     def test_clean_temp_files(self, mock_storage_class, mock_config, mock_require):
         """Test cleaning temporary files."""
@@ -441,20 +509,21 @@ class TestCleanCommand:
         result = acoharmony.cli.main()
         assert result == 0
 
+
 class TestExpressionsCommand:
     """Test the expressions command."""
 
-    @patch('acoharmony.cli._require_full_package')
-    @patch('sys.argv', ['aco', 'expressions'])
+    @patch("acoharmony.cli._require_full_package")
+    @patch("sys.argv", ["aco", "expressions"])
     @pytest.mark.unit
     def test_expressions_list_all(self, mock_require):
         """Test listing all expressions."""
         result = acoharmony.cli.main()
         assert result == 0
 
-    @patch('acoharmony.cli._require_full_package')
-    @patch('acoharmony._expressions.inspect.print_expressions_for_schema')
-    @patch('sys.argv', ['aco', 'expressions', '--schema', 'bronze'])
+    @patch("acoharmony.cli._require_full_package")
+    @patch("acoharmony._expressions.inspect.print_expressions_for_schema")
+    @patch("sys.argv", ["aco", "expressions", "--schema", "bronze"])
     @pytest.mark.unit
     def test_expressions_filter_by_schema(self, mock_print, mock_require):
         """Test filtering expressions by schema."""
@@ -462,9 +531,9 @@ class TestExpressionsCommand:
         mock_print.assert_called_once()
         assert result == 0
 
-    @patch('acoharmony.cli._require_full_package')
-    @patch('acoharmony._expressions.inspect.print_expression_metadata')
-    @patch('sys.argv', ['aco', 'expressions'])
+    @patch("acoharmony.cli._require_full_package")
+    @patch("acoharmony._expressions.inspect.print_expression_metadata")
+    @patch("sys.argv", ["aco", "expressions"])
     @pytest.mark.unit
     def test_expressions_show_all(self, mock_print, mock_require):
         """Test showing all expressions."""
@@ -472,12 +541,13 @@ class TestExpressionsCommand:
         mock_print.assert_called_once()
         assert result == 0
 
+
 class TestDevCommand:
     """Test the dev command."""
 
-    @patch('acoharmony.cli._require_full_package')
-    @patch('acoharmony._dev.generate_aco_metadata')
-    @patch('sys.argv', ['aco', 'dev', 'generate', '--metadata'])
+    @patch("acoharmony.cli._require_full_package")
+    @patch("acoharmony._dev.generate_aco_metadata")
+    @patch("sys.argv", ["aco", "dev", "generate", "--metadata"])
     @pytest.mark.unit
     def test_dev_generate_metadata(self, mock_metadata, mock_require):
         """Test generating metadata documentation."""
@@ -486,9 +556,9 @@ class TestDevCommand:
         mock_metadata.assert_called_once()
         assert result == 0
 
-    @patch('acoharmony.cli._require_full_package')
-    @patch('acoharmony._dev.add_copyright')
-    @patch('sys.argv', ['aco', 'dev', 'generate', '--copyright'])
+    @patch("acoharmony.cli._require_full_package")
+    @patch("acoharmony._dev.add_copyright")
+    @patch("sys.argv", ["aco", "dev", "generate", "--copyright"])
     @pytest.mark.unit
     def test_dev_generate_copyright(self, mock_copyright, mock_require):
         """Test adding copyright headers."""
@@ -496,125 +566,140 @@ class TestDevCommand:
         acoharmony.cli.main()
         mock_copyright.assert_called_once()
 
-    @patch('acoharmony.cli._require_full_package')
-    @patch('acoharmony._dev.setup.storage.setup_storage')
-    @patch('sys.argv', ['aco', 'dev', 'storage', 'setup'])
+    @patch("acoharmony.cli._require_full_package")
+    @patch("acoharmony._dev.setup.storage.setup_storage")
+    @patch("sys.argv", ["aco", "dev", "storage", "setup"])
     @pytest.mark.unit
     def test_dev_storage_setup(self, mock_setup, mock_require):
         """Test storage setup."""
         acoharmony.cli.main()
         mock_setup.assert_called_once()
 
-    @patch('acoharmony.cli._require_full_package')
-    @patch('acoharmony.cli.StorageBackend')
-    @patch('acoharmony._dev.setup.storage.verify_storage')
-    @patch('sys.argv', ['aco', 'dev', 'storage', 'verify'])
+    @patch("acoharmony.cli._require_full_package")
+    @patch("acoharmony.cli.StorageBackend")
+    @patch("acoharmony._dev.setup.storage.verify_storage")
+    @patch("sys.argv", ["aco", "dev", "storage", "verify"])
     @pytest.mark.unit
     def test_dev_storage_verify(self, mock_verify, mock_storage, mock_require):
         """Test storage verification."""
         acoharmony.cli.main()
         mock_verify.assert_called_once()
 
-class TestSchemaCommand:
+
+class TestSchemaCommandExtendedCoverage:
     """Test the schema command."""
 
-    @patch('acoharmony.cli._require_full_package')
-    @patch('acoharmony.cli.Catalog')
-    @patch('acoharmony.cli.StorageBackend')
-    @patch('sys.argv', ['aco', 'schema', 'list'])
+    @patch("acoharmony.cli._require_full_package")
+    @patch("acoharmony.cli.Catalog")
+    @patch("acoharmony.cli.StorageBackend")
+    @patch("sys.argv", ["aco", "schema", "list"])
     @pytest.mark.unit
     def test_schema_list(self, mock_storage, mock_catalog_class, mock_require):
         """Test listing schemas."""
         mock_catalog = MagicMock()
-        mock_catalog.list_tables.return_value = ['table1', 'table2']
+        mock_catalog.list_tables.return_value = ["table1", "table2"]
         mock_catalog_class.return_value = mock_catalog
         result = acoharmony.cli.main()
         mock_catalog.list_tables.assert_called_once()
         assert result == 0
 
-    @patch('acoharmony.cli._require_full_package')
-    @patch('acoharmony.cli.Catalog')
-    @patch('acoharmony.cli.StorageBackend')
-    @patch('sys.argv', ['aco', 'schema', 'validate', '--all'])
+    @patch("acoharmony.cli._require_full_package")
+    @patch("acoharmony.cli.Catalog")
+    @patch("acoharmony.cli.StorageBackend")
+    @patch("sys.argv", ["aco", "schema", "validate", "--all"])
     @pytest.mark.unit
     def test_schema_validate_all(self, mock_storage, mock_catalog_class, mock_require):
         """Test validating all schemas."""
         mock_catalog = MagicMock()
-        mock_catalog.list_tables.return_value = ['table1', 'table2']
+        mock_catalog.list_tables.return_value = ["table1", "table2"]
         mock_catalog.get_schema.return_value = MagicMock()
         mock_catalog_class.return_value = mock_catalog
         result = acoharmony.cli.main()
         assert result == 0
 
-    @patch('acoharmony.cli._require_full_package')
-    @patch('acoharmony.cli.Catalog')
-    @patch('acoharmony.cli.StorageBackend')
-    @patch('sys.argv', ['aco', 'schema', 'validate', 'cclf1'])
+    @patch("acoharmony.cli._require_full_package")
+    @patch("acoharmony.cli.Catalog")
+    @patch("acoharmony.cli.StorageBackend")
+    @patch("sys.argv", ["aco", "schema", "validate", "cclf1"])
     @pytest.mark.unit
     def test_schema_validate_single(self, mock_storage, mock_catalog_class, mock_require):
         """Test validating single schema."""
         mock_catalog = MagicMock()
         mock_metadata = MagicMock()
-        mock_metadata.columns = [{'name': 'col1'}, {'name': 'col2'}]
-        mock_metadata.medallion_layer = MagicMock(value='bronze')
+        mock_metadata.columns = [{"name": "col1"}, {"name": "col2"}]
+        mock_metadata.medallion_layer = MagicMock(value="bronze")
         mock_catalog.get_schema.return_value = mock_metadata
         mock_catalog_class.return_value = mock_catalog
         result = acoharmony.cli.main()
-        mock_catalog.get_schema.assert_called_once_with('cclf1')
+        mock_catalog.get_schema.assert_called_once_with("cclf1")
         assert result == 0
 
-    @patch('sys.argv', ['aco', 'schema', 'history', 'cclf1'])
+    @patch("sys.argv", ["aco", "schema", "history", "cclf1"])
     @pytest.mark.unit
     def test_schema_history(self):
         """Test schema history (git-based)."""
         result = acoharmony.cli.main()
         assert result == 0
 
-    @patch('sys.argv', ['aco', 'schema', 'diff', 'cclf1', 'v1', 'v2'])
+    @patch("sys.argv", ["aco", "schema", "diff", "cclf1", "v1", "v2"])
     @pytest.mark.unit
     def test_schema_diff(self):
         """Test schema diff (git-based)."""
         result = acoharmony.cli.main()
         assert result == 0
 
-class TestDatabricksCommand:
+
+class TestDatabricksCommandExtendedCoverage:
     """Test the databricks command."""
 
-    @patch('acoharmony.cli._require_full_package')
-    @patch('acoharmony.config.get_config')
-    @patch('acoharmony._databricks.DatabricksTransferManager')
-    @patch('sys.argv', ['aco', 'databricks', '--status'])
+    @patch("acoharmony.cli._require_full_package")
+    @patch("acoharmony.config.get_config")
+    @patch("acoharmony._databricks.DatabricksTransferManager")
+    @patch("sys.argv", ["aco", "databricks", "--status"])
     @pytest.mark.unit
     def test_databricks_status(self, mock_manager_class, mock_config, mock_require):
         """Test databricks status."""
         mock_manager = MagicMock()
-        mock_manager.status.return_value = {'last_run': None, 'last_run_end': None, 'total_transfers': 0, 'total_files_tracked': 0}
+        mock_manager.status.return_value = {
+            "last_run": None,
+            "last_run_end": None,
+            "total_transfers": 0,
+            "total_files_tracked": 0,
+        }
         mock_manager_class.return_value = mock_manager
         result = acoharmony.cli.main()
         mock_manager.status.assert_called_once()
         assert result == 0
 
-    @patch('acoharmony.cli._require_full_package')
-    @patch('acoharmony.config.get_config')
-    @patch('acoharmony._databricks.DatabricksTransferManager')
-    @patch('sys.argv', ['aco', 'databricks', '--transfer'])
+    @patch("acoharmony.cli._require_full_package")
+    @patch("acoharmony.config.get_config")
+    @patch("acoharmony._databricks.DatabricksTransferManager")
+    @patch("sys.argv", ["aco", "databricks", "--transfer"])
     @pytest.mark.unit
     def test_databricks_transfer(self, mock_manager_class, mock_config, mock_require):
         """Test databricks transfer."""
         mock_manager = MagicMock()
-        mock_manager.source_dirs = ['/path/to/source']
-        mock_manager.dest_dir = '/path/to/dest'
-        mock_manager.transfer.return_value = {'total_files': 10, 'transferred': 10, 'skipped': 0, 'failed': 0, 'transferred_files': [], 'failed_files': []}
+        mock_manager.source_dirs = ["/path/to/source"]
+        mock_manager.dest_dir = "/path/to/dest"
+        mock_manager.transfer.return_value = {
+            "total_files": 10,
+            "transferred": 10,
+            "skipped": 0,
+            "failed": 0,
+            "transferred_files": [],
+            "failed_files": [],
+        }
         mock_manager_class.return_value = mock_manager
         result = acoharmony.cli.main()
         mock_manager.transfer.assert_called_once_with(force=False)
         assert result == 0
 
+
 class TestFourICLICommand:
     """Test the 4icli command."""
 
-    @patch('acoharmony._4icli.cli.cmd_inventory')
-    @patch('sys.argv', ['aco', '4icli', 'inventory'])
+    @patch("acoharmony._4icli.cli.cmd_inventory")
+    @patch("sys.argv", ["aco", "4icli", "inventory"])
     @pytest.mark.unit
     def test_4icli_inventory(self, mock_inventory):
         """Test 4icli inventory."""
@@ -622,8 +707,8 @@ class TestFourICLICommand:
         mock_inventory.assert_called_once()
         assert result == 0
 
-    @patch('acoharmony._4icli.cli.cmd_need_download')
-    @patch('sys.argv', ['aco', '4icli', 'need-download'])
+    @patch("acoharmony._4icli.cli.cmd_need_download")
+    @patch("sys.argv", ["aco", "4icli", "need-download"])
     @pytest.mark.unit
     def test_4icli_need_download(self, mock_need):
         """Test 4icli need-download."""
@@ -631,8 +716,8 @@ class TestFourICLICommand:
         mock_need.assert_called_once()
         assert result == 0
 
-    @patch('acoharmony._4icli.cli.cmd_download')
-    @patch('sys.argv', ['aco', '4icli', 'download'])
+    @patch("acoharmony._4icli.cli.cmd_download")
+    @patch("sys.argv", ["aco", "4icli", "download"])
     @pytest.mark.unit
     def test_4icli_download(self, mock_download):
         """Test 4icli download."""
@@ -640,11 +725,52 @@ class TestFourICLICommand:
         mock_download.assert_called_once()
         assert result == 0
 
+
+class TestAcomsCommand:
+    """Test the ACOMS command."""
+
+    @patch("acoharmony._acoms.cli.cmd_inventory")
+    @patch("sys.argv", ["aco", "acoms", "inventory"])
+    @pytest.mark.unit
+    def test_acoms_inventory(self, mock_inventory):
+        """Test ACOMS inventory."""
+        result = acoharmony.cli.main()
+        mock_inventory.assert_called_once()
+        assert result == 0
+
+    @patch("acoharmony._acoms.cli.cmd_need_download")
+    @patch("sys.argv", ["aco", "acoms", "need-download"])
+    @pytest.mark.unit
+    def test_acoms_need_download(self, mock_need):
+        """Test ACOMS need-download."""
+        result = acoharmony.cli.main()
+        mock_need.assert_called_once()
+        assert result == 0
+
+    @patch("acoharmony._acoms.cli.cmd_download")
+    @patch("sys.argv", ["aco", "acoms", "download"])
+    @pytest.mark.unit
+    def test_acoms_download(self, mock_download):
+        """Test ACOMS download."""
+        result = acoharmony.cli.main()
+        mock_download.assert_called_once()
+        assert result == 0
+
+    @patch("acoharmony._acoms.cli.cmd_list")
+    @patch("sys.argv", ["aco", "acoms", "list"])
+    @pytest.mark.unit
+    def test_acoms_list(self, mock_list):
+        """Test ACOMS list."""
+        result = acoharmony.cli.main()
+        mock_list.assert_called_once()
+        assert result == 0
+
+
 class TestPUFCommand:
     """Test the puf command."""
 
-    @patch('acoharmony._puf.puf_cli.cmd_inventory')
-    @patch('sys.argv', ['aco', 'puf', 'inventory'])
+    @patch("acoharmony._puf.puf_cli.cmd_inventory")
+    @patch("sys.argv", ["aco", "puf", "inventory"])
     @pytest.mark.unit
     def test_puf_inventory(self, mock_inventory):
         """Test PUF inventory."""
@@ -653,8 +779,8 @@ class TestPUFCommand:
         mock_inventory.assert_called_once()
         assert result == 0
 
-    @patch('acoharmony._puf.puf_cli.cmd_need_download')
-    @patch('sys.argv', ['aco', 'puf', 'need-download'])
+    @patch("acoharmony._puf.puf_cli.cmd_need_download")
+    @patch("sys.argv", ["aco", "puf", "need-download"])
     @pytest.mark.unit
     def test_puf_need_download(self, mock_need):
         """Test PUF need-download."""
@@ -663,8 +789,8 @@ class TestPUFCommand:
         mock_need.assert_called_once()
         assert result == 0
 
-    @patch('acoharmony._puf.puf_cli.cmd_download')
-    @patch('sys.argv', ['aco', 'puf', 'download'])
+    @patch("acoharmony._puf.puf_cli.cmd_download")
+    @patch("sys.argv", ["aco", "puf", "download"])
     @pytest.mark.unit
     def test_puf_download(self, mock_download):
         """Test PUF download."""
@@ -673,24 +799,26 @@ class TestPUFCommand:
         mock_download.assert_called_once()
         assert result == 0
 
+
 class TestCiteCommand:
     """Test the cite command."""
 
-    @patch('acoharmony.cli._require_full_package')
-    @patch('acoharmony.cli.get_config')
-    @patch('sys.argv', ['aco', 'cite', 'list'])
+    @patch("acoharmony.cli._require_full_package")
+    @patch("acoharmony.cli.get_config")
+    @patch("sys.argv", ["aco", "cite", "list"])
     @pytest.mark.unit
     def test_cite_list(self, mock_config, mock_require):
         """Test cite list - basic command routing."""
         result = acoharmony.cli.main()
         assert result in [0, 1]
 
+
 class TestDeployCommand:
     """Test the deploy command."""
 
-    @patch('acoharmony.cli._require_full_package')
-    @patch('acoharmony._deploy.DeploymentManager')
-    @patch('sys.argv', ['aco', 'deploy', 'start'])
+    @patch("acoharmony.cli._require_full_package")
+    @patch("acoharmony._deploy.DeploymentManager")
+    @patch("sys.argv", ["aco", "deploy", "start"])
     @pytest.mark.unit
     def test_deploy_start(self, mock_manager_class, mock_require):
         """Test deploy start."""
@@ -699,9 +827,9 @@ class TestDeployCommand:
         result = acoharmony.cli.main()
         assert result == 0
 
-    @patch('acoharmony.cli._require_full_package')
-    @patch('acoharmony._deploy.DeploymentManager')
-    @patch('sys.argv', ['aco', 'deploy', 'stop'])
+    @patch("acoharmony.cli._require_full_package")
+    @patch("acoharmony._deploy.DeploymentManager")
+    @patch("sys.argv", ["aco", "deploy", "stop"])
     @pytest.mark.unit
     def test_deploy_stop(self, mock_manager_class, mock_require):
         """Test deploy stop."""
@@ -710,11 +838,12 @@ class TestDeployCommand:
         result = acoharmony.cli.main()
         assert result == 0
 
+
 class TestTestCommand:
     """Test the test command."""
 
-    @patch('acoharmony._test.coverage.orchestrator.CoverageOrchestrator')
-    @patch('sys.argv', ['aco', 'test'])
+    @patch("acoharmony._test.coverage.orchestrator.CoverageOrchestrator")
+    @patch("sys.argv", ["aco", "test"])
     @pytest.mark.unit
     def test_test_run(self, mock_orch_cls):
         """Test running tests."""
@@ -724,17 +853,19 @@ class TestTestCommand:
         result = acoharmony.cli.main()
         assert result == 0
 
+
 class TestSVACommand:
     """Test the sva command."""
 
-    @patch('acoharmony.cli._require_full_package')
-    @patch('acoharmony.cli.get_config')
-    @patch('sys.argv', ['aco', 'sva', 'validate', 'test.xlsx'])
+    @patch("acoharmony.cli._require_full_package")
+    @patch("acoharmony.cli.get_config")
+    @patch("sys.argv", ["aco", "sva", "validate", "test.xlsx"])
     @pytest.mark.unit
     def test_sva_validate(self, mock_config, mock_require):
         """Test SVA validation."""
         result = acoharmony.cli.main()
         assert result in [0, 1]
+
 
 class TestDevCommandExtended:
     """Extended tests for dev command."""
@@ -746,7 +877,6 @@ class TestDevCommandExtended:
     def test_dev_generate_modules(self, mock_modules, mock_require):
         """Test generating module API reference."""
         mock_modules.return_value = True
-
 
         result = acoharmony.cli.main()
 
@@ -823,7 +953,6 @@ class TestDevCommandExtended:
         mock_generator.create_notebooks_for_raw_schemas.return_value = ["nb1.py", "nb2.py"]
         mock_generator_class.return_value = mock_generator
 
-
         acoharmony.cli.main()
 
         mock_generator.create_notebooks_for_raw_schemas.assert_called_once()
@@ -837,7 +966,6 @@ class TestDevCommandExtended:
         mock_generator = MagicMock()
         mock_generator.create_notebook.return_value = Path("/path/to/notebook.py")
         mock_generator_class.return_value = mock_generator
-
 
         acoharmony.cli.main()
 
@@ -1009,7 +1137,9 @@ class TestConfigCommand:
     @patch("acoharmony.cli.get_config")
     @patch("sys.argv", ["aco", "config", "--schema", "cclf1"])
     @pytest.mark.unit
-    def test_config_schema_found_no_medallion(self, mock_config, mock_catalog_cls, mock_storage_cls):
+    def test_config_schema_found_no_medallion(
+        self, mock_config, mock_catalog_cls, mock_storage_cls
+    ):
         """Cover the FOUND schema branch with no medallion_layer."""
         mock_metadata = MagicMock()
         mock_metadata.description = "Some desc"
@@ -1238,7 +1368,6 @@ class TestCiteCommandExtended:
         mock_lf.collect.return_value = mock_df
         mock_transform.return_value = mock_lf
 
-
         result = acoharmony.cli.main()
 
         mock_transform.assert_called_once_with(
@@ -1278,7 +1407,6 @@ class TestCiteCommandExtended:
         mock_lf.collect.return_value = mock_df
         mock_transform.return_value = mock_lf
 
-
         result = acoharmony.cli.main()
 
         mock_transform.assert_called_once_with(
@@ -1306,7 +1434,6 @@ class TestCiteCommandExtended:
         mock_lf.collect.return_value = mock_df
         mock_transform.return_value = mock_lf
 
-
         result = acoharmony.cli.main()
 
         mock_transform.assert_called_once()
@@ -1329,7 +1456,6 @@ class TestCiteCommandExtended:
         mock_lf.collect.return_value = mock_df
         mock_transform.return_value = mock_lf
 
-
         result = acoharmony.cli.main()
 
         call_args = mock_transform.call_args
@@ -1346,7 +1472,6 @@ class TestCiteCommandExtended:
         mock_tracker = MagicMock()
         mock_tracker.get_processed_files.return_value = []
         mock_tracker_class.return_value = mock_tracker
-
 
         result = acoharmony.cli.main()
 
@@ -1367,7 +1492,6 @@ class TestCiteCommandExtended:
         mock_tracker.get_processed_files.return_value = [mock_file_state] * 10
         mock_tracker_class.return_value = mock_tracker
 
-
         result = acoharmony.cli.main()
 
         assert result == 0
@@ -1386,7 +1510,6 @@ class TestCiteCommandExtended:
             "source_types": {"pdf": 8, "html": 2},
         }
         mock_tracker_class.return_value = mock_tracker
-
 
         result = acoharmony.cli.main()
 
@@ -1419,7 +1542,6 @@ class TestCiteCommandExtended:
         mock_lf.collect.return_value = mock_df
         mock_transform.return_value = mock_lf
 
-
         result = acoharmony.cli.main()
 
         assert result == 0
@@ -1432,7 +1554,6 @@ class TestCiteCommandExtended:
         """Test cite interactive mode with no URL."""
         mock_input.side_effect = [""]
 
-
         result = acoharmony.cli.main()
 
         assert result == 1
@@ -1444,7 +1565,6 @@ class TestCiteCommandExtended:
     def test_cite_interactive_cancelled(self, mock_input, mock_require):
         """Test cite interactive mode cancelled by user."""
         mock_input.side_effect = ["https://example.com/paper.pdf", "", "", "n"]
-
 
         result = acoharmony.cli.main()
 
@@ -1472,7 +1592,6 @@ class TestCiteCommandExtended:
         mock_lf.collect.return_value = mock_df
         mock_transform.return_value = mock_lf
 
-
         result = acoharmony.cli.main()
 
         assert result == 0
@@ -1489,7 +1608,6 @@ class TestDeployCommandExtended:
         mock_manager = MagicMock()
         mock_manager_class.return_value = mock_manager
 
-
         acoharmony.cli.main()
 
         # Just check command routes
@@ -1502,7 +1620,6 @@ class TestDeployCommandExtended:
         mock_manager = MagicMock()
         mock_manager_class.return_value = mock_manager
 
-
         acoharmony.cli.main()
 
         # Just check command routes
@@ -1514,7 +1631,6 @@ class TestDeployCommandExtended:
         """Test deploy build command."""
         mock_manager = MagicMock()
         mock_manager_class.return_value = mock_manager
-
 
         acoharmony.cli.main()
 
@@ -1533,7 +1649,6 @@ class TestCleanCommandExtended:
         mock_runner = MagicMock()
         mock_runner_class.return_value = mock_runner
 
-
         acoharmony.cli.main()
 
         mock_runner.clean_temp_files.assert_called_once_with(all_files=True)
@@ -1550,7 +1665,6 @@ class TestPUFCommandExtended:
         """Test PUF years command."""
         mock_cmd.return_value = 0
 
-
         result = acoharmony.cli.main()
 
         mock_cmd.assert_called_once()
@@ -1563,7 +1677,6 @@ class TestPUFCommandExtended:
     def test_puf_categories(self, mock_cmd, mock_require):
         """Test PUF categories command."""
         mock_cmd.return_value = 0
-
 
         result = acoharmony.cli.main()
 
@@ -1578,7 +1691,6 @@ class TestPUFCommandExtended:
         """Test PUF search command."""
         mock_cmd.return_value = 0
 
-
         result = acoharmony.cli.main()
 
         mock_cmd.assert_called_once()
@@ -1591,7 +1703,6 @@ class TestPUFCommandExtended:
     def test_puf_unpack(self, mock_cmd, mock_require):
         """Test PUF unpack command."""
         mock_cmd.return_value = 0
-
 
         result = acoharmony.cli.main()
 
@@ -1619,6 +1730,7 @@ class TestCliSvaValidate:
     @pytest.mark.unit
     def test_sva_validate_success(self, mock_exists, mock_excel, mock_parquet):
         import polars as pl
+
         mock_excel.return_value = pl.DataFrame({"col": [1, 2, 3]})
         mock_parquet.return_value = pl.DataFrame({"col": [1]})
         result = acoharmony.cli.main()
@@ -1641,6 +1753,7 @@ class TestCliSvaNoSubcommand:
 
 class TestCliTestCoverageComplete:
     """Cover cli.py:1554."""
+
     @pytest.fixture(autouse=True)
     def _g(self):
         acoharmony.cli._require_full_package()
@@ -1648,13 +1761,17 @@ class TestCliTestCoverageComplete:
     @patch("sys.argv", ["aco", "test", "coverage"])
     @pytest.mark.unit
     def test_coverage_subcommand(self):
-        try: acoharmony.cli.main()
-        except SystemExit: pass
-        except: pass
+        try:
+            acoharmony.cli.main()
+        except SystemExit:
+            pass
+        except Exception:
+            pass
 
 
 class TestCliCoverageMessage:
     """Line 1554: coverage complete message."""
+
     @pytest.fixture(autouse=True)
     def _g(self):
         acoharmony.cli._require_full_package()
@@ -1668,9 +1785,12 @@ class TestCliCoverageMessage:
             mock_orch.return_value.extract_state.return_value.get_uncovered_count.return_value = 0
             mock_orch.return_value.combine_fragments.return_value = None
             mock_orch.return_value.targets_file = "/tmp/targets.yaml"
-            try: acoharmony.cli.main()
-            except SystemExit: pass
-            except: pass
+            try:
+                acoharmony.cli.main()
+            except SystemExit:
+                pass
+            except Exception:
+                pass
 
 
 class TestCliCoverageComplete1536:
@@ -1680,6 +1800,7 @@ class TestCliCoverageComplete1536:
     def test_cli_coverage_complete_1536(self):
         """cli.py:1536."""
         import acoharmony.cli
+
         acoharmony.cli._require_full_package()
         with patch("sys.argv", ["aco", "test", "coverage"]):
             with patch("acoharmony._test.coverage.orchestrator.CoverageOrchestrator") as mo:
@@ -1694,7 +1815,9 @@ class TestCliCoverageComplete1536:
                 mo.return_value = inst
                 try:
                     acoharmony.cli.main()
-                except:
+                except SystemExit:
+                    pass
+                except Exception:
                     pass
 
 
@@ -1742,8 +1865,9 @@ class TestTransformBranchCoverage:
     @patch("acoharmony.cli.TransformRunner")
     @patch("sys.argv", ["aco", "transform", "my_table"])
     @pytest.mark.unit
-    def test_transform_table_success_false(self, mock_runner_cls, mock_unpack,
-                                            mock_config, mock_catalog_cls, mock_storage):
+    def test_transform_table_success_false(
+        self, mock_runner_cls, mock_unpack, mock_config, mock_catalog_cls, mock_storage
+    ):
         """Branch 719->723: result.success is False so tracking msg is skipped."""
         mock_unpack.return_value = {"found": 0, "processed": 0, "extracted": 0}
         mock_result = MagicMock(success=False, status="FAILED")
@@ -1758,8 +1882,9 @@ class TestTransformBranchCoverage:
     @patch("acoharmony.cli.TransformRunner")
     @patch("sys.argv", ["aco", "transform", "my_table"])
     @pytest.mark.unit
-    def test_transform_table_success_true_prints_tracking(self, mock_runner_cls, mock_unpack,
-                                                           mock_config, mock_catalog_cls, mock_storage):
+    def test_transform_table_success_true_prints_tracking(
+        self, mock_runner_cls, mock_unpack, mock_config, mock_catalog_cls, mock_storage
+    ):
         """Branch 719->720: hasattr(result, 'success') and result.success is True."""
         mock_unpack.return_value = {"found": 0, "processed": 0, "extracted": 0}
         mock_result = MagicMock(success=True)
@@ -1775,8 +1900,15 @@ class TestTransformBranchCoverage:
     @patch("acoharmony.cli.MedallionLayer")
     @patch("sys.argv", ["aco", "transform", "--layer", "silver"])
     @pytest.mark.unit
-    def test_transform_layer_all_fail(self, mock_medallion, mock_runner_cls, mock_unpack,
-                                       mock_config, mock_catalog_cls, mock_storage):
+    def test_transform_layer_all_fail(
+        self,
+        mock_medallion,
+        mock_runner_cls,
+        mock_unpack,
+        mock_config,
+        mock_catalog_cls,
+        mock_storage,
+    ):
         """Branch 691->692 (success) vs 691->694 (error status print)."""
         mock_unpack.return_value = {"found": 0, "processed": 0, "extracted": 0}
         mock_results = {
@@ -1795,8 +1927,9 @@ class TestTransformBranchCoverage:
     @patch("acoharmony.cli.TransformRunner")
     @patch("sys.argv", ["aco", "transform", "--pattern", "foo*"])
     @pytest.mark.unit
-    def test_transform_pattern_all_fail(self, mock_runner_cls, mock_unpack,
-                                         mock_config, mock_catalog_cls, mock_storage):
+    def test_transform_pattern_all_fail(
+        self, mock_runner_cls, mock_unpack, mock_config, mock_catalog_cls, mock_storage
+    ):
         """Branch 705->706/708: all pattern results fail."""
         mock_unpack.return_value = {"found": 0, "processed": 0, "extracted": 0}
         mock_results = {
@@ -1813,8 +1946,9 @@ class TestTransformBranchCoverage:
     @patch("acoharmony.cli.TransformRunner")
     @patch("sys.argv", ["aco", "transform", "--all"])
     @pytest.mark.unit
-    def test_transform_unpack_found_zero(self, mock_runner_cls, mock_unpack,
-                                          mock_config, mock_catalog_cls, mock_storage):
+    def test_transform_unpack_found_zero(
+        self, mock_runner_cls, mock_unpack, mock_config, mock_catalog_cls, mock_storage
+    ):
         """Branch 671->676: unpack found == 0 (no print)."""
         mock_unpack.return_value = {"found": 0, "processed": 0, "extracted": 0}
         mock_runner_cls.return_value.transform_all.return_value = None
@@ -1827,8 +1961,9 @@ class TestTransformBranchCoverage:
     @patch("acoharmony.cli.TransformRunner")
     @patch("sys.argv", ["aco", "transform", "--all"])
     @pytest.mark.unit
-    def test_transform_unpack_found_positive(self, mock_runner_cls, mock_unpack,
-                                              mock_config, mock_catalog_cls, mock_storage):
+    def test_transform_unpack_found_positive(
+        self, mock_runner_cls, mock_unpack, mock_config, mock_catalog_cls, mock_storage
+    ):
         """Branch 671->672: unpack found > 0 (print message)."""
         mock_unpack.return_value = {"found": 3, "processed": 3, "extracted": 10}
         mock_runner_cls.return_value.transform_all.return_value = None
@@ -1924,7 +2059,9 @@ class TestListBranchCoverage:
     @patch("acoharmony.cli.MedallionLayer")
     @patch("sys.argv", ["aco", "list", "--layer", "silver"])
     @pytest.mark.unit
-    def test_list_layer_with_metadata_no_description(self, mock_medallion, mock_catalog_cls, mock_storage):
+    def test_list_layer_with_metadata_no_description(
+        self, mock_medallion, mock_catalog_cls, mock_storage
+    ):
         """Branch where metadata exists but description is empty."""
         mock_catalog = MagicMock()
         mock_catalog.list_tables.return_value = ["silver_t1"]
@@ -2349,8 +2486,12 @@ class TestDatabricksBranchCoverage:
         mock_manager.source_dirs = [Path("/data")]
         mock_manager.dest_dir = Path("/tmp/custom_dest")
         mock_manager.transfer.return_value = {
-            "total_files": 0, "transferred": 0, "skipped": 0,
-            "failed": 0, "transferred_files": [], "failed_files": [],
+            "total_files": 0,
+            "transferred": 0,
+            "skipped": 0,
+            "failed": 0,
+            "transferred_files": [],
+            "failed_files": [],
         }
         mock_manager_cls.return_value = mock_manager
         result = acoharmony.cli.main()
@@ -2494,16 +2635,22 @@ class TestCiteBranchCoverage:
         acoharmony.cli._require_full_package()
 
     @patch("acoharmony._transforms._cite.transform_cite")
-    @patch("sys.argv", ["aco", "cite", "url", "https://example.com/p.pdf",
-                         "--tags", "a,b", "--note", "my note"])
+    @patch(
+        "sys.argv",
+        ["aco", "cite", "url", "https://example.com/p.pdf", "--tags", "a,b", "--note", "my note"],
+    )
     @pytest.mark.unit
     def test_cite_url_with_note_and_tags(self, mock_transform):
         """Branch 1343->1344, 1345->1346: note and tags printed."""
         mock_lf = MagicMock()
-        mock_df = pl.DataFrame({
-            "normalized_title": ["T"], "first_author": ["A"],
-            "extracted_doi": ["D"], "file_hash": ["H"],
-        })
+        mock_df = pl.DataFrame(
+            {
+                "normalized_title": ["T"],
+                "first_author": ["A"],
+                "extracted_doi": ["D"],
+                "file_hash": ["H"],
+            }
+        )
         mock_lf.collect.return_value = mock_df
         mock_transform.return_value = mock_lf
         result = acoharmony.cli.main()
@@ -2515,10 +2662,14 @@ class TestCiteBranchCoverage:
     def test_cite_url_no_note_no_tags(self, mock_transform):
         """Branch 1343->1345, 1345->1348: no note, no tags."""
         mock_lf = MagicMock()
-        mock_df = pl.DataFrame({
-            "normalized_title": ["T"], "first_author": ["A"],
-            "extracted_doi": ["D"], "file_hash": ["H"],
-        })
+        mock_df = pl.DataFrame(
+            {
+                "normalized_title": ["T"],
+                "first_author": ["A"],
+                "extracted_doi": ["D"],
+                "file_hash": ["H"],
+            }
+        )
         mock_lf.collect.return_value = mock_df
         mock_transform.return_value = mock_lf
         result = acoharmony.cli.main()
@@ -2607,8 +2758,7 @@ class TestCiteBranchCoverage:
         with pytest.raises(SystemExit):
             acoharmony.cli.main()
 
-    @patch("acoharmony._transforms._cite.transform_cite",
-           side_effect=RuntimeError("cite fail"))
+    @patch("acoharmony._transforms._cite.transform_cite", side_effect=RuntimeError("cite fail"))
     @patch("sys.argv", ["aco", "cite", "url", "https://example.com/p.pdf"])
     @pytest.mark.unit
     def test_cite_exception_handler(self, mock_transform):
@@ -2629,10 +2779,14 @@ class TestCiteBranchCoverage:
             "y",
         ]
         mock_lf = MagicMock()
-        mock_df = pl.DataFrame({
-            "normalized_title": ["T"], "first_author": ["A"],
-            "extracted_doi": ["D"], "file_hash": ["H"],
-        })
+        mock_df = pl.DataFrame(
+            {
+                "normalized_title": ["T"],
+                "first_author": ["A"],
+                "extracted_doi": ["D"],
+                "file_hash": ["H"],
+            }
+        )
         mock_lf.collect.return_value = mock_df
         mock_transform.return_value = mock_lf
         result = acoharmony.cli.main()
@@ -2646,15 +2800,19 @@ class TestCiteBranchCoverage:
         """Branch 1462->1464, 1464->1467: interactive without note/tags."""
         mock_input.side_effect = [
             "https://example.com/p.pdf",
-            "",   # no note
-            "",   # no tags
+            "",  # no note
+            "",  # no tags
             "y",
         ]
         mock_lf = MagicMock()
-        mock_df = pl.DataFrame({
-            "normalized_title": ["T"], "first_author": ["A"],
-            "extracted_doi": ["D"], "file_hash": ["H"],
-        })
+        mock_df = pl.DataFrame(
+            {
+                "normalized_title": ["T"],
+                "first_author": ["A"],
+                "extracted_doi": ["D"],
+                "file_hash": ["H"],
+            }
+        )
         mock_lf.collect.return_value = mock_df
         mock_transform.return_value = mock_lf
         result = acoharmony.cli.main()
@@ -2695,8 +2853,7 @@ class TestDeployBranchCoverage:
         result = acoharmony.cli.main()
         assert result == 0
 
-    @patch("acoharmony._deploy.DeploymentManager",
-           side_effect=FileNotFoundError("no compose"))
+    @patch("acoharmony._deploy.DeploymentManager", side_effect=FileNotFoundError("no compose"))
     @patch("sys.argv", ["aco", "deploy", "start"])
     @pytest.mark.unit
     def test_deploy_file_not_found(self, mock_manager_cls):
@@ -2704,8 +2861,7 @@ class TestDeployBranchCoverage:
         result = acoharmony.cli.main()
         assert result == 1
 
-    @patch("acoharmony._deploy.DeploymentManager",
-           side_effect=ValueError("bad value"))
+    @patch("acoharmony._deploy.DeploymentManager", side_effect=ValueError("bad value"))
     @patch("sys.argv", ["aco", "deploy", "stop"])
     @pytest.mark.unit
     def test_deploy_value_error(self, mock_manager_cls):
@@ -2713,8 +2869,7 @@ class TestDeployBranchCoverage:
         result = acoharmony.cli.main()
         assert result == 1
 
-    @patch("acoharmony._deploy.DeploymentManager",
-           side_effect=RuntimeError("unexpected"))
+    @patch("acoharmony._deploy.DeploymentManager", side_effect=RuntimeError("unexpected"))
     @patch("sys.argv", ["aco", "deploy", "ps"])
     @pytest.mark.unit
     def test_deploy_generic_exception(self, mock_manager_cls):
@@ -2742,6 +2897,19 @@ class TestDeployBranchCoverage:
         mock_manager_cls.return_value.execute_command.return_value = 0
         result = acoharmony.cli.main()
         assert result == 0
+
+    @patch("acoharmony._deploy.DeploymentManager")
+    @patch("sys.argv", ["aco", "deploy", "acoms", "start"])
+    @pytest.mark.unit
+    def test_deploy_service_first_acoms_start(self, mock_manager_cls):
+        """Service-first deploy form routes to start with the service selected."""
+        mock_manager_cls.return_value.execute_command.return_value = 0
+        result = acoharmony.cli.main()
+        assert result == 0
+        mock_manager_cls.return_value.execute_command.assert_called_once()
+        call_args = mock_manager_cls.return_value.execute_command.call_args
+        assert call_args.args[0] == "start"
+        assert call_args.kwargs["services"] == ["acoms"]
 
 
 class TestTestCommandBranchCoverage:
@@ -2781,8 +2949,10 @@ class TestTestCommandBranchCoverage:
         result = acoharmony.cli.main()
         assert result == 1
 
-    @patch("acoharmony._test.coverage.orchestrator.CoverageOrchestrator",
-           side_effect=RuntimeError("test error"))
+    @patch(
+        "acoharmony._test.coverage.orchestrator.CoverageOrchestrator",
+        side_effect=RuntimeError("test error"),
+    )
     @patch("sys.argv", ["aco", "test"])
     @pytest.mark.unit
     def test_test_exception(self, mock_orch_cls):
@@ -2791,8 +2961,20 @@ class TestTestCommandBranchCoverage:
         assert result == 1
 
     @patch("acoharmony._test.coverage.orchestrator.CoverageOrchestrator")
-    @patch("sys.argv", ["aco", "test", "--test-path", "tests/foo.py", "--no-targets",
-                         "--work-dir", "/tmp/cov", "--src-root", "src"])
+    @patch(
+        "sys.argv",
+        [
+            "aco",
+            "test",
+            "--test-path",
+            "tests/foo.py",
+            "--no-targets",
+            "--work-dir",
+            "/tmp/cov",
+            "--src-root",
+            "src",
+        ],
+    )
     @pytest.mark.unit
     def test_test_with_all_options(self, mock_orch_cls):
         """Cover all test command options."""
@@ -2803,7 +2985,8 @@ class TestTestCommandBranchCoverage:
         assert result == 0
         mock_orch_cls.assert_called_once_with(src_root="src", work_dir=Path("/tmp/cov"))
         mock_orch.iterate_once.assert_called_once_with(
-            test_path="tests/foo.py", show_targets=False,
+            test_path="tests/foo.py",
+            show_targets=False,
         )
 
 
@@ -2895,6 +3078,7 @@ class TestDatabricksElseBranch:
         Actually, we mock the args namespace directly.
         """
         import argparse
+
         mock_args = argparse.Namespace(
             command="databricks",
             dest=None,
@@ -2931,16 +3115,19 @@ class TestCiteElseBranch:
         to hit the else branch.
         """
         import argparse
+
         mock_args = argparse.Namespace(
             command="cite",
             cite_command="unknown_subcommand",
             force=False,
         )
-        with patch("argparse.ArgumentParser.parse_known_args") as mock_parse, \
-             patch("acoharmony.cli._require_full_package"), \
-             patch("acoharmony._cite.state.CiteStateTracker"), \
-             patch("acoharmony._transforms._cite.transform_cite"), \
-             patch("acoharmony._transforms._cite_batch.transform_cite_batch"):
+        with (
+            patch("argparse.ArgumentParser.parse_known_args") as mock_parse,
+            patch("acoharmony.cli._require_full_package"),
+            patch("acoharmony._cite.state.CiteStateTracker"),
+            patch("acoharmony._transforms._cite.transform_cite"),
+            patch("acoharmony._transforms._cite_batch.transform_cite_batch"),
+        ):
             mock_parse.return_value = (mock_args, [])
             result = acoharmony.cli.main()
             assert result == 1

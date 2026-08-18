@@ -70,6 +70,13 @@ SERVICES: dict[str, ServiceDefinition] = {
         dependencies=[],
         category="app",
     ),
+    "acoms": ServiceDefinition(
+        name="acoms",
+        description="ACO-MS CLI service",
+        ports=[],
+        dependencies=[],
+        category="app",
+    ),
 }
 
 

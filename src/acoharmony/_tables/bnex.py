@@ -14,6 +14,7 @@ from pydantic.dataclasses import dataclass
 
 from acoharmony._registry import (
     register_schema,
+    with_acoms,
     with_parser,
     with_storage,
 )
@@ -26,7 +27,9 @@ from acoharmony._registry import (
     description="Beneficiary Data Sharing Opt-Out Files (BNEX) - XML file containing beneficiaries who have opted out of data sharing under MSSP",
     file_patterns={"mssp": ["P.A*.BNEX.Y*.D*.T*.xml"]},
 )
-@with_parser(type="xml", encoding="utf-8", has_header=False, embedded_transforms=False, row_tag="Beneficiary")
+@with_parser(
+    type="xml", encoding="utf-8", has_header=False, embedded_transforms=False, row_tag="Beneficiary"
+)
 @with_storage(
     tier="bronze",
     file_patterns={"mssp": ["P.A*.BNEX.Y*.D*.T*.xml"]},
@@ -36,6 +39,13 @@ from acoharmony._registry import (
         "last_updated_by": "aco transform bnex",
     },
     gold={"output_name": None, "refresh_frequency": None, "last_updated_by": None},
+)
+@with_acoms(
+    category="Monthly Exclusion Files",
+    file_type_code=114,
+    file_pattern="P.A*.BNEX.Y*.D*.T*.xml",
+    extract_zip=False,
+    refresh_frequency="monthly",
 )
 @dataclass
 class Bnex:

@@ -17,6 +17,7 @@ from pydantic.dataclasses import dataclass
 
 from acoharmony._registry import (
     register_schema,
+    with_acoms,
     with_four_icli,
     with_parser,
     with_storage,
@@ -59,6 +60,15 @@ from acoharmony._registry import (
         "last_updated_by": "scripts/process_raw_to_parquet.py",
     },
     gold={"output_name": None, "refresh_frequency": None, "last_updated_by": None},
+)
+@with_acoms(
+    category="CCLF",
+    file_type_code=113,
+    file_type_codes=[113, 305],
+    file_pattern="P.A*.ACO.ZCY*.D*.T*.zip, P.A*.ACO.ZCWY*.S*.E*.D*.T*.zip",
+    extract_zip=True,
+    refresh_frequency="weekly",
+    default_date_filter={"createdWithinLastWeek": True},
 )
 @with_four_icli(
     category="Claim and Claim Line Feed (CCLF) Files",

@@ -13,8 +13,9 @@ from acoharmony._test._import_magic import auto_import
 class _:
     pass  # noqa: E701
 
+
 import dataclasses
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
 import pytest
@@ -49,6 +50,7 @@ class TestSchemaRegistry:
 
 
 # Function tests
+
 
 @pytest.mark.unit
 def test_get_schema_basic() -> None:
@@ -323,6 +325,7 @@ class TestExtractColumns:
     def test_extract_columns_with_json_schema_extra(self):
         """json_schema_extra position metadata is extracted."""
         import dataclasses
+
         from pydantic import Field
 
         @dataclasses.dataclass
@@ -341,6 +344,7 @@ class TestExtractColumns:
     def test_extract_columns_captures_plain_alias(self):
         """Field(alias=...) surfaces as a single-entry aliases list."""
         import dataclasses
+
         from pydantic import Field
 
         @dataclasses.dataclass
@@ -354,6 +358,7 @@ class TestExtractColumns:
     def test_extract_columns_captures_alias_choices(self):
         """validation_alias=AliasChoices captures every choice, preserving order."""
         import dataclasses
+
         from pydantic import AliasChoices, Field
 
         @dataclasses.dataclass
@@ -392,8 +397,9 @@ class TestExtractFieldAliasesHelper:
 
     @pytest.mark.unit
     def test_string_validation_alias(self):
-        from acoharmony._registry.registry import _extract_field_aliases
         from pydantic import Field
+
+        from acoharmony._registry.registry import _extract_field_aliases
 
         f = Field(validation_alias="X")
         assert _extract_field_aliases(f) == ["X"]
@@ -401,8 +407,9 @@ class TestExtractFieldAliasesHelper:
     @pytest.mark.unit
     def test_alias_path_choices(self):
         """AliasPath instances expose path-segment strings via .path."""
-        from acoharmony._registry.registry import _extract_field_aliases
         from pydantic import AliasPath, Field
+
+        from acoharmony._registry.registry import _extract_field_aliases
 
         f = Field(validation_alias=AliasPath("outer", "inner"))
         assert _extract_field_aliases(f) == ["outer", "inner"]
@@ -410,8 +417,9 @@ class TestExtractFieldAliasesHelper:
     @pytest.mark.unit
     def test_deduplicates_repeated_aliases(self):
         """The same alias listed twice across alias= and validation_alias= appears once."""
-        from acoharmony._registry.registry import _extract_field_aliases
         from pydantic import AliasChoices, Field
+
+        from acoharmony._registry.registry import _extract_field_aliases
 
         f = Field(alias="A", validation_alias=AliasChoices("A", "B", "A"))
         assert _extract_field_aliases(f) == ["A", "B"]
@@ -432,12 +440,26 @@ class TestFullTableConfigBranches:
         SchemaRegistry._metadata.pop("__test_4i", None)
         SchemaRegistry._four_icli.pop("__test_4i", None)
 
+    @pytest.mark.unit
+    def test_acoms_branch(self):
+        """ACOMS config is included in full table config."""
+        SchemaRegistry._metadata["__test_acoms"] = {"name": "__test_acoms"}
+        SchemaRegistry._acoms["__test_acoms"] = {"category": "CCLF"}
+
+        config = SchemaRegistry.get_full_table_config("__test_acoms")
+        assert config["acoms"]["category"] == "CCLF"
+
+        SchemaRegistry._metadata.pop("__test_acoms", None)
+        SchemaRegistry._acoms.pop("__test_acoms", None)
+
+
 class TestConvenienceFunctions:
     """Cover convenience functions at module level lines 524-539."""
 
     @pytest.mark.unit
     def test_get_full_table_config(self):
         from acoharmony._registry.registry import get_full_table_config
+
         result = get_full_table_config("cclf1")
         assert isinstance(result, dict)
 
@@ -514,5 +536,3 @@ class TestSchemaRegistryClear:
         assert SchemaRegistry._sheets == {}
         assert SchemaRegistry._four_icli == {}
         assert SchemaRegistry._polars == {}
-
-

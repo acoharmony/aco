@@ -1,0 +1,49 @@
+services:
+  acoms:
+    build:
+      context: ../images
+      dockerfile: acoms/Dockerfile
+    image: ghcr.io/acoharmony/acoms:latest
+    container_name: acoms
+    restart: unless-stopped
+    user: "1002:1002"
+    environment:
+      - ACO_PROFILE=${ACO_PROFILE:-dev}
+      - ACOMS_HOME=/home/care/.acoms
+      - ACOMS_API_KEY=${ACOMS_API_KEY}
+      - ACOMS_API_SECRET=${ACOMS_API_SECRET}
+      - ACOMS_API_ID=${ACOMS_API_ID}
+      - ACOMS_ENV=${ACOMS_ENV:-prod}
+      - ACOMS_VERIFY_ON_START=${ACOMS_VERIFY_ON_START:-1}
+    volumes:
+      # S3-backed workspace — same mount as the aco and 4icli containers.
+      - type: bind
+        source: /opt/s3/data/workspace
+        target: /opt/s3/data/workspace
+        read_only: false
+        bind:
+          create_host_path: true
+
+    # Working directory matches the shared bronze directory convention.
+    working_dir: /opt/s3/data/workspace/bronze
+    networks:
+      - acoharmony-external
+    stdin_open: true
+    tty: true
+    command: ["tail", "-f", "/dev/null"]
+    healthcheck:
+      test: ["CMD-SHELL", "test -s /home/care/.acoms/auth-ready"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+        reservations:
+          memory: 512M
+    labels:
+      - "aco.network=bridge"
+      - "aco.type=cli"
+      - "aco.profile-aware=true"

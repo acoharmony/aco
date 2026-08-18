@@ -72,6 +72,7 @@ dev = [
 [project.scripts]
 aco = "acoharmony.cli:main"
 aco-4icli = "acoharmony._4icli.cli:main"
+aco-acoms = "acoharmony._acoms.cli:main"
 
 [project.urls]
 Documentation = "https://github.com/acoharmony/aco#readme"

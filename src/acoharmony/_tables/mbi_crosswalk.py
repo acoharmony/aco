@@ -19,6 +19,7 @@ from pydantic.dataclasses import dataclass
 
 from acoharmony._registry import (
     register_schema,
+    with_acoms,
     with_parser,
     with_storage,
 )
@@ -27,6 +28,13 @@ from acoharmony._registry import (
 @register_schema(name="mbi_crosswalk", version=2, tier="silver", description="""\2""")
 @with_parser(type="parquet", encoding="utf-8", has_header=False, embedded_transforms=False)
 @with_storage(tier="silver", medallion_layer="silver")
+@with_acoms(
+    category="Monthly Exclusion Files",
+    file_type_code=183,
+    file_pattern="P.A*.ACO.MBIY*.D*.T*.txt",
+    extract_zip=False,
+    refresh_frequency="monthly",
+)
 @dataclass
 class MbiCrosswalk:
     """

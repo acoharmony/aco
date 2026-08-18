@@ -12,6 +12,7 @@ with their parsers, transforms, and metadata through decorators.
 from .base import CallableRegistry, Registry, TypeRegistry
 from .decorators import (
     register_schema,
+    with_acoms,
     with_four_icli,
     with_metadata,
     with_parser,
@@ -36,6 +37,7 @@ __all__ = [
     "with_record_types",
     "with_sheets",
     "with_four_icli",
+    "with_acoms",
     "with_polars",
     # Registry access
     "SchemaRegistry",

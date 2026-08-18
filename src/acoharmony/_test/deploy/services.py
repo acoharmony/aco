@@ -1,13 +1,13 @@
 # © 2025 HarmonyCares
 """Tests for acoharmony/_deploy/_services.py."""
 
-
 from acoharmony._test._import_magic import auto_import
 
 
 @auto_import
 class _:
     pass  # noqa: E701
+
 
 import pytest
 
@@ -60,18 +60,21 @@ class TestServicesDict:
     def test_app_services_exist(self) -> None:
         assert "4icli" in SERVICES
         assert SERVICES["4icli"].category == "app"
+        assert "acoms" in SERVICES
+        assert SERVICES["acoms"].category == "app"
 
     @pytest.mark.unit
     def test_catalog_matches_compose(self) -> None:
         # SERVICES must mirror deploy/docker-compose.yml — drift breaks
         # `aco deploy start/restart`.
-        assert set(SERVICES.keys()) == {"4icli", "docs", "marimo"}
+        assert set(SERVICES.keys()) == {"4icli", "acoms", "docs", "marimo"}
 
 
 class TestGetServiceDefinition:
     @pytest.mark.unit
     def test_valid_service(self) -> None:
         assert get_service_definition("4icli").name == "4icli"
+        assert get_service_definition("acoms").name == "acoms"
 
     @pytest.mark.unit
     def test_unknown_service_raises(self) -> None:
@@ -93,7 +96,7 @@ class TestListServicesByCategory:
     @pytest.mark.unit
     def test_app_category(self) -> None:
         result = list_services_by_category("app")
-        assert result == ["4icli"]
+        assert result == ["4icli", "acoms"]
 
     @pytest.mark.unit
     def test_empty_category(self) -> None:
@@ -108,7 +111,7 @@ class TestGetServiceDependencies:
 
     @pytest.mark.unit
     def test_unknown_raises(self) -> None:
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="Unknown service"):
             get_service_dependencies("nonexistent")
 
     @pytest.mark.unit

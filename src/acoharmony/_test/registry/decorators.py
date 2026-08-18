@@ -18,6 +18,7 @@ from acoharmony._test._import_magic import auto_import
 class _:
     pass  # noqa: E701
 
+
 from typing import TYPE_CHECKING
 
 import pytest
@@ -26,8 +27,8 @@ if TYPE_CHECKING:
     pass
 
 
-
 # Function tests
+
 
 @pytest.mark.unit
 def test_register_schema_basic() -> None:
@@ -85,11 +86,13 @@ class TestSchemaClassMethods:
     @pytest.mark.unit
     def test_schema_name_method(self):
         from acoharmony._tables.cclf1 import Cclf1
+
         assert Cclf1.schema_name() == "cclf1"
 
     @pytest.mark.unit
     def test_schema_metadata_method(self):
         from acoharmony._tables.cclf1 import Cclf1
+
         meta = Cclf1.schema_metadata()
         assert isinstance(meta, dict)
         assert "name" in meta
@@ -97,23 +100,27 @@ class TestSchemaClassMethods:
     @pytest.mark.unit
     def test_schema_version_method(self):
         from acoharmony._tables.cclf1 import Cclf1
+
         v = Cclf1.schema_version()
         assert v is not None
 
     @pytest.mark.unit
     def test_schema_tier_method(self):
         from acoharmony._tables.cclf1 import Cclf1
+
         assert Cclf1.schema_tier() in ("bronze", "silver", "gold")
 
     @pytest.mark.unit
     def test_schema_description_method(self):
         from acoharmony._tables.cclf1 import Cclf1
+
         desc = Cclf1.schema_description()
         assert isinstance(desc, str)
 
     @pytest.mark.unit
     def test_get_file_patterns_method(self):
         from acoharmony._tables.cclf1 import Cclf1
+
         patterns = Cclf1.get_file_patterns()
         assert isinstance(patterns, dict)
 
@@ -124,6 +131,7 @@ class TestParserConfigMethod:
     @pytest.mark.unit
     def test_parser_config_method(self):
         from acoharmony._tables.cclf1 import Cclf1
+
         cfg = Cclf1.parser_config()
         assert isinstance(cfg, dict)
 
@@ -152,6 +160,7 @@ class TestExistingModelDecoratorMethods:
     @pytest.mark.unit
     def test_cclf1_lineage_config(self):
         from acoharmony._tables.cclf1 import Cclf1
+
         if hasattr(Cclf1, "lineage_config"):
             cfg = Cclf1.lineage_config()
             assert isinstance(cfg, dict)
@@ -159,6 +168,7 @@ class TestExistingModelDecoratorMethods:
     @pytest.mark.unit
     def test_cclf1_storage_config(self):
         from acoharmony._tables.cclf1 import Cclf1
+
         if hasattr(Cclf1, "storage_config"):
             cfg = Cclf1.storage_config()
             assert isinstance(cfg, dict)
@@ -166,6 +176,7 @@ class TestExistingModelDecoratorMethods:
     @pytest.mark.unit
     def test_enrollment_deduplication_config(self):
         from acoharmony._tables.enrollment import Enrollment
+
         if hasattr(Enrollment, "deduplication_config"):
             cfg = Enrollment.deduplication_config()
             assert isinstance(cfg, dict)
@@ -173,6 +184,7 @@ class TestExistingModelDecoratorMethods:
     @pytest.mark.unit
     def test_enrollment_xref_config(self):
         from acoharmony._tables.enrollment import Enrollment
+
         if hasattr(Enrollment, "xref_config"):
             cfg = Enrollment.xref_config()
             assert isinstance(cfg, dict)
@@ -221,6 +233,21 @@ class TestRemainingDecoratorClassmethods:
         assert cfg["category"] == "Claims"
 
     @pytest.mark.unit
+    def test_with_acoms(self):
+        """Cover with_acoms configuration attachment."""
+        from acoharmony._registry.decorators import register_schema, with_acoms
+
+        @with_acoms(category="CCLF", file_type_code=113, file_type_codes=[113, 305])
+        @register_schema(name="__test_acoms__", version=1, tier="bronze")
+        class TestAcomsModel:
+            pass
+
+        cfg = TestAcomsModel.acoms_config()
+        assert cfg["category"] == "CCLF"
+        assert cfg["fileTypeCode"] == 113
+        assert cfg["fileTypeCodes"] == [113, 305]
+
+    @pytest.mark.unit
     def test_with_polars(self):
         """Cover with_polars lines 975, 981."""
         from acoharmony._registry.decorators import register_schema, with_polars
@@ -248,11 +275,13 @@ class TestRemainingDecoratorClassmethods:
     def test_existing_model_classmethods(self):
         """Call classmethods on models that use these decorators."""
         from acoharmony._tables.tparc import Tparc
+
         if hasattr(Tparc, "record_types_config"):
             cfg = Tparc.record_types_config()
             assert isinstance(cfg, dict)
 
         from acoharmony._tables.cclf1 import Cclf1
+
         if hasattr(Cclf1, "four_icli_config"):
             cfg = Cclf1.four_icli_config()
             assert isinstance(cfg, dict)
@@ -268,11 +297,14 @@ class TestDecoratorsSheetsIsNone:
     def test_decorators_sheets_is_none(self):
         """850->852: sheets is None."""
         from acoharmony._registry.decorators import register_schema, with_sheets
+
         @with_sheets()
         @register_schema(name="__test_no_sheets", version=1, tier="bronze")
         class NoSheetsModel:
             pass
+
         from acoharmony._registry.registry import SchemaRegistry
+
         SchemaRegistry._metadata.pop("__test_no_sheets", None)
 
 
@@ -317,5 +349,3 @@ class TestWithStorageRegistryUpdate:
             SchemaRegistry._storage.pop("__test_with_storage__", None)
             SchemaRegistry._schemas.pop("__test_with_storage__", None)
             SchemaRegistry._metadata.pop("__test_with_storage__", None)
-
-

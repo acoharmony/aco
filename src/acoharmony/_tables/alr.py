@@ -19,6 +19,7 @@ from pydantic.dataclasses import dataclass
 
 from acoharmony._registry import (
     register_schema,
+    with_acoms,
     with_parser,
     with_polars,
     with_storage,
@@ -62,6 +63,13 @@ from acoharmony._validators.field_validators import (
     drop_columns=["bene_hic_num"],
     string_trim=True,
     categorical_columns=["bene_sex_cd"],
+)
+@with_acoms(
+    category="Reports",
+    file_type_code=116,
+    file_pattern="P.A*.ACO.HASSGN.D*.T*.zip",
+    extract_zip=True,
+    refresh_frequency="annual",
 )
 @dataclass
 class Alr:

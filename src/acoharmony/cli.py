@@ -16,6 +16,8 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 from acoharmony import __version__
 
+DEPLOY_ACTIONS = frozenset({"start", "stop", "restart", "status", "logs", "ps", "build"})
+
 # Full package imports — deferred to allow skinny installs
 _FULL_PACKAGE_AVAILABLE = None
 Catalog: Any
@@ -46,6 +48,27 @@ def _require_full_package():
             "Install with: uv pip install 'acoharmony[full]'"
         )
         sys.exit(1)
+
+
+def _normalize_deploy_args(
+    action_or_service: str, services_or_action: list[str]
+) -> tuple[str, list[str]]:
+    """Support both deploy syntaxes: action-first and service-first.
+
+    Canonical form remains ``aco deploy start 4icli``. For CLI-service
+    workflows, operators often reach for ``aco deploy 4icli start``; normalize
+    that shape before dispatching to ``DeploymentManager``.
+    """
+    if action_or_service in DEPLOY_ACTIONS:
+        return action_or_service, services_or_action
+
+    tokens = [action_or_service, *services_or_action]
+    for index, token in enumerate(tokens):
+        if token in DEPLOY_ACTIONS:
+            services = [*tokens[:index], *tokens[index + 1 :]]
+            return token, services
+
+    return action_or_service, services_or_action
 
 
 def main():
@@ -623,6 +646,11 @@ def main():
     # 4Innovation portal rotation; takes no arguments.
     fouricli_subparsers.add_parser("setup", help="Refresh 4i credentials after a portal rotation")
 
+    # ACOMS command - ACO-MS DataHub integration
+    from acoharmony._acoms.cli import add_acoms_subparsers
+
+    acoms_parser = add_acoms_subparsers(subparsers)
+
     # xfr command - file transfer between locations via pluggable profiles
     from acoharmony._xfr.cli import add_subparsers as _xfr_add_subparsers
 
@@ -843,8 +871,11 @@ notes:
     )
     deploy_parser.add_argument(
         "action",
-        choices=["start", "stop", "restart", "status", "logs", "ps", "build"],
-        help="Deployment action to perform",
+        metavar="action|service",
+        help=(
+            "Deployment action to perform. Also accepts service-first form, "
+            "for example: aco deploy 4icli start"
+        ),
     )
     deploy_parser.add_argument("services", nargs="*", help="Specific services to act on (optional)")
     deploy_parser.add_argument(
@@ -1519,6 +1550,37 @@ notes:
             traceback.print_exc()
             return 1
 
+    elif args.command == "acoms":
+        from acoharmony._acoms.cli import (
+            cmd_download,
+            cmd_inventory,
+            cmd_list,
+            cmd_need_download,
+        )
+
+        def _acoms_status(value):
+            return value if isinstance(value, int) else 0
+
+        try:
+            if args.acoms_command == "inventory":
+                return _acoms_status(cmd_inventory(args))
+            elif args.acoms_command == "need-download":
+                return _acoms_status(cmd_need_download(args))
+            elif args.acoms_command == "download":
+                return _acoms_status(cmd_download(args))
+            elif args.acoms_command == "list":
+                return _acoms_status(cmd_list(args))
+            else:
+                acoms_parser.print_help()
+                return 1
+
+        except Exception as e:  # ALLOWED: CLI top-level handler, prints error and returns exit code
+            print(f"[ERROR] Error: {e}")
+            import traceback
+
+            traceback.print_exc()
+            return 1
+
     elif args.command == "xfr":
         from acoharmony._xfr.cli import dispatch as _xfr_dispatch
 
@@ -1753,10 +1815,14 @@ notes:
         from acoharmony._deploy import DeploymentManager
 
         try:
+            deploy_action, deploy_services = _normalize_deploy_args(
+                args.action,
+                args.services,
+            )
             manager = DeploymentManager()
             result = manager.execute_command(
-                args.action,
-                services=args.services if args.services else None,
+                deploy_action,
+                services=deploy_services if deploy_services else None,
                 group=args.group,
                 follow=args.follow,
                 tail=args.tail,

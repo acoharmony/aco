@@ -1,0 +1,8 @@
+.git
+**/*.log
+
+# Keep local 4icli runtime credentials and vendor binary out of the broader
+# deploy/images context used by the ACOMS build.
+4icli/config.txt
+4icli/4icli
+4icli/src/*.zip

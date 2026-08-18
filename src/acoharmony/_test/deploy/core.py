@@ -1,8 +1,6 @@
 # © 2025 HarmonyCares
 """Tests for acoharmony/_deploy/_core.py."""
 
-
-
 # Magic auto-import: brings in ALL exports from module under test
 from acoharmony._test._import_magic import auto_import
 
@@ -10,6 +8,7 @@ from acoharmony._test._import_magic import auto_import
 @auto_import
 class _:
     pass  # noqa: E701
+
 
 import pytest
 
@@ -45,7 +44,9 @@ class TestCore:
         from acoharmony._deploy._core import DeploymentManager
 
         mgr = MagicMock()
-        mgr.get_services_for_group = DeploymentManager.get_services_for_group.__get__(mgr, DeploymentManager)
+        mgr.get_services_for_group = DeploymentManager.get_services_for_group.__get__(
+            mgr, DeploymentManager
+        )
         mgr.service_mapper.get_group_services.return_value = ["redis", "postgres"]
 
         result = mgr.get_services_for_group("data")
@@ -84,14 +85,18 @@ class TestCore:
     @pytest.mark.unit
     def test_deploymentmanager_init(self) -> None:
         """Test DeploymentManager initialization."""
-        from unittest.mock import MagicMock, patch
+        from unittest.mock import patch
 
         from acoharmony._deploy._core import DeploymentManager
 
-        with patch.object(DeploymentManager, "_get_profile", return_value="dev"), \
-             patch.object(DeploymentManager, "_get_compose_path", return_value="/fake/docker-compose.yml"), \
-             patch("acoharmony._deploy._core.DockerComposeManager") as MockDocker, \
-             patch("acoharmony._deploy._core.ProfileServiceMapper") as MockMapper:
+        with (
+            patch.object(DeploymentManager, "_get_profile", return_value="dev"),
+            patch.object(
+                DeploymentManager, "_get_compose_path", return_value="/fake/docker-compose.yml"
+            ),
+            patch("acoharmony._deploy._core.DockerComposeManager") as MockDocker,
+            patch("acoharmony._deploy._core.ProfileServiceMapper") as MockMapper,
+        ):
             mgr = DeploymentManager(profile="test")
             assert mgr.profile == "test"
             MockDocker.assert_called_once()

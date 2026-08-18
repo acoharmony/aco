@@ -14,6 +14,7 @@ from pydantic.dataclasses import dataclass
 
 from acoharmony._registry import (
     register_schema,
+    with_acoms,
     with_four_icli,
     with_parser,
     with_storage,
@@ -40,6 +41,13 @@ from acoharmony._registry import (
     file_type_code=243,
     file_pattern="D????.PY????.??.SBMEPI.D??????.T*.csv",
     extract_zip=False,
+    refresh_frequency="monthly",
+)
+@with_acoms(
+    category="Shadow Bundles Data Files",
+    file_type_code=244,
+    file_pattern="A*.??.SBMON.D*.T*.zip",
+    extract_zip=True,
     refresh_frequency="monthly",
 )
 @dataclass

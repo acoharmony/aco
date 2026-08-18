@@ -15,11 +15,11 @@ PROFILE_SERVICE_GROUPS: dict[str, dict[str, list[str]]] = {
         "analytics": ["marimo", "docs"],
     },
     "dev": {
-        "infrastructure": ["4icli"],
+        "infrastructure": ["4icli", "acoms"],
         "analytics": ["marimo", "docs"],
     },
     "staging": {
-        "infrastructure": ["4icli"],
+        "infrastructure": ["4icli", "acoms"],
         "analytics": ["marimo", "docs"],
     },
     "prod": {

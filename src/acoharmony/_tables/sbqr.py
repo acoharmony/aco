@@ -17,6 +17,7 @@ from pydantic.dataclasses import dataclass
 
 from acoharmony._registry import (
     register_schema,
+    with_acoms,
     with_four_icli,
     with_parser,
     with_sheets,
@@ -238,6 +239,13 @@ from acoharmony._registry import (
     category="Reports",
     file_type_code=243,
     file_pattern="D????.PY????.Q?.SBQR.D??????.T*.xlsx",
+    extract_zip=False,
+    refresh_frequency="quarterly",
+)
+@with_acoms(
+    category="Shadow Bundles Data Files",
+    file_type_code=244,
+    file_pattern="A*.Q?.SBQR.D*.T*.xlsx",
     extract_zip=False,
     refresh_frequency="quarterly",
 )

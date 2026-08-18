@@ -23,7 +23,7 @@ def register_schema(
     version: int | str = 1,
     tier: str = "bronze",
     description: str = "",
-    file_patterns: dict[str, str | list[str]] | None = None,
+    file_patterns: dict[str, Any] | None = None,
     **kwargs: Any,
 ) -> Callable[[type[T]], type[T]]:
     """
@@ -81,6 +81,7 @@ def register_schema(
             "_record_types_config": "_record_types",
             "_sheets_config": "_sheets",
             "_four_icli_config": "_four_icli",
+            "_acoms_config": "_acoms",
             "_polars_config": "_polars",
         }
         for cls_attr, reg_attr in _config_registry_map.items():
@@ -197,7 +198,7 @@ def with_parser(
 
 def with_storage(
     tier: str | None = None,
-    file_patterns: dict[str, str | list[str]] | None = None,
+    file_patterns: dict[str, Any] | None = None,
     medallion_layer: str | None = None,
     unity_catalog: str = "main",
     **kwargs: Any,
@@ -389,6 +390,70 @@ def with_four_icli(
         schema_name = getattr(cls, "_schema_metadata", {}).get("name")
         if schema_name:
             SchemaRegistry._four_icli[schema_name] = _four_icli_cfg
+
+        return cls
+
+    return decorator
+
+
+def with_acoms(
+    category: str = "",
+    file_type_code: int | None = None,
+    file_pattern: str = "",
+    extract_zip: bool = True,
+    refresh_frequency: str = "weekly",
+    default_date_filter: dict[str, Any] | None = None,
+    file_type_codes: list[int] | tuple[int, ...] | None = None,
+    **kwargs: Any,
+) -> Callable[[type[T]], type[T]]:
+    """
+    Attach ACOMS (ACO-MS DataHub) integration configuration.
+
+        Args:
+            category: ACOMS DataHub category
+            file_type_code: Primary numeric file type identifier
+            file_pattern: Glob pattern for file matching
+            extract_zip: Whether to extract ZIP files
+            refresh_frequency: How often data refreshes
+            default_date_filter: Default date filter settings
+            file_type_codes: Optional list of ACOMS file type identifiers when
+                a schema is delivered through multiple ACOMS file types
+            **kwargs: Additional ACOMS config
+
+        Returns:
+            Decorator function
+
+    """
+
+    def decorator(cls: type[T]) -> type[T]:
+        _acoms_cfg: dict[str, Any] = {
+            "category": category,
+            "fileTypeCode": file_type_code,
+            "filePattern": file_pattern,
+            "extractZip": extract_zip,
+            "refreshFrequency": refresh_frequency,
+        }
+
+        if file_type_codes is not None:
+            _acoms_cfg["fileTypeCodes"] = list(file_type_codes)
+
+        if default_date_filter is not None:
+            _acoms_cfg["defaultDateFilter"] = default_date_filter
+
+        _acoms_cfg.update(kwargs)
+
+        cls._acoms_config = _acoms_cfg  # type: ignore
+
+        @classmethod
+        def acoms_config(cls_inner) -> dict[str, Any]:
+            """Get ACOMS configuration."""
+            return cls_inner._acoms_config.copy()  # type: ignore
+
+        cls.acoms_config = acoms_config  # type: ignore
+
+        schema_name = getattr(cls, "_schema_metadata", {}).get("name")
+        if schema_name:
+            SchemaRegistry._acoms[schema_name] = _acoms_cfg
 
         return cls
 

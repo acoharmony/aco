@@ -1,7 +1,6 @@
 # © 2025 HarmonyCares
 """Tests for acoharmony/_deploy/_images.py."""
 
-
 from acoharmony._test._import_magic import auto_import
 
 
@@ -25,6 +24,7 @@ class TestServiceImages:
         config = {
             "services": {
                 "4icli": {"image": "ghcr.io/acoharmony/4icli:latest"},
+                "acoms": {"image": "ghcr.io/acoharmony/acoms:latest"},
                 "marimo": {"image": "ghcr.io/acoharmony/marimo:v0.0.20"},
                 "postgres": {"image": "docker.io/postgres:16"},
                 "no_image_svc": {},
@@ -37,6 +37,7 @@ class TestServiceImages:
             result = service_images(Path("/dev/null/compose.yml"))
         assert result == {
             "4icli": "ghcr.io/acoharmony/4icli",
+            "acoms": "ghcr.io/acoharmony/acoms",
             "marimo": "ghcr.io/acoharmony/marimo",
         }
 

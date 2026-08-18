@@ -42,6 +42,8 @@ htmlcov/
 **/config.txt
 **/4icli/4icli
 **/4icli/src/*.zip
+# ACOMS CLI vendor artifacts (never commit!)
+**/acoms/src/*.zip
 **/tests
 **/_tests
 

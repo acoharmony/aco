@@ -44,14 +44,15 @@ cd "$REPO_ROOT"
 # ---------------------------------------------------------------------------
 # Each entry: "<ghcr-repo>|<dockerfile>|<context>"
 # Both paths are relative to the repo root (the script cd's there). Context
-# is the repo root for multi-stage builds that need src/; for the
-# self-contained 4icli image, context is its own subdirectory — but the
-# dockerfile path must still resolve relative to the repo root, not the
-# context, because docker build interprets --file relative to PWD.
+# is the repo root for multi-stage builds that need src/; for self-contained
+# CLI images, context is narrowed to the needed deploy image subtree — but the
+# dockerfile path must still resolve relative to the repo root, not the context,
+# because docker build interprets --file relative to PWD.
 IMAGES=(
     "ghcr.io/acoharmony/marimo|deploy/images/marimo/Dockerfile|."
     "ghcr.io/acoharmony/docusaurus|deploy/images/docs/Dockerfile|."
     "ghcr.io/acoharmony/4icli|deploy/images/4icli/Dockerfile|deploy/images/4icli"
+    "ghcr.io/acoharmony/acoms|deploy/images/acoms/Dockerfile|deploy/images"
 )
 
 # ---------------------------------------------------------------------------
@@ -66,6 +67,14 @@ fi
 if [ ! -f "$REPO_ROOT/docs/package.json" ]; then
     echo "error: docs/package.json not found — docs/ is gitignored and must" >&2
     echo "       exist on disk for the docusaurus image build." >&2
+    exit 1
+fi
+
+acoms_zip_dir="$REPO_ROOT/deploy/images/acoms/src"
+acoms_zip_count="$(find "$acoms_zip_dir" -maxdepth 1 -type f -iname '*.zip' 2>/dev/null | wc -l)"
+if [ "$acoms_zip_count" -ne 1 ]; then
+    echo "error: expected exactly one ACOMS CLI zip in deploy/images/acoms/src/" >&2
+    echo "       found ${acoms_zip_count}. Drop the vendor zip there before building images." >&2
     exit 1
 fi
 

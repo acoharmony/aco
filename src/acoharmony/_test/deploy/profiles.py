@@ -1,13 +1,13 @@
 # © 2025 HarmonyCares
 """Tests for acoharmony/_deploy/_profiles.py."""
 
-
 from acoharmony._test._import_magic import auto_import
 
 
 @auto_import
 class _:
     pass  # noqa: E701
+
 
 import pytest
 
@@ -79,7 +79,7 @@ class TestProfileServiceMapperGetAllServices:
     @pytest.mark.unit
     def test_dev_all_services(self) -> None:
         all_svc = ProfileServiceMapper("dev").get_all_services()
-        assert all_svc == sorted(["4icli", "marimo", "docs"])
+        assert all_svc == sorted(["4icli", "acoms", "marimo", "docs"])
 
     @pytest.mark.unit
     def test_prod_has_no_services(self) -> None:
@@ -128,8 +128,8 @@ class TestProfileServiceMapperValidateServices:
     @pytest.mark.unit
     def test_all_valid(self) -> None:
         mapper = ProfileServiceMapper("dev")
-        valid, invalid = mapper.validate_services(["4icli", "marimo"])
-        assert valid == ["4icli", "marimo"]
+        valid, invalid = mapper.validate_services(["4icli", "acoms", "marimo"])
+        assert valid == ["4icli", "acoms", "marimo"]
         assert invalid == []
 
     @pytest.mark.unit

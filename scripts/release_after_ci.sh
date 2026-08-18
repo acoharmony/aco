@@ -220,6 +220,19 @@ if [ -f "$repo_root/deploy/images/4icli/4icli" ]; then
         "$build_root/deploy/images/4icli/4icli"
 fi
 
+acoms_zip_count="$(find "$repo_root/deploy/images/acoms/src" -maxdepth 1 -type f -iname '*.zip' 2>/dev/null | wc -l)"
+if [ "$acoms_zip_count" -gt 0 ]; then
+    log "copying ignored ACOMS CLI zip into image build worktree"
+    mkdir -p "$build_root/deploy/images/acoms/src"
+    rsync -a \
+        --include='*/' \
+        --include='*.zip' \
+        --include='*.ZIP' \
+        --exclude='*' \
+        "$repo_root/deploy/images/acoms/src/" \
+        "$build_root/deploy/images/acoms/src/"
+fi
+
 image_args=("$tag")
 if bool_true "$no_push_images"; then
     image_args+=("--no-push")

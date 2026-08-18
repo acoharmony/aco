@@ -3,7 +3,10 @@
 
 """Build deployment service images."""
 
+from .._freshness import deploy_state_tracker
+from .._images import service_images
 from .._registry import register_deploy_command
+from .._version import latest_release_tag
 
 
 @register_deploy_command("build")
@@ -88,6 +91,7 @@ class BuildCommand:
             result = self.manager.docker.build(services)
 
             if result.returncode == 0:
+                self._record_built_images(services)
                 print("[OK] Images built successfully")
                 if result.stdout:
                     print(result.stdout)
@@ -100,3 +104,29 @@ class BuildCommand:
         except Exception as e:  # ALLOWED: CLI command handler, prints error and returns exit code
             print(f"[ERROR] Exception occurred: {e}")
             return 1
+
+    def _record_built_images(self, services: list[str] | None) -> None:
+        """Mark locally built ACOHarmony images current for this checkout.
+
+        ``start`` and ``restart`` use deploy state to avoid needless pulls. A
+        local build should be treated as intentional, especially for services
+        like ACOMS whose vendor artifact is local until the next release image
+        is published.
+        """
+        tag = latest_release_tag()
+        if tag is None:
+            return
+
+        try:
+            image_map = service_images(self.manager.docker.compose_file)
+            target_services = services if services is not None else sorted(image_map)
+            tracker = deploy_state_tracker()
+            for service in target_services:
+                repo = image_map.get(service)
+                if repo is not None:
+                    tracker.record(repo, tag)
+        except Exception:
+            # State recording is an optimization for the next start; a
+            # successful build should not become a failure because the local
+            # checkout cannot resolve git tags or write tracking state.
+            return
