@@ -67,7 +67,13 @@ from acoharmony._validators.field_validators import (
 @with_acoms(
     category="Reports",
     file_type_code=116,
-    file_pattern="P.A*.ACO.HASSGN.D*.T*.zip",
+    file_type_codes=[116, 129, 131],
+    file_pattern=("P.A*.ACO.HASSGN.D*.T*.zip, P.A*.ACO.AALR*.D*.T*, P.A*.ACO.QALR*.D*.T*"),
+    file_type_code_patterns=[
+        {"fileTypeCode": 116, "filePattern": "P.A*.ACO.HASSGN.D*.T*.zip"},
+        {"fileTypeCode": 129, "filePattern": "P.A*.ACO.AALR*.D*.T*"},
+        {"fileTypeCode": 131, "filePattern": "P.A*.ACO.QALR*.D*.T*"},
+    ],
     extract_zip=True,
     refresh_frequency="annual",
 )

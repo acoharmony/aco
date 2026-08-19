@@ -29,6 +29,7 @@ from pydantic.dataclasses import dataclass
 
 from acoharmony._registry import (
     register_schema,
+    with_acoms,
     with_parser,
     with_storage,
 )
@@ -69,6 +70,13 @@ from acoharmony._validators.field_validators import npi_validator, tin_validator
         "refresh_frequency": "monthly",
         "last_updated_by": "aco transform participant_list",
     },
+)
+@with_acoms(
+    category="Reports",
+    file_type_code=134,
+    file_pattern="P.A*.ACO.PATB.D*.T*.zip, P.A*.ACO.PATB.D*.T*.xlsx",
+    extract_zip=True,
+    refresh_frequency="annual",
 )
 @dataclass
 class ParticipantList:
@@ -189,17 +197,23 @@ class ParticipantList:
     effective_start_date: date | None = Field(
         alias="Effective_Start_Date",
         default=None,
-        json_schema_extra={"date_format": ["%B %d, %Y %I:%M %p", "%B %d, %Y", "%m/%d/%Y", "%Y-%m-%d"]},
+        json_schema_extra={
+            "date_format": ["%B %d, %Y %I:%M %p", "%B %d, %Y", "%m/%d/%Y", "%Y-%m-%d"]
+        },
     )
     effective_end_date: date | None = Field(
         alias="Effective_End_Date",
         default=None,
-        json_schema_extra={"date_format": ["%B %d, %Y %I:%M %p", "%B %d, %Y", "%m/%d/%Y", "%Y-%m-%d"]},
+        json_schema_extra={
+            "date_format": ["%B %d, %Y %I:%M %p", "%B %d, %Y", "%m/%d/%Y", "%Y-%m-%d"]
+        },
     )
     last_updated_date: date | None = Field(
         alias="Last_Updated_Date",
         default=None,
-        json_schema_extra={"date_format": ["%B %d, %Y %I:%M %p", "%B %d, %Y", "%m/%d/%Y", "%Y-%m-%d"]},
+        json_schema_extra={
+            "date_format": ["%B %d, %Y %I:%M %p", "%B %d, %Y", "%m/%d/%Y", "%Y-%m-%d"]
+        },
     )
     ad_hoc_provider_addition_reason: str | None = Field(
         alias="Ad_hoc_Provider_Addition_Reason",

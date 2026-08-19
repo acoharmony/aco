@@ -7,11 +7,11 @@ Pydantic dataclass model for quarterly_quality_report schema.
 Generated from: _schemas/quarterly_quality_report.yml
 """
 
-from pydantic import Field
 from pydantic.dataclasses import dataclass
 
 from acoharmony._registry import (
     register_schema,
+    with_acoms,
     with_four_icli,
     with_parser,
     with_sheets,
@@ -58,10 +58,18 @@ from acoharmony._registry import (
             "header_row": 2,
             "data_start_row": 3,
             "columns": [
-                {"name": "parameter_name", "position": 0, "data_type": "string",
-                 "description": "Parameter name"},
-                {"name": "parameter_value", "position": 1, "data_type": "string",
-                 "description": "Parameter value"},
+                {
+                    "name": "parameter_name",
+                    "position": 0,
+                    "data_type": "string",
+                    "description": "Parameter name",
+                },
+                {
+                    "name": "parameter_value",
+                    "position": 1,
+                    "data_type": "string",
+                    "description": "Parameter value",
+                },
             ],
         },
         {
@@ -71,20 +79,48 @@ from acoharmony._registry import (
             "header_row": 8,
             "data_start_row": 9,
             "columns": [
-                {"name": "measure", "position": 0, "data_type": "string",
-                 "description": "Quality measure code (ACR, UAMCC, DAH)"},
-                {"name": "measure_name", "position": 1, "data_type": "string",
-                 "description": "Full measure name with performance direction"},
-                {"name": "measure_score", "position": 4, "data_type": "float",
-                 "description": "ACO's quality measure performance score"},
-                {"name": "measure_volume", "position": 5, "data_type": "float",
-                 "description": "Measure volume (beneficiary count)"},
-                {"name": "mean_measure_score", "position": 6, "data_type": "float",
-                 "description": "Mean score across all ACOs"},
-                {"name": "provisional_percentile", "position": 7, "data_type": "float",
-                 "description": "Provisional measure percentile rank"},
-                {"name": "highest_benchmark_met", "position": 8, "data_type": "string",
-                 "description": "Highest provisional benchmark met (e.g., 70th, 90th)"},
+                {
+                    "name": "measure",
+                    "position": 0,
+                    "data_type": "string",
+                    "description": "Quality measure code (ACR, UAMCC, DAH)",
+                },
+                {
+                    "name": "measure_name",
+                    "position": 1,
+                    "data_type": "string",
+                    "description": "Full measure name with performance direction",
+                },
+                {
+                    "name": "measure_score",
+                    "position": 4,
+                    "data_type": "float",
+                    "description": "ACO's quality measure performance score",
+                },
+                {
+                    "name": "measure_volume",
+                    "position": 5,
+                    "data_type": "float",
+                    "description": "Measure volume (beneficiary count)",
+                },
+                {
+                    "name": "mean_measure_score",
+                    "position": 6,
+                    "data_type": "float",
+                    "description": "Mean score across all ACOs",
+                },
+                {
+                    "name": "provisional_percentile",
+                    "position": 7,
+                    "data_type": "float",
+                    "description": "Provisional measure percentile rank",
+                },
+                {
+                    "name": "highest_benchmark_met",
+                    "position": 8,
+                    "data_type": "string",
+                    "description": "Highest provisional benchmark met (e.g., 70th, 90th)",
+                },
             ],
         },
         {
@@ -94,18 +130,42 @@ from acoharmony._registry import (
             "header_row": 11,
             "data_start_row": 11,
             "columns": [
-                {"name": "measure", "position": 0, "data_type": "string",
-                 "description": "Quality measure code"},
-                {"name": "measure_name", "position": 1, "data_type": "string",
-                 "description": "Full measure name"},
-                {"name": "stratified_volume", "position": 2, "data_type": "float",
-                 "description": "Measure volume for stratified population"},
-                {"name": "stratified_score", "position": 3, "data_type": "float",
-                 "description": "Measure score for stratified population"},
-                {"name": "stratified_mean", "position": 4, "data_type": "float",
-                 "description": "Mean score for stratified population (All ACOs)"},
-                {"name": "all_bene_mean", "position": 6, "data_type": "float",
-                 "description": "Mean score for all beneficiaries (All ACOs)"},
+                {
+                    "name": "measure",
+                    "position": 0,
+                    "data_type": "string",
+                    "description": "Quality measure code",
+                },
+                {
+                    "name": "measure_name",
+                    "position": 1,
+                    "data_type": "string",
+                    "description": "Full measure name",
+                },
+                {
+                    "name": "stratified_volume",
+                    "position": 2,
+                    "data_type": "float",
+                    "description": "Measure volume for stratified population",
+                },
+                {
+                    "name": "stratified_score",
+                    "position": 3,
+                    "data_type": "float",
+                    "description": "Measure score for stratified population",
+                },
+                {
+                    "name": "stratified_mean",
+                    "position": 4,
+                    "data_type": "float",
+                    "description": "Mean score for stratified population (All ACOs)",
+                },
+                {
+                    "name": "all_bene_mean",
+                    "position": 6,
+                    "data_type": "float",
+                    "description": "Mean score for all beneficiaries (All ACOs)",
+                },
             ],
         },
         # Also try the Tables 2-3 variant name (used in later files)
@@ -116,38 +176,90 @@ from acoharmony._registry import (
             "header_row": 11,
             "data_start_row": 11,
             "columns": [
-                {"name": "measure", "position": 0, "data_type": "string",
-                 "description": "Quality measure code"},
-                {"name": "measure_name", "position": 1, "data_type": "string",
-                 "description": "Full measure name"},
-                {"name": "stratified_volume", "position": 2, "data_type": "float",
-                 "description": "Measure volume for stratified population"},
-                {"name": "stratified_score", "position": 3, "data_type": "float",
-                 "description": "Measure score for stratified population"},
-                {"name": "stratified_mean", "position": 4, "data_type": "float",
-                 "description": "Mean score for stratified population (All ACOs)"},
-                {"name": "all_bene_mean", "position": 6, "data_type": "float",
-                 "description": "Mean score for all beneficiaries (All ACOs)"},
+                {
+                    "name": "measure",
+                    "position": 0,
+                    "data_type": "string",
+                    "description": "Quality measure code",
+                },
+                {
+                    "name": "measure_name",
+                    "position": 1,
+                    "data_type": "string",
+                    "description": "Full measure name",
+                },
+                {
+                    "name": "stratified_volume",
+                    "position": 2,
+                    "data_type": "float",
+                    "description": "Measure volume for stratified population",
+                },
+                {
+                    "name": "stratified_score",
+                    "position": 3,
+                    "data_type": "float",
+                    "description": "Measure score for stratified population",
+                },
+                {
+                    "name": "stratified_mean",
+                    "position": 4,
+                    "data_type": "float",
+                    "description": "Mean score for stratified population (All ACOs)",
+                },
+                {
+                    "name": "all_bene_mean",
+                    "position": 6,
+                    "data_type": "float",
+                    "description": "Mean score for all beneficiaries (All ACOs)",
+                },
             ],
         },
     ],
     matrix_fields=[
         # Extract from Parameters sheet (index 4) using label search
-        {"matrix": [4, 0, 1], "field_name": "reporting_period", "data_type": "string",
-         "search_label": "Reporting Period"},
-        {"matrix": [4, 0, 1], "field_name": "aco_type", "data_type": "string",
-         "search_label": "ACO Type"},
-        {"matrix": [4, 0, 1], "field_name": "hcc_version", "data_type": "string",
-         "search_label": "Hierarchical Condition"},
-        {"matrix": [4, 0, 1], "field_name": "measure_spec_version", "data_type": "string",
-         "search_label": "Measure Specification"},
-        {"matrix": [4, 0, 1], "field_name": "benchmark_year", "data_type": "string",
-         "search_label": "Benchmark Year"},
-        {"matrix": [4, 0, 1], "field_name": "report_production_date", "data_type": "string",
-         "search_label": "Report Production Date"},
+        {
+            "matrix": [4, 0, 1],
+            "field_name": "reporting_period",
+            "data_type": "string",
+            "search_label": "Reporting Period",
+        },
+        {
+            "matrix": [4, 0, 1],
+            "field_name": "aco_type",
+            "data_type": "string",
+            "search_label": "ACO Type",
+        },
+        {
+            "matrix": [4, 0, 1],
+            "field_name": "hcc_version",
+            "data_type": "string",
+            "search_label": "Hierarchical Condition",
+        },
+        {
+            "matrix": [4, 0, 1],
+            "field_name": "measure_spec_version",
+            "data_type": "string",
+            "search_label": "Measure Specification",
+        },
+        {
+            "matrix": [4, 0, 1],
+            "field_name": "benchmark_year",
+            "data_type": "string",
+            "search_label": "Benchmark Year",
+        },
+        {
+            "matrix": [4, 0, 1],
+            "field_name": "report_production_date",
+            "data_type": "string",
+            "search_label": "Report Production Date",
+        },
         # Extract ACO ID from data sheet preamble (row 4 of Tables 1a-1b = sheet 5)
-        {"matrix": [5, 0, 1], "field_name": "aco_id", "data_type": "string",
-         "search_label": "ACO ID"},
+        {
+            "matrix": [5, 0, 1],
+            "field_name": "aco_id",
+            "data_type": "string",
+            "search_label": "ACO ID",
+        },
     ],
 )
 @with_four_icli(
@@ -156,6 +268,13 @@ from acoharmony._registry import (
     file_pattern="P.D????.QTLQR.Q?.D??????.T*.xlsx",
     extract_zip=False,
     refresh_frequency="monthly",
+)
+@with_acoms(
+    category="Reports",
+    file_type_code=133,
+    file_pattern="P.A*.ACO.QQR.D*.T*.zip",
+    extract_zip=True,
+    refresh_frequency="quarterly",
 )
 @dataclass
 class QuarterlyQualityReport:

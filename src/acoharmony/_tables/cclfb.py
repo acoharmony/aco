@@ -69,7 +69,7 @@ from acoharmony._validators.field_validators import (
     category="CCLF",
     file_type_code=113,
     file_type_codes=[113, 305],
-    file_pattern="P.A*.ACO.ZCY*.D*.T*.zip, P.A*.ACO.ZCWY*.S*.E*.D*.T*.zip",
+    file_pattern="P.A*.ACO.ZCY*.D*.T*.zip, P.A*.ACO.ZCR*.D*.T*.zip, P.A*.ACO.ZCWY*.S*.E*.D*.T*.zip",
     extract_zip=True,
     refresh_frequency="weekly",
     default_date_filter={"createdWithinLastWeek": True},

@@ -99,8 +99,13 @@ def test_infer_file_type_codes_from_known_acoms_names() -> None:
         == 305
     )
     assert infer_file_type_code("P.A2671.ACO.ZCY26.D260211.T1435560.zip", "CCLF") == 113
+    assert infer_file_type_code("P.A2671.ACO.ZCR23.D240227.T1505320.zip", "CCLF") == 113
     assert (
         infer_file_type_code("P.A2671.ACO.MBIY26.D260203.T1916300.txt", "Monthly Exclusion Files")
+        == 183
+    )
+    assert (
+        infer_file_type_code("P.A2671.ACO.MBIR22.D230214.T1010580.txt", "Monthly Exclusion Files")
         == 183
     )
     assert (
@@ -113,3 +118,7 @@ def test_infer_file_type_codes_from_known_acoms_names() -> None:
     )
     assert infer_file_type_code("P.A2671.ACO.BNMRK.D269999.T0000000.zip", "Reports") == 115
     assert infer_file_type_code("P.A2671.ACO.QEXPU.D269999.T0100000.zip", "Reports") == 118
+    assert infer_file_type_code("P.A2671.ACO.QQR.D239999.T0100001.zip", "Reports") == 133
+    assert infer_file_type_code("P.A2671.ACO.PATB.D249999.T0000000.zip", "Reports") == 134
+    assert infer_file_type_code("P.A2671.ACO.STLMT.D249999.T1111111.zip", "Reports") == 120
+    assert infer_file_type_code("P.A2671.QMCQM.D259999.T0400000.zip", "Reports") == 306

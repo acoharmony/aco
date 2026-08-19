@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
 
 import pytest
 
 from acoharmony._acoms.config import AcomsConfig
-from acoharmony._acoms.inventory import InventoryDiscovery, InventoryResult
-from acoharmony._acoms.models import AcomsCategory
+from acoharmony._acoms.inventory import FileInventoryEntry, InventoryDiscovery, InventoryResult
+from acoharmony._acoms.models import AcomsCategory, FileTypeDefinition
 
 
 def _test_config(tmp_path: Path) -> AcomsConfig:
@@ -89,3 +90,48 @@ def test_discover_and_enrich_file_type_codes(
     reloaded = InventoryResult.load_from_json(path)
     assert reloaded.total_files == 2
     assert reloaded.files_by_year == {2026: 2}
+
+
+@pytest.mark.unit
+def test_enrich_does_not_probe_ambiguous_acoms_file_types(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    discovery = InventoryDiscovery(config=_test_config(tmp_path), request_delay=0)
+
+    result = InventoryResult(
+        aco_id="aco-1",
+        categories=["Reports"],
+        years=[2023],
+        total_files=1,
+        files_by_year={2023: 1},
+        files_by_category={"Reports": 1},
+        files=[
+            FileInventoryEntry(
+                filename="P.A2671.ACO.UNKNOWN.D239999.T0000000.zip",
+                category="Reports",
+                file_type_code=None,
+                year=2023,
+            )
+        ],
+        started_at=datetime.now(),
+        completed_at=datetime.now(),
+    )
+
+    monkeypatch.setattr(
+        discovery,
+        "_load_file_type_catalog",
+        lambda: [
+            FileTypeDefinition("Reports", "Adhoc Report", 124),
+            FileTypeDefinition("Reports", "Quality Reconciliation Report", 133),
+        ],
+    )
+
+    def fail_view_probe(*args, **kwargs):
+        raise AssertionError("ACOMS --view --file should not be used for enrichment")
+
+    monkeypatch.setattr(discovery, "_run_view_command", fail_view_probe)
+
+    enriched = discovery.enrich_with_file_type_codes(result)
+
+    assert enriched.files[0].file_type_code is None

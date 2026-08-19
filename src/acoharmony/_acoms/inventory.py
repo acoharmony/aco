@@ -34,18 +34,17 @@ def _load_schema_acoms_patterns() -> list[dict[str, Any]]:
     from acoharmony._registry import SchemaRegistry as CentralRegistry
 
     patterns: list[dict[str, Any]] = []
-    for schema_name in CentralRegistry.list_schemas():
-        acoms_block = CentralRegistry.get_acoms_config(schema_name)
-        if not acoms_block:
-            continue
 
-        file_pattern = acoms_block.get("filePattern")
+    def add_patterns(
+        *,
+        schema_name: str,
+        category: str | None,
+        file_pattern: str | None,
+        file_type_code: int | None,
+        file_type_codes: list[int] | tuple[int, ...],
+    ) -> None:
         if not file_pattern:
-            continue
-
-        file_type_code = acoms_block.get("fileTypeCode")
-        file_type_codes = acoms_block.get("fileTypeCodes") or []
-        category = acoms_block.get("category")
+            return
 
         for pattern in str(file_pattern).split(","):
             cleaned = pattern.strip()
@@ -60,6 +59,35 @@ def _load_schema_acoms_patterns() -> list[dict[str, Any]]:
                     "file_type_codes": list(file_type_codes),
                 }
             )
+
+    for schema_name in CentralRegistry.list_schemas():
+        acoms_block = CentralRegistry.get_acoms_config(schema_name)
+        if not acoms_block:
+            continue
+
+        file_type_code = acoms_block.get("fileTypeCode")
+        file_type_codes = acoms_block.get("fileTypeCodes") or []
+        category = acoms_block.get("category")
+
+        for pattern_config in acoms_block.get("fileTypeCodePatterns") or []:
+            add_patterns(
+                schema_name=schema_name,
+                category=pattern_config.get("category", category),
+                file_pattern=pattern_config.get("filePattern") or pattern_config.get("pattern"),
+                file_type_code=pattern_config.get("fileTypeCode")
+                or pattern_config.get("file_type_code"),
+                file_type_codes=pattern_config.get("fileTypeCodes")
+                or pattern_config.get("file_type_codes")
+                or [],
+            )
+
+        add_patterns(
+            schema_name=schema_name,
+            category=category,
+            file_pattern=acoms_block.get("filePattern"),
+            file_type_code=file_type_code,
+            file_type_codes=file_type_codes,
+        )
 
     return patterns
 
@@ -92,6 +120,8 @@ def _match_schema_acoms_file_type_code(
         file_type_codes = pattern_info.get("file_type_codes") or []
         if 305 in file_type_codes and "ZCWY" in upper:
             return 305
+        if 113 in file_type_codes and ("ZCY" in upper or "ZCR" in upper):
+            return 113
 
         file_type_code = pattern_info.get("file_type_code")
         if file_type_code is not None:
@@ -386,11 +416,11 @@ class InventoryDiscovery:
 
     def enrich_with_file_type_codes(self, result: InventoryResult) -> InventoryResult:
         """
-        Populate file_type_code by querying each advertised ACOMS file type.
+        Populate file_type_code from local schema metadata and filename conventions.
 
-        ACOMS category-level ``--view`` output does not include a type code, but
-        precise download orchestration needs it. This method only queries
-        year/category pairs that already returned files.
+        ACOMS category-level ``--view`` output does not include a type code, and
+        live ``--view --file <code>`` responses can still return the full category.
+        Do not use ``--view --file`` as evidence for inventory enrichment.
         """
         matched_count = 0
         schema_patterns = _load_schema_acoms_patterns()
@@ -412,20 +442,13 @@ class InventoryDiscovery:
                     file_entry.file_type_code = inferred
                     matched_count += 1
 
-        pairs = sorted(
-            {
-                (file_entry.year, file_entry.category)
-                for file_entry in result.files
-                if file_entry.file_type_code is None
-            }
-        )
-        filename_to_code: dict[tuple[int, str, str], int] = {}
-        original_names_by_pair: dict[tuple[int, str], set[str]] = defaultdict(set)
+        unknown_by_pair: dict[tuple[int, str], list[FileInventoryEntry]] = defaultdict(list)
         for file_entry in result.files:
-            original_names_by_pair[(file_entry.year, file_entry.category)].add(file_entry.filename)
+            if file_entry.file_type_code is None:
+                unknown_by_pair[(file_entry.year, file_entry.category)].append(file_entry)
 
-        catalog_by_category: dict[str, list[FileTypeDefinition]] = defaultdict(list)
-        if pairs:
+        if unknown_by_pair:
+            catalog_by_category: dict[str, list[FileTypeDefinition]] = defaultdict(list)
             catalog = self._load_file_type_catalog()
             for definition in catalog:
                 try:
@@ -434,65 +457,26 @@ class InventoryDiscovery:
                     category = definition.category
                 catalog_by_category[category].append(definition)
 
-        for year, category_name in pairs:
-            try:
-                category = normalize_category(category_name)
-            except ValueError:
-                continue
-
-            definitions = catalog_by_category.get(category.value, [])
-            unknown_files = [
-                file_entry
-                for file_entry in result.files
-                if file_entry.year == year
-                and file_entry.category == category.value
-                and file_entry.file_type_code is None
-            ]
-
-            if len(definitions) == 1:
-                for file_entry in unknown_files:
-                    file_entry.file_type_code = definitions[0].code
-                    matched_count += 1
-                continue
-
-            original_names = original_names_by_pair[(year, category.value)]
-            for definition in definitions:
+            for (year, category_name), unknown_files in sorted(unknown_by_pair.items()):
                 try:
-                    entries = self.discover_year(
-                        aco_id=result.aco_id,
-                        year=year,
-                        category=category,
-                        file_type_code=definition.code,
-                    )
-                except Exception as e:
+                    category = normalize_category(category_name)
+                except ValueError:
+                    continue
+
+                definitions = catalog_by_category.get(category.value, [])
+                if len(definitions) == 1:
+                    for file_entry in unknown_files:
+                        file_entry.file_type_code = definitions[0].code
+                        matched_count += 1
+                elif definitions:
                     self.log_writer.warning(
-                        "Could not enrich ACOMS file type code",
+                        "Skipped ambiguous ACOMS file-type enrichment; "
+                        "--view --file is not a reliable filter",
                         year=year,
                         category=category.value,
-                        file_type_code=definition.code,
-                        error=str(e),
+                        unknown_count=len(unknown_files),
+                        candidate_file_type_codes=[definition.code for definition in definitions],
                     )
-                    continue
-
-                entry_names = {entry.filename for entry in entries}
-                if not entry_names:
-                    continue
-
-                # ACOMS currently accepts --file on --view but may return the
-                # full category. Do not let an unfiltered response relabel
-                # every file as the probed code.
-                if entry_names >= original_names:
-                    continue
-
-                for entry in entries:
-                    filename_to_code[(year, category.value, entry.filename)] = definition.code
-
-        for file_entry in result.files:
-            key = (file_entry.year, file_entry.category, file_entry.filename)
-            matched_code = filename_to_code.get(key)
-            if matched_code is not None:
-                file_entry.file_type_code = matched_code
-                matched_count += 1
 
         unknown_count = sum(1 for file_entry in result.files if file_entry.file_type_code is None)
         if unknown_count:

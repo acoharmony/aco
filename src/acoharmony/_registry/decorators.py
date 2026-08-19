@@ -404,6 +404,7 @@ def with_acoms(
     refresh_frequency: str = "weekly",
     default_date_filter: dict[str, Any] | None = None,
     file_type_codes: list[int] | tuple[int, ...] | None = None,
+    file_type_code_patterns: list[dict[str, Any]] | tuple[dict[str, Any], ...] | None = None,
     **kwargs: Any,
 ) -> Callable[[type[T]], type[T]]:
     """
@@ -418,6 +419,9 @@ def with_acoms(
             default_date_filter: Default date filter settings
             file_type_codes: Optional list of ACOMS file type identifiers when
                 a schema is delivered through multiple ACOMS file types
+            file_type_code_patterns: Optional pattern-specific ACOMS file type
+                identifiers for schemas delivered through multiple ACOMS file
+                families
             **kwargs: Additional ACOMS config
 
         Returns:
@@ -436,6 +440,11 @@ def with_acoms(
 
         if file_type_codes is not None:
             _acoms_cfg["fileTypeCodes"] = list(file_type_codes)
+
+        if file_type_code_patterns is not None:
+            _acoms_cfg["fileTypeCodePatterns"] = [
+                dict(pattern_config) for pattern_config in file_type_code_patterns
+            ]
 
         if default_date_filter is not None:
             _acoms_cfg["defaultDateFilter"] = default_date_filter

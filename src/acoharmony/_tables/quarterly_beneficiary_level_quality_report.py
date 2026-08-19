@@ -19,6 +19,7 @@ from pydantic.dataclasses import dataclass
 
 from acoharmony._registry import (
     register_schema,
+    with_acoms,
     with_four_icli,
     with_parser,
     with_storage,
@@ -46,6 +47,13 @@ from acoharmony._registry import (
     file_type_code=268,
     file_pattern="D????.BLQQR.Q?.PY????.D??????.T*.zip",
     extract_zip=False,
+    refresh_frequency="quarterly",
+)
+@with_acoms(
+    category="Reports",
+    file_type_code=306,
+    file_pattern="P.A*.QMCQM.D*.T*.zip",
+    extract_zip=True,
     refresh_frequency="quarterly",
 )
 @dataclass

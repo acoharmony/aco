@@ -58,11 +58,11 @@ def infer_file_type_code(filename: str, category: str | AcomsCategory) -> int | 
     if normalized_category is AcomsCategory.CCLF:
         if "ZCWY" in upper:
             return 305
-        if "ZCY" in upper or "CCLF" in upper:
+        if "ZCY" in upper or "ZCR" in upper or "CCLF" in upper:
             return 113
 
     if normalized_category is AcomsCategory.MONTHLY_EXCLUSION:
-        if "MBIY" in upper or "MBI" in tokens:
+        if "MBI" in upper:
             return 183
         if "BNEX" in tokens or "BNEX" in upper:
             return 114
@@ -78,11 +78,17 @@ def infer_file_type_code(filename: str, category: str | AcomsCategory) -> int | 
             "AEXPU": 125,
             "CAHPS": 128,
             "OPIOID": 119,
+            "QQR": 133,
             "QREC": 133,
             "NCBPQ": 132,
             "NCBPA": 126,
             "RIDFRP": 281,
             "FRP": 120,
+            "STLMT": 120,
+            "AALR": 129,
+            "QALR": 131,
+            "PATB": 134,
+            "QMCQM": 306,
         }
         for token, code in report_tokens.items():
             if token in tokens or token in upper:

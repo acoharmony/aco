@@ -284,6 +284,12 @@ def cmd_need_download(args) -> int:
 
     start_year = _default_start_year(args)
     end_year = _default_end_year(args)
+    year_filter = getattr(args, "year", None)
+    try:
+        category_filter = _filter_category(getattr(args, "category", None))
+    except ValueError as e:
+        print(f"Error: {e}")
+        return 1
 
     try:
         aco_id = config.resolve_aco_id()
@@ -296,12 +302,16 @@ def cmd_need_download(args) -> int:
     print("=" * 80)
     print(f"Checking years: {start_year} to {end_year}")
     print(f"Using ACO ID: {aco_id}")
+    if category_filter:
+        print(f"Remote category filter: {category_filter}")
     print()
 
+    remote_categories = [normalize_category(category_filter)] if category_filter else None
     inventory = discovery.discover_years(
         aco_id=aco_id,
         start_year=start_year,
         end_year=end_year,
+        categories=remote_categories,
     )
     print()
     print("Enriching with ACOMS file type codes...")
@@ -325,13 +335,6 @@ def cmd_need_download(args) -> int:
     all_files = bronze_files | archive_files
     print(f"Total files in bronze + archive: {len(all_files)}")
     print()
-
-    year_filter = getattr(args, "year", None)
-    try:
-        category_filter = _filter_category(getattr(args, "category", None))
-    except ValueError as e:
-        print(f"Error: {e}")
-        return 1
 
     filters_applied = []
     if year_filter:

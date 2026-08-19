@@ -31,7 +31,7 @@ from acoharmony._registry import (
 @with_acoms(
     category="Monthly Exclusion Files",
     file_type_code=183,
-    file_pattern="P.A*.ACO.MBIY*.D*.T*.txt",
+    file_pattern="P.A*.ACO.MBIY*.D*.T*.txt, P.A*.ACO.MBIR*.D*.T*.txt",
     extract_zip=False,
     refresh_frequency="monthly",
 )
