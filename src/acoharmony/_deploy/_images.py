@@ -15,6 +15,8 @@ import json
 import subprocess
 from pathlib import Path
 
+from ._runtime import docker_environment
+
 ACOHARMONY_IMAGE_PREFIX = "ghcr.io/acoharmony/"
 
 
@@ -28,6 +30,7 @@ def service_images(compose_file: Path) -> dict[str, str]:
     """
     result = subprocess.run(
         ["docker", "compose", "-f", str(compose_file), "config", "--format", "json"],
+        env=docker_environment(),
         capture_output=True,
         text=True,
         check=True,

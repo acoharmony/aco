@@ -33,8 +33,9 @@ class TestServiceImages:
         with patch(
             "acoharmony._deploy._images.subprocess.run",
             return_value=MagicMock(returncode=0, stdout=json.dumps(config)),
-        ):
+        ) as mock_run:
             result = service_images(Path("/dev/null/compose.yml"))
+        assert "env" in mock_run.call_args.kwargs
         assert result == {
             "4icli": "ghcr.io/acoharmony/4icli",
             "acoms": "ghcr.io/acoharmony/acoms",

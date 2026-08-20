@@ -94,6 +94,7 @@ class TestDockerComposeManagerRunCompose:
             assert call_args[1]["capture_output"] is True
             assert call_args[1]["text"] is True
             assert call_args[1]["check"] is True
+            assert "env" in call_args[1]
 
     @pytest.mark.unit
     def test_run_compose_check_false(self, docker_mgr: DockerComposeManager) -> None:
@@ -101,6 +102,16 @@ class TestDockerComposeManagerRunCompose:
             mock_run.return_value = subprocess.CompletedProcess(args=[], returncode=1)
             docker_mgr._run_compose(["ps"], check=False)
             assert mock_run.call_args[1]["check"] is False
+
+    @pytest.mark.unit
+    def test_run_compose_uses_configured_docker_host(
+        self, docker_mgr: DockerComposeManager, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("DOCKER_HOST", "unix:///tmp/docker.sock")
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = subprocess.CompletedProcess(args=[], returncode=0)
+            docker_mgr._run_compose(["ps"])
+            assert mock_run.call_args[1]["env"]["DOCKER_HOST"] == "unix:///tmp/docker.sock"
 
 
 class TestDockerComposeManagerUp:

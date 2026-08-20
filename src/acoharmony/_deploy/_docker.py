@@ -11,6 +11,8 @@ handling command execution, error handling, and output formatting.
 import subprocess
 from pathlib import Path
 
+from ._runtime import docker_environment
+
 
 class DockerComposeManager:
     """
@@ -65,7 +67,12 @@ class DockerComposeManager:
         """
         cmd = ["docker", "compose", "-f", str(self.compose_file)] + args
         return subprocess.run(
-            cmd, cwd=self.compose_dir, capture_output=True, text=True, check=check
+            cmd,
+            cwd=self.compose_dir,
+            env=docker_environment(),
+            capture_output=True,
+            text=True,
+            check=check,
         )
 
     def up(
