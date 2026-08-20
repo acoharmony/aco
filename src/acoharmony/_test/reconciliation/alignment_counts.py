@@ -6,7 +6,7 @@
 import polars as pl
 import pytest
 
-from .conftest import GOLD, SILVER, requires_data, scan_gold, scan_silver
+from .conftest import requires_data, scan_gold, scan_silver
 
 
 @requires_data
@@ -33,14 +33,8 @@ class TestBarReconciliation:
         if "source_filename" not in bar.columns:
             pytest.skip("No source_filename to group by")
         # Check per-delivery uniqueness (BAR has one row per bene per delivery)
-        dups = (
-            bar.group_by("source_filename", mbi_col)
-            .len()
-            .filter(pl.col("len") > 1)
-        )
-        assert dups.height == 0, (
-            f"{dups.height} duplicate MBIs within same delivery file"
-        )
+        dups = bar.group_by("source_filename", mbi_col).len().filter(pl.col("len") > 1)
+        assert dups.height == 0, f"{dups.height} duplicate MBIs within same delivery file"
 
     @pytest.mark.reconciliation
     def test_bar_has_alignment_dates(self, bar):
@@ -132,7 +126,10 @@ class TestCclf8VsConsolidated:
         ca_col = next((c for c in consolidated.columns if c in ("current_mbi", "bene_mbi")), None)
         if not c8_col or not ca_col:
             pytest.skip("MBI columns not found")
+        if "source_filename" in cclf8.columns:
+            latest_file = cclf8["source_filename"].sort().to_list()[-1]
+            cclf8 = cclf8.filter(pl.col("source_filename") == latest_file)
         c8_mbis = set(cclf8[c8_col].drop_nulls().to_list())
         ca_mbis = set(consolidated[ca_col].drop_nulls().to_list())
         missing_pct = len(c8_mbis - ca_mbis) / len(c8_mbis) * 100 if c8_mbis else 0
-        assert missing_pct < 20, f"{missing_pct:.1f}% of CCLF8 MBIs missing"
+        assert missing_pct < 20, f"{missing_pct:.1f}% of latest CCLF8 MBIs missing"

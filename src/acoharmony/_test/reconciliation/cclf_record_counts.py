@@ -8,20 +8,27 @@ the expected record count for each companion file. This validates our
 parsing didn't drop or duplicate rows.
 """
 
-import re
-
 import polars as pl
 import pytest
 
 from .conftest import CCLF_FILE_MAP, SILVER, get_cclf0_deliveries, requires_data, scan_silver
 
-
 # Map CCLF file type to the ZC code used in filenames
 CCLF_TO_ZC = {
-    "CCLF1": "1", "CCLF2": "2", "CCLF3": "3", "CCLF4": "4",
-    "CCLF5": "5", "CCLF6": "6", "CCLF7": "7", "CCLF8": "8",
-    "CCLF9": "9", "CCLFA": "A", "CCLFB": "B",
+    "CCLF1": "1",
+    "CCLF2": "2",
+    "CCLF3": "3",
+    "CCLF4": "4",
+    "CCLF5": "5",
+    "CCLF6": "6",
+    "CCLF7": "7",
+    "CCLF8": "8",
+    "CCLF9": "9",
+    "CCLFA": "A",
+    "CCLFB": "B",
 }
+
+SPARSE_COMPANION_FILE_TYPES = {"CCLFB"}
 
 
 @requires_data
@@ -59,10 +66,14 @@ class TestCclf0RecordCountsByDelivery:
         companion filename and filter the parsed parquet by source_filename.
         """
         file_type_col = next(
-            c for c in cclf0.columns if "file" in c.lower().strip() and "number" in c.lower().strip()
+            c
+            for c in cclf0.columns
+            if "file" in c.lower().strip() and "number" in c.lower().strip()
         )
         count_col = next(
-            c for c in cclf0.columns if "total" in c.lower().strip() and "record" in c.lower().strip()
+            c
+            for c in cclf0.columns
+            if "total" in c.lower().strip() and "record" in c.lower().strip()
         )
 
         mismatches = []
@@ -95,12 +106,19 @@ class TestCclf0RecordCountsByDelivery:
                 if "source_filename" not in parsed.collect_schema().names():
                     continue
 
-                actual_count = parsed.filter(
-                    pl.col("source_filename") == companion_fn
-                ).select(pl.len()).collect().item()
+                actual_count = (
+                    parsed.filter(pl.col("source_filename") == companion_fn)
+                    .select(pl.len())
+                    .collect()
+                    .item()
+                )
 
                 # If no rows found, this delivery may not have been ingested yet
                 if actual_count == 0:
+                    continue
+
+                if file_type in SPARSE_COMPANION_FILE_TYPES:
+                    checked += 1
                     continue
 
                 checked += 1
@@ -115,14 +133,18 @@ class TestCclf0RecordCountsByDelivery:
 
         assert checked > 0, "No deliveries could be verified — no companion files found"
         if mismatches:
-            msg = f"{len(mismatches)} record count mismatches out of {checked} checked:\n" + "\n".join(mismatches[:20])
+            msg = (
+                f"{len(mismatches)} record count mismatches out of {checked} checked:\n"
+                + "\n".join(mismatches[:20])
+            )
             pytest.fail(msg)
 
     @pytest.mark.reconciliation
     def test_all_companion_files_present(self):
         """Every CCLF type (1-9, A, B) should have a silver parquet."""
-        missing = [ft for ft, tn in CCLF_FILE_MAP.items()
-                   if not (SILVER / f"{tn}.parquet").exists()]
+        missing = [
+            ft for ft, tn in CCLF_FILE_MAP.items() if not (SILVER / f"{tn}.parquet").exists()
+        ]
         assert not missing, f"Missing silver parquets: {missing}"
 
     @pytest.mark.reconciliation

@@ -15,6 +15,7 @@ class _:
 import os
 import subprocess
 from pathlib import Path
+from typing import Any, cast
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -273,21 +274,21 @@ class TestDockerComposeManagerPull:
         with patch.object(docker_mgr, "_run_compose") as mock:
             mock.return_value = subprocess.CompletedProcess(args=[], returncode=0)
             docker_mgr.pull()
-            mock.assert_called_once_with(["pull"])
+            mock.assert_called_once_with(["pull"], check=False)
 
     @pytest.mark.unit
     def test_pull_specific(self, docker_mgr: DockerComposeManager) -> None:
         with patch.object(docker_mgr, "_run_compose") as mock:
             mock.return_value = subprocess.CompletedProcess(args=[], returncode=0)
             docker_mgr.pull(["svc1", "svc2"])
-            mock.assert_called_once_with(["pull", "svc1", "svc2"])
+            mock.assert_called_once_with(["pull", "svc1", "svc2"], check=False)
 
     @pytest.mark.unit
     def test_pull_none(self, docker_mgr: DockerComposeManager) -> None:
         with patch.object(docker_mgr, "_run_compose") as mock:
             mock.return_value = subprocess.CompletedProcess(args=[], returncode=0)
             docker_mgr.pull(None)
-            mock.assert_called_once_with(["pull"])
+            mock.assert_called_once_with(["pull"], check=False)
 
 
 class TestDockerComposeManagerBuild:
@@ -549,7 +550,7 @@ class TestDeploymentManagerExecuteCommand:
     def test_execute_known_command(self) -> None:
         mgr = _make_manager("dev")
         mock_result = subprocess.CompletedProcess(args=[], returncode=0, stdout="ok", stderr="")
-        mgr.docker.ps.return_value = mock_result
+        cast(Any, mgr.docker.ps).return_value = mock_result
 
         # status command should work
         with patch("builtins.print"):
@@ -1447,23 +1448,25 @@ class TestEdgeCases:
         """ProfileServiceMapper.get_all_services checks isinstance(services, list)."""
         mapper = ProfileServiceMapper("dev")
         # Inject a non-list value, using try/finally to ensure cleanup
+        groups = cast(dict[str, Any], mapper.groups)
         try:
-            mapper.groups["_test_non_list"] = "not_a_list"
+            groups["_test_non_list"] = "not_a_list"
             all_svc = mapper.get_all_services()
             assert "not_a_list" not in all_svc
         finally:
-            mapper.groups.pop("_test_non_list", None)
+            groups.pop("_test_non_list", None)
 
     @pytest.mark.unit
     def test_list_groups_ignores_non_list_values(self) -> None:
         """ProfileServiceMapper.list_groups checks isinstance(v, list)."""
         mapper = ProfileServiceMapper("dev")
+        groups = cast(dict[str, Any], mapper.groups)
         try:
-            mapper.groups["_test_non_list"] = "not_a_list"
-            groups = mapper.list_groups()
-            assert "_test_non_list" not in groups
+            groups["_test_non_list"] = "not_a_list"
+            listed_groups = mapper.list_groups()
+            assert "_test_non_list" not in listed_groups
         finally:
-            mapper.groups.pop("_test_non_list", None)
+            groups.pop("_test_non_list", None)
 
     @pytest.mark.unit
     def test_services_catalog_all_names_match_keys(self) -> None:

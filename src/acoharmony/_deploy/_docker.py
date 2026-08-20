@@ -239,7 +239,7 @@ class DockerComposeManager:
         args = ["pull"]
         if services:
             args.extend(services)
-        return self._run_compose(args)
+        return self._run_compose(args, check=False)
 
     def build(self, services: list[str] | None = None) -> subprocess.CompletedProcess:
         """

@@ -31,6 +31,8 @@ with diagnostics naming the worst-mismatched beneficiaries.
 
 from __future__ import annotations
 
+import os
+
 import polars as pl
 import pytest
 
@@ -51,22 +53,20 @@ MAX_TOTAL_DELTA_PCT = 0.30
 # Per-bene exact-match rate (both 0, or both same positive count).
 MIN_EXACT_MATCH_RATE = 0.60
 
+# Running every available PY executes the full production UAMCC calculation
+# several times and can exhaust local release runners. Set this when doing a
+# deliberate deep-dive reconciliation outside the normal release gate.
+RUN_ALL_PYS_ENV = "ACOHARMONY_UAMCC_TIEOUT_ALL_PYS"
+
 
 def _latest_quarter_for_py(blqqr: pl.DataFrame, perf_year: str) -> pl.DataFrame:
     """Pick the most recent quarter's snapshot for a given PY string (e.g. PY2024)."""
-    py_rows = blqqr.filter(
-        pl.col("source_filename").str.contains(rf"\.{perf_year}\.")
-    )
+    py_rows = blqqr.filter(pl.col("source_filename").str.contains(rf"\.{perf_year}\."))
     if py_rows.is_empty():
         return py_rows
     quarters = (
-        py_rows.select(
-            pl.col("source_filename")
-            .str.extract(r"\.(Q\d)\.", 1)
-            .alias("q")
-        )
-        .filter(pl.col("q").is_not_null())
-        ["q"]
+        py_rows.select(pl.col("source_filename").str.extract(r"\.(Q\d)\.", 1).alias("q"))
+        .filter(pl.col("q").is_not_null())["q"]
         .unique()
         .sort()
         .to_list()
@@ -114,9 +114,7 @@ def _run_our_calc(performance_year: int, aco_id: str) -> pl.DataFrame:
     numer = transform.calculate_numerator(denom, claims, value_sets)
     return (
         denom.join(numer, on="person_id", how="left")
-        .with_columns(
-            pl.col("count_unplanned_adm").fill_null(0).cast(pl.Int64)
-        )
+        .with_columns(pl.col("count_unplanned_adm").fill_null(0).cast(pl.Int64))
         .select("person_id", "count_unplanned_adm")
         .collect()
     )
@@ -128,9 +126,7 @@ def _compare(cms: pl.DataFrame, ours: pl.DataFrame, perf_year: str) -> dict:
     mbi_map = _mbi_to_person_id()
     cms_with_pid = (
         cms.join(mbi_map, on="mbi", how="left")
-        .with_columns(
-            pl.col("count_unplanned_adm").cast(pl.Int64, strict=False).alias("cms_count")
-        )
+        .with_columns(pl.col("count_unplanned_adm").cast(pl.Int64, strict=False).alias("cms_count"))
         .drop("count_unplanned_adm")
     )
 
@@ -151,34 +147,25 @@ def _compare(cms: pl.DataFrame, ours: pl.DataFrame, perf_year: str) -> dict:
     # presence, which silently passes when the calc filters most CMS
     # benes out (e.g. wrong ACO scoping).
     in_both = joined.height
-    cms_total_admits = (
-        cms_with_pid["cms_count"].fill_null(0).sum()
-    )
+    cms_total_admits = cms_with_pid["cms_count"].fill_null(0).sum()
     our_total_admits_for_overlap = joined["our_count"].fill_null(0).sum()
     cms_total_admits_for_overlap = joined["cms_count"].fill_null(0).sum()
 
     exact_match = joined.filter(pl.col("cms_count") == pl.col("our_count")).height
-    both_zero = joined.filter(
-        (pl.col("cms_count") == 0) & (pl.col("our_count") == 0)
-    ).height
+    both_zero = joined.filter((pl.col("cms_count") == 0) & (pl.col("our_count") == 0)).height
     both_positive_same = joined.filter(
         (pl.col("cms_count") > 0) & (pl.col("cms_count") == pl.col("our_count"))
     ).height
-    cms_only = joined.filter(
-        (pl.col("cms_count") > 0) & (pl.col("our_count") == 0)
-    ).height
-    ours_only = joined.filter(
-        (pl.col("cms_count") == 0) & (pl.col("our_count") > 0)
-    ).height
+    cms_only = joined.filter((pl.col("cms_count") > 0) & (pl.col("our_count") == 0)).height
+    ours_only = joined.filter((pl.col("cms_count") == 0) & (pl.col("our_count") > 0)).height
     diff_count = joined.filter(
         (pl.col("cms_count") > 0)
         & (pl.col("our_count") > 0)
         & (pl.col("cms_count") != pl.col("our_count"))
     ).height
 
-    delta_pct = (
-        abs(our_total_admits_for_overlap - cms_total_admits_for_overlap)
-        / max(cms_total_admits_for_overlap, 1)
+    delta_pct = abs(our_total_admits_for_overlap - cms_total_admits_for_overlap) / max(
+        cms_total_admits_for_overlap, 1
     )
 
     return {
@@ -214,17 +201,23 @@ def blqqr_uamcc():
 
 @pytest.fixture(scope="module")
 def tieout_results(blqqr_uamcc):
-    """Run our calc + comparison for every PY present in BLQQR."""
+    """Run our calc + comparison for the latest PY by default.
+
+    Set ``ACOHARMONY_UAMCC_TIEOUT_ALL_PYS=1`` for the exhaustive all-PY
+    reconciliation when investigating the measure directly.
+    """
     results = {}
     perf_years = (
-        blqqr_uamcc.select(
-            pl.col("source_filename").str.extract(r"\.(PY\d{4})\.", 1).alias("py")
-        )["py"]
+        blqqr_uamcc.select(pl.col("source_filename").str.extract(r"\.(PY\d{4})\.", 1).alias("py"))[
+            "py"
+        ]
         .drop_nulls()
         .unique()
         .sort()
         .to_list()
     )
+    if perf_years and os.getenv(RUN_ALL_PYS_ENV) != "1":
+        perf_years = [perf_years[-1]]
     for py_str in perf_years:
         cms = _latest_quarter_for_py(blqqr_uamcc, py_str)
         if cms.is_empty():
@@ -236,9 +229,7 @@ def tieout_results(blqqr_uamcc):
         if len(aco_ids) != 1:
             continue
         ours = _run_our_calc(py_int, aco_ids[0])
-        results[py_str] = _compare(
-            cms.select("mbi", "count_unplanned_adm"), ours, py_str
-        )
+        results[py_str] = _compare(cms.select("mbi", "count_unplanned_adm"), ours, py_str)
     return results
 
 
@@ -275,9 +266,7 @@ class TestUamccCalcTieOut:
             f"cms_only:{r['cms_only']} ours_only:{r['ours_only']} diff:{r['diff_count']})"
             for py, r in tieout_results.items()
         )
-        assert not bad, (
-            f"Per-bene exact match rate below {MIN_EXACT_MATCH_RATE:.0%}:\n{msg}"
-        )
+        assert not bad, f"Per-bene exact match rate below {MIN_EXACT_MATCH_RATE:.0%}:\n{msg}"
 
     @pytest.mark.reconciliation
     def test_total_admissions_delta_per_py(self, tieout_results):
@@ -292,6 +281,4 @@ class TestUamccCalcTieOut:
             f"(Δ{r['delta_pct']:+.2%})"
             for py, r in tieout_results.items()
         )
-        assert not bad, (
-            f"Total admission delta exceeds {MAX_TOTAL_DELTA_PCT:.0%}:\n{msg}"
-        )
+        assert not bad, f"Total admission delta exceeds {MAX_TOTAL_DELTA_PCT:.0%}:\n{msg}"

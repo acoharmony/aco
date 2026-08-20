@@ -6,9 +6,9 @@ DAH + UAMCC tie-out: BLQQR ↔ Exclusions ↔ QTLQR (milestones Q3 + Q4).
 
 DAH (Days at Home)
 ------------------
-- BLQQR DAH: 1 row per bene per quarter. ``observed_dah`` is actually
-  **days in care** (facility days), not days at home. Raw DAH =
-  ``survival_days - observed_dah``.
+- BLQQR DAH: 1 row per bene per quarter. ``observed_dah`` is the raw
+  observed Days-at-Home value. ``survival_days`` remains a reasonableness
+  check, but is not subtracted from ``observed_dah``.
 - QTLQR measure_score is the **risk-adjusted annual DAH** (~320–330
   days/year for a well-performing ACO).
 - QTLQR measure_volume is **person-years** (fractional), not bene count.
@@ -32,9 +32,15 @@ import pytest
 from .conftest import requires_data, scan_silver
 
 MCC_CONDITION_COLS = [
-    "condition_ami", "condition_alz", "condition_afib",
-    "condition_ckd", "condition_copd", "condition_depress",
-    "condition_hf", "condition_stroke_tia", "condition_diab",
+    "condition_ami",
+    "condition_alz",
+    "condition_afib",
+    "condition_ckd",
+    "condition_copd",
+    "condition_depress",
+    "condition_hf",
+    "condition_stroke_tia",
+    "condition_diab",
 ]
 
 
@@ -87,12 +93,12 @@ class TestDahDenominatorTieOut:
     @pytest.mark.reconciliation
     def test_bene_count_matches_exclusions(self, blqqr_dah, exclusions):
         """BLQQR DAH unique benes == exclusions ct_benes_dah per quarter."""
-        _dah_benes = (
-            blqqr_dah.group_by("quarter", "perf_year")
-            .agg(pl.col("bene_id").n_unique().alias("blqqr_benes"))
+        _dah_benes = blqqr_dah.group_by("quarter", "perf_year").agg(
+            pl.col("bene_id").n_unique().alias("blqqr_benes")
         )
         _excl = exclusions.select(
-            "quarter", "perf_year",
+            "quarter",
+            "perf_year",
             pl.col("ct_benes_dah").cast(pl.Int64, strict=False).alias("excl_benes"),
         )
         _joined = _dah_benes.join(_excl, on=["quarter", "perf_year"], how="inner")
@@ -121,13 +127,10 @@ class TestDahDenominatorTieOut:
 class TestDahScoreTieOut:
     @pytest.mark.reconciliation
     def test_raw_dah_in_ballpark_of_qtlqr(self, blqqr_dah, qtlqr):
-        """Raw DAH (survival - facility days) should be within 50 days
+        """Raw observed DAH should be within 50 days
         of the risk-adjusted QTLQR score. Wide tolerance because CMS
         risk-adjusts for demographics and dual-eligibility."""
-        _raw_dah = (
-            blqqr_dah["survival_days"].cast(pl.Float64, strict=False)
-            - blqqr_dah["observed_dah"].cast(pl.Float64, strict=False)
-        ).mean()
+        _raw_dah = blqqr_dah["observed_dah"].cast(pl.Float64, strict=False).mean()
         _qtlqr_dah = qtlqr.filter(pl.col("measure") == "DAH")
         _qtlqr_score = _qtlqr_dah["measure_score"].cast(pl.Float64, strict=False).mean()
         if _raw_dah is None or _qtlqr_score is None:
@@ -142,13 +145,8 @@ class TestDahScoreTieOut:
     def test_raw_dah_between_250_and_365(self, blqqr_dah):
         """Raw mean DAH should be 250–365 days/year. Below 250 means
         benes spend >100 days/yr in facilities; above 365 is impossible."""
-        _raw_dah = (
-            blqqr_dah["survival_days"].cast(pl.Float64, strict=False)
-            - blqqr_dah["observed_dah"].cast(pl.Float64, strict=False)
-        ).mean()
-        assert 250.0 <= _raw_dah <= 365.0, (
-            f"Raw mean DAH {_raw_dah:.1f} outside [250, 365]"
-        )
+        _raw_dah = blqqr_dah["observed_dah"].cast(pl.Float64, strict=False).mean()
+        assert 250.0 <= _raw_dah <= 365.0, f"Raw mean DAH {_raw_dah:.1f} outside [250, 365]"
 
     @pytest.mark.reconciliation
     def test_survival_days_reasonable(self, blqqr_dah):
@@ -172,12 +170,12 @@ class TestUamccDenominatorTieOut:
         Tolerates up to 1 mismatched quarter: the Q3 PY2024 exclusions
         file has known parse artifacts (decimal values in integer fields)
         that produce nonsensical counts."""
-        _uamcc_benes = (
-            blqqr_uamcc.group_by("quarter", "perf_year")
-            .agg(pl.col("bene_id").n_unique().alias("blqqr_benes"))
+        _uamcc_benes = blqqr_uamcc.group_by("quarter", "perf_year").agg(
+            pl.col("bene_id").n_unique().alias("blqqr_benes")
         )
         _excl = exclusions.select(
-            "quarter", "perf_year",
+            "quarter",
+            "perf_year",
             pl.col("ct_benes_uamcc").cast(pl.Int64, strict=False).alias("excl_benes"),
         )
         _joined = _uamcc_benes.join(_excl, on=["quarter", "perf_year"], how="inner")
@@ -185,8 +183,7 @@ class TestUamccDenominatorTieOut:
             pytest.skip("No matching quarters")
         _bad = _joined.filter(pl.col("blqqr_benes") != pl.col("excl_benes"))
         assert _bad.height <= 1, (
-            f"{_bad.height} quarters where UAMCC bene count != exclusions "
-            f"(threshold 1):\n{_bad}"
+            f"{_bad.height} quarters where UAMCC bene count != exclusions (threshold 1):\n{_bad}"
         )
 
     @pytest.mark.reconciliation
@@ -218,8 +215,7 @@ class TestUamccMccCohort:
         )
         _under2 = _condition_count.filter(pl.col("n_conditions") < 2)
         assert _under2.height == 0, (
-            f"{_under2.height} benes with < 2 MCC condition groups "
-            f"(UAMCC denominator requires 2+)"
+            f"{_under2.height} benes with < 2 MCC condition groups (UAMCC denominator requires 2+)"
         )
 
     @pytest.mark.reconciliation
@@ -240,6 +236,7 @@ class TestUamccDataQuality:
         _total = blqqr_uamcc["count_unplanned_adm"].cast(pl.Int64, strict=False).sum()
         if _total == 0:
             import warnings
+
             warnings.warn(
                 "count_unplanned_adm is 0 across all BLQQR UAMCC rows — "
                 "the numerator field may not be populated in this data vintage",
