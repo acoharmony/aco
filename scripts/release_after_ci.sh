@@ -38,6 +38,11 @@ bool_true() {
 repo_root="$(git rev-parse --show-toplevel)"
 cd "$repo_root"
 
+# Git hooks can export a relative index path for the caller's worktree. Linked
+# worktrees have `.git` as a file, so carrying that into `git worktree add`
+# makes Git try to open `$build_root/.git/index` and fail.
+unset GIT_INDEX_FILE
+
 remote="${ACO_RELEASE_REMOTE:-origin}"
 branch="${ACO_RELEASE_BRANCH:-main}"
 tag=""
