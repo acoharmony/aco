@@ -10,12 +10,18 @@ services:
     environment:
       - ACO_PROFILE=${ACO_PROFILE:-dev}
       - ACOMS_HOME=/home/care/.acoms
-      - ACOMS_API_KEY=${ACOMS_API_KEY}
-      - ACOMS_API_SECRET=${ACOMS_API_SECRET}
       - ACOMS_API_ID=${ACOMS_API_ID}
       - ACOMS_ENV=${ACOMS_ENV:-prod}
       - ACOMS_VERIFY_ON_START=${ACOMS_VERIFY_ON_START:-1}
+      - ACO_AUTH_ROOT=${ACO_AUTH_ROOT:-/opt/s3/data/workspace/auth}
+      - ACO_AUTH_REGISTRY=${ACO_AUTH_REGISTRY:-/opt/s3/data/workspace/auth/registry.yaml}
+      - ACO_AUTH_CERT_BUNDLE=${ACO_AUTH_CERT_BUNDLE:-/opt/s3/data/workspace/auth/certs/zscaler-bundle.pem}
+      - ACOMS_CONFIG_SOURCE_DIR=${ACOMS_CONFIG_SOURCE_DIR:-/opt/s3/data/workspace/auth/secrets/acoms/config}
     volumes:
+      # ACOMS config is bootstrapped out-of-band by `aco acoms setup`. Runtime
+      # containers consume persisted config only; API key/secret are not passed
+      # into long-running container environment.
+
       # S3-backed workspace — same mount as the aco and 4icli containers.
       - type: bind
         source: /opt/s3/data/workspace

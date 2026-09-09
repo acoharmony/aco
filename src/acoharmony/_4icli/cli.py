@@ -19,6 +19,8 @@ from datetime import datetime
 from getpass import getpass
 from pathlib import Path
 
+from .._auth.public_ip import parse_ip_values
+from .._auth.registry import AuthRegistry, credential_fingerprint, utc_now_iso
 from .._log import LogWriter
 from .client import FourICLI
 from .comparison import (
@@ -177,9 +179,38 @@ def cmd_setup(args):
     print("-" * 72)
     if result.returncode == 0:
         print("[OK] Bootstrap succeeded.")
-        print(
-            "Next: docker compose -f deploy/docker-compose.yml restart 4icli"
-        )
+        try:
+            env_path.chmod(0o600)
+        except OSError:
+            pass
+
+        try:
+            registered_ips = parse_ip_values(
+                [
+                    current.get("FOURICLI_REGISTERED_IP"),
+                    current.get("FOURICLI_PUBLIC_IP"),
+                    current.get("FOURICLI_IP_ADDRESS"),
+                    current.get("FOURICLI_ALT_IP_ADDRESS"),
+                ]
+            )
+        except ValueError:
+            registered_ips = []
+        if registered_ips:
+            record = AuthRegistry().update(
+                "4icli",
+                entity_id=new_apm,
+                registered_ips=registered_ips,
+                token_label="4Innovation DataHub",
+                credential_fingerprint=credential_fingerprint(new_key, new_secret),
+                last_verified_at=utc_now_iso(),
+            )
+            print(f"[OK] Updated auth registry for 4icli ({', '.join(record.registered_ips)})")
+        else:
+            print(
+                "[WARN] No registered 4icli public IP was found in deploy/.env. "
+                "Record it with `aco auth register-ip 4icli --ip <portal-ip>`."
+            )
+        print("Next: docker compose -f deploy/docker-compose.yml restart 4icli")
     else:
         print(f"[ERROR] Bootstrap exited with code {result.returncode}.")
         print(
@@ -213,9 +244,7 @@ def cmd_need_download(args):
 
     # Determine years to check
     start_year = args.start_year if hasattr(args, "start_year") and args.start_year else 2022
-    end_year = (
-        args.end_year if hasattr(args, "end_year") and args.end_year else get_current_year()
-    )
+    end_year = args.end_year if hasattr(args, "end_year") and args.end_year else get_current_year()
 
     # Query remote DataHub to get current inventory
     print("=" * 80)
@@ -224,6 +253,10 @@ def cmd_need_download(args):
     print(f"Checking years: {start_year} to {end_year}")
     print(f"Using APM ID: {config.default_apm_id}")
     print()
+
+    if not config.default_apm_id:
+        print("Error: FOURICLI_APM_ID/default_apm_id is not configured.")
+        return 1
 
     inventory = discovery.discover_years(
         apm_id=config.default_apm_id,
@@ -297,7 +330,7 @@ def cmd_need_download(args):
     # Print summary
     print(f"Total in inventory:        {results['total_inventory']} files")
 
-    if results['total_inventory'] > 0:
+    if results["total_inventory"] > 0:
         print(
             f"Files in bronze + archive: {results['have_count']} files ({results['have_count'] / results['total_inventory'] * 100:.1f}%)"
         )
@@ -510,9 +543,7 @@ def cmd_download(args):
     for file_entry in missing_files:
         # Check if file exists in state (by filename)
         if file_entry.filename in state_tracker._file_cache:
-            log_writer.debug(
-                f"Skipping {file_entry.filename} - already in state tracker"
-            )
+            log_writer.debug(f"Skipping {file_entry.filename} - already in state tracker")
             already_have_count += 1
         else:
             truly_missing_files.append(file_entry)
@@ -563,7 +594,9 @@ def cmd_download(args):
         print("To add support for new file types, add fileTypeCode to schema YAML files.")
         return 0
 
-    print(f"Grouped into {len(downloads_by_category_year_type)} download requests by category/year/type")
+    print(
+        f"Grouped into {len(downloads_by_category_year_type)} download requests by category/year/type"
+    )
     print()
 
     # Calculate date filters for each group and check if files exist in bronze
@@ -586,9 +619,7 @@ def cmd_download(args):
 
         # Skip this download group if all files already exist in bronze
         if not files_not_in_bronze:
-            log_writer.info(
-                f"Skipping download group {key} - all files already in bronze"
-            )
+            log_writer.info(f"Skipping download group {key} - all files already in bronze")
             continue
 
         # Find the OLDEST last_updated date in this group
@@ -621,7 +652,10 @@ def cmd_download(args):
 
     print("Download plan (using file_type_code and --LastUpdated filters):")
     for (category, year, file_type_code), info in downloads_with_dates.items():
-        print(f"  {category} / Year {year} / Type {file_type_code}: {info['file_count']} files", end="")
+        print(
+            f"  {category} / Year {year} / Type {file_type_code}: {info['file_count']} files",
+            end="",
+        )
         if info["oldest_date"]:
             print(f" (--LastUpdated={info['oldest_date']})")
         else:
@@ -645,7 +679,9 @@ def cmd_download(args):
     for idx, ((category, year, file_type_code), info) in enumerate(downloads_with_dates.items(), 1):
         download_count += 1
 
-        print(f"[{idx}/{len(downloads_with_dates)}] {category} / Year {year} / Type {file_type_code}")
+        print(
+            f"[{idx}/{len(downloads_with_dates)}] {category} / Year {year} / Type {file_type_code}"
+        )
         print(f"  Expected files: {info['file_count']}")
         if info["oldest_date"]:
             print(f"  Date filter: --LastUpdated={info['oldest_date']}")
@@ -763,9 +799,7 @@ def cmd_inventory(args):
 
     # Determine years to scan
     start_year = args.start_year if hasattr(args, "start_year") and args.start_year else 2022
-    end_year = (
-        args.end_year if hasattr(args, "end_year") and args.end_year else get_current_year()
-    )
+    end_year = args.end_year if hasattr(args, "end_year") and args.end_year else get_current_year()
 
     # Check for force flag
     force = args.force if hasattr(args, "force") else False
@@ -1001,9 +1035,7 @@ def main():
     )
 
     # setup subcommand — prompts for fresh KEY/SECRET, runs bootstrap
-    subparsers.add_parser(
-        "setup", help="Refresh 4i credentials after a portal rotation"
-    )
+    subparsers.add_parser("setup", help="Refresh 4i credentials after a portal rotation")
 
     args = parser.parse_args()
 

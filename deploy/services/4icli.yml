@@ -10,12 +10,15 @@ services:
     environment:
       - ACO_PROFILE=${ACO_PROFILE:-dev}
       - FOURICLI_APM_ID=${FOURICLI_APM_ID}
+      - ACO_AUTH_ROOT=${ACO_AUTH_ROOT:-/opt/s3/data/workspace/auth}
+      - ACO_AUTH_REGISTRY=${ACO_AUTH_REGISTRY:-/opt/s3/data/workspace/auth/registry.yaml}
+      - ACO_AUTH_CERT_BUNDLE=${ACO_AUTH_CERT_BUNDLE:-/opt/s3/data/workspace/auth/certs/zscaler-bundle.pem}
+      - FOURICLI_WORKSPACE_CONFIG=${FOURICLI_WORKSPACE_CONFIG:-/opt/s3/data/workspace/auth/secrets/4icli/config.txt}
     volumes:
-      # config.txt is bootstrapped out-of-band by
-      # deploy/images/4icli/bootstrap.sh after a portal-issued key/secret
-      # rotation. The runtime container never calls `4icli configure` or
-      # `4icli rotate` — it only reads $BRONZE/config.txt, which arrives
-      # via this workspace mount, and copies it to the XDG path at start.
+      # config.txt is bootstrapped out-of-band by `aco 4icli setup` after a
+      # portal-issued key/secret rotation. The runtime container never calls
+      # `4icli configure` or `4icli rotate` — it only reads the workspace auth
+      # source of truth and copies it to the XDG path at start.
       # No FOURICLI_API_KEY / FOURICLI_API_SECRET env wiring on purpose:
       # past versions used those to auto-`configure` on container start,
       # which silently produced dead-on-arrival creds and overwrote the
@@ -35,9 +38,15 @@ services:
       - acoharmony-external
     stdin_open: true
     tty: true
-    # Entrypoint comes from the image — it configures 4icli from env vars,
+    # Entrypoint comes from the image — it seeds 4icli from persisted config,
     # then execs the command below to keep the container alive for `docker exec`.
     command: ["tail", "-f", "/dev/null"]
+    healthcheck:
+      test: ["CMD-SHELL", "test -s /home/care/.config/4icli/config.txt"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     deploy:
       resources:
         limits:

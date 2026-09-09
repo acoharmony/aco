@@ -16,6 +16,7 @@ LABEL org.opencontainers.image.source=https://github.com/acoharmony/aco \
 RUN apt-get update && apt-get install -y \
     ca-certificates \
     coreutils \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Add Zscaler CA certificates to system trust store. Registering them
@@ -68,8 +69,8 @@ RUN mkdir -p /home/care/.4icli
 
 WORKDIR /workspace/bronze
 
-# config.txt is generated at container start by the entrypoint (from env vars)
-# Storage backend will be mounted at runtime
+# config.txt is copied at container start from the mounted workspace auth path.
+# Storage backend will be mounted at runtime.
 
 ENTRYPOINT ["/usr/local/bin/4icli-entrypoint"]
 CMD ["/bin/sh"]

@@ -11,26 +11,28 @@ via `bootstrap.sh`.
 
 Layout at runtime:
 
-- **Source of truth:** `/opt/s3/data/workspace/bronze/config.txt` (host)
+- **Source of truth:** `/opt/s3/data/workspace/auth/secrets/4icli/config.txt` (host)
   → same path inside the container via the workspace volume mount.
-- **Reader path:** `entrypoint.sh` copies `$BRONZE/config.txt` to
+- **Reader path:** `entrypoint.sh` copies the workspace auth config to
   `$HOME/.config/4icli/config.txt` (XDG) on every container start.
   If the source file is missing, the entrypoint exits non-zero —
   no env-var fallback, no auto-`configure`.
+- **Legacy fallback:** `/opt/s3/data/workspace/bronze/config.txt` is still
+  consumed if the new auth path is absent, so existing installs can migrate
+  by running `aco 4icli setup`.
 
 ## Bootstrap (after portal rotation)
 
 When 4Innovation issues a new key/secret in the portal:
 
 ```bash
-deploy/images/4icli/bootstrap.sh KEY SECRET [APM_ID]
+aco 4icli setup
 ```
 
-The script spins up a throwaway container, runs `4icli configure`,
-verifies with a real `datahub -v` call, and only then copies the
-resulting `config.txt` to `$BRONZE/config.txt`. If verify fails, the
-source of truth is left untouched — protects against pasting a typo or
-a not-yet-active key.
+The setup command updates `deploy/.env`, runs `bootstrap.sh`, verifies with a
+real `datahub -v` call, and only then copies the resulting `config.txt` to the
+workspace auth source of truth. If verify fails, the previous config is left
+untouched.
 
 After bootstrap, restart the runtime service to pick up the new file:
 
@@ -53,13 +55,24 @@ The container's `working_dir` matches the profile's bronze directory, so
 - `4icli` — real Go binary (~70MB)
 - `Dockerfile` — image definition
 - `entrypoint.sh` — XDG seed + fail-loud-if-missing
-- `bootstrap.sh` — operator script for refreshing `config.txt` after portal rotation
+- `bootstrap.sh` — verified config refresh after portal rotation
 - `config.txt.example` — example shape only (not used by image)
 
 ## Security
 
-- `config.txt` lives in the workspace volume and is never baked into the image.
+- `config.txt` lives under `/opt/s3/data/workspace/auth/secrets/4icli/` and is
+  never baked into the image.
 - The runtime container has no `FOURICLI_API_KEY` / `FOURICLI_API_SECRET`
   env wiring — credentials only ever exist on disk in encrypted form.
 - Container runs as non-root (`care`, uid 1002).
 - Ubuntu 22.04 base.
+
+## Diagnostics
+
+Use the shared auth doctor before assuming a download failure is a vendor issue:
+
+```bash
+aco auth doctor --service 4icli
+aco auth register-ip 4icli --ip <portal-registered-public-ip>
+aco auth harden
+```

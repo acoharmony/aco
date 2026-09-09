@@ -11,6 +11,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from .._auth.paths import get_auth_paths
+
 
 def get_current_year() -> int:
     """Return the current calendar year."""
@@ -91,6 +93,7 @@ class AcomsConfig:
     command_timeout: int = 3600
     list_timeout: int = 120
     request_delay: float = 1.0
+    config_source_dir: Path | None = None
 
     @classmethod
     def from_profile(cls, profile: str | None = None) -> AcomsConfig:
@@ -109,6 +112,7 @@ class AcomsConfig:
         tracking_dir = log_dir / "tracking"
 
         acoms_config = profile_config.get("acoms", {})
+        auth_paths = get_auth_paths(profile)
 
         binary_path = Path(
             os.getenv("ACOMS_BINARY_PATH")
@@ -172,6 +176,11 @@ class AcomsConfig:
                 or deploy_env.get("ACOMS_REQUEST_DELAY")
                 or acoms_config.get("request_delay")
                 or 1.0
+            ),
+            config_source_dir=Path(
+                os.getenv("ACOMS_CONFIG_SOURCE_DIR")
+                or deploy_env.get("ACOMS_CONFIG_SOURCE_DIR")
+                or auth_paths.acoms_config_dir
             ),
         )
 

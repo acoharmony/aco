@@ -7,12 +7,18 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import subprocess
 import sys
 import traceback
 from collections import defaultdict
 from datetime import datetime, timedelta
+from getpass import getpass
 from pathlib import Path
 
+from .._auth.env_file import find_deploy_dir, mask_secret, read_env_file, update_env_file
+from .._auth.public_ip import parse_ip_values
+from .._auth.registry import AuthRegistry, credential_fingerprint, utc_now_iso
 from .._log import LogWriter
 from .client import Acoms
 from .comparison import (
@@ -124,6 +130,12 @@ def _add_acoms_commands(acoms_subparsers) -> None:
     download_parser.add_argument("--category", help="Download only a specific category")
 
     acoms_subparsers.add_parser("list", help="List ACOMS DataHub folders and file types")
+    acoms_subparsers.add_parser("setup", help="Refresh ACOMS credentials after portal rotation")
+
+
+def _find_deploy_dir() -> Path:
+    """Locate deploy/ for ACOMS setup."""
+    return find_deploy_dir("images/acoms/bootstrap.sh", Path(__file__).resolve())
 
 
 def _default_start_year(args) -> int:
@@ -678,6 +690,120 @@ def cmd_list(args) -> int:
     return 0
 
 
+def cmd_setup(args) -> int:
+    """Prompt for ACOMS portal credentials, persist env, and run verified bootstrap."""
+    del args
+    deploy_dir = _find_deploy_dir()
+    env_path = deploy_dir / ".env"
+    bootstrap = deploy_dir / "images" / "acoms" / "bootstrap.sh"
+
+    current = read_env_file(env_path)
+    current_key = current.get("ACOMS_API_KEY", "")
+    current_secret = current.get("ACOMS_API_SECRET", "")
+    current_aco_id = current.get("ACOMS_API_ID", "")
+    current_env = current.get("ACOMS_ENV", "") or "prod"
+
+    print("=" * 72)
+    print("ACOMS setup - refresh credentials after an ACO-MS portal rotation")
+    print("=" * 72)
+    print(f"Writing to: {env_path}")
+    print("Press Enter at any prompt to keep the current value.")
+    print()
+
+    new_key = input(f"ACOMS_API_KEY [current: {mask_secret(current_key)}]: ").strip() or current_key
+    if not new_key:
+        print("[ERROR] No ACOMS key provided and none in .env. Aborting.")
+        return 1
+
+    new_secret = (
+        getpass(f"ACOMS_API_SECRET [current: {mask_secret(current_secret)}]: ").strip()
+        or current_secret
+    )
+    if not new_secret:
+        print("[ERROR] No ACOMS secret provided and none in .env. Aborting.")
+        return 1
+
+    new_aco_id = (
+        input(f"ACOMS_API_ID [current: {current_aco_id or '(unset)'}]: ").strip() or current_aco_id
+    )
+    if not new_aco_id:
+        print("[ERROR] No ACOMS ACO ID provided and none in .env. Aborting.")
+        return 1
+
+    new_env = input(f"ACOMS_ENV [current: {current_env}]: ").strip() or current_env
+
+    if new_key == current_key and new_secret == current_secret:
+        print()
+        print("[WARN] Key and secret match what's already in .env.")
+        confirm = input("Continue anyway? [y/N]: ").strip().lower()
+        if confirm != "y":
+            print("Aborted.")
+            return 1
+
+    updates = {
+        "ACOMS_API_KEY": new_key,
+        "ACOMS_API_SECRET": new_secret,
+        "ACOMS_API_ID": new_aco_id,
+        "ACOMS_ENV": new_env,
+    }
+    update_env_file(env_path, updates)
+    try:
+        env_path.chmod(0o600)
+    except OSError:
+        pass
+
+    print()
+    print(f"[OK] Updated {env_path}")
+    print()
+    print(f"Running {bootstrap} ...")
+    print("-" * 72)
+    sys.stdout.flush()
+
+    env = os.environ.copy()
+    env.update(current)
+    env.update(updates)
+    result = subprocess.run([str(bootstrap)], env=env, check=False)
+
+    print("-" * 72)
+    if result.returncode == 0:
+        print("[OK] ACOMS bootstrap succeeded.")
+        try:
+            registered_ips = parse_ip_values(
+                [
+                    env.get("ACOMS_REGISTERED_IP"),
+                    env.get("ACOMS_PUBLIC_IP"),
+                    env.get("ACOMS_IP_ADDRESS"),
+                    env.get("ACOMS_ALT_IP_ADDRESS"),
+                ]
+            )
+        except ValueError:
+            registered_ips = []
+
+        if registered_ips:
+            record = AuthRegistry().update(
+                "acoms",
+                entity_id=new_aco_id,
+                registered_ips=registered_ips,
+                token_label="ACO-MS DataHub",
+                credential_fingerprint=credential_fingerprint(new_key, new_secret),
+                last_verified_at=utc_now_iso(),
+            )
+            print(f"[OK] Updated auth registry for ACOMS ({', '.join(record.registered_ips)})")
+        else:
+            print(
+                "[WARN] No registered ACOMS public IP was found in deploy/.env. "
+                "Record it with `aco auth register-ip acoms --ip <portal-ip>`."
+            )
+        print("Next: docker compose -f deploy/docker-compose.yml restart acoms")
+    else:
+        print(f"[ERROR] ACOMS bootstrap exited with code {result.returncode}.")
+        print(
+            "The persisted ACOMS config was not modified - fix the credentials "
+            "and re-run `aco acoms setup`."
+        )
+    return result.returncode
+
+
 def main() -> None:
     """Standalone CLI entry point for ACOMS."""
     from acoharmony import __version__
@@ -704,6 +830,8 @@ def main() -> None:
             sys.exit(cmd_download(args))
         if args.acoms_command == "list":
             sys.exit(cmd_list(args))
+        if args.acoms_command == "setup":
+            sys.exit(cmd_setup(args))
         parser.print_help()
         sys.exit(1)
     except Exception as e:

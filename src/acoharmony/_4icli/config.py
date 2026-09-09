@@ -9,6 +9,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from .._auth.paths import get_auth_paths
+
 
 def get_current_year() -> int:
     """
@@ -27,9 +29,7 @@ def load_profile_config(profile: str | None = None) -> dict[str, Any]:
     config = load_aco_config()
     profiles = config.get("profiles", {})
 
-    active_profile = (
-        profile or os.getenv("ACO_PROFILE") or config.get("default_profile", "dev")
-    )
+    active_profile = profile or os.getenv("ACO_PROFILE") or config.get("default_profile", "dev")
 
     if active_profile not in profiles:
         raise ValueError(
@@ -81,6 +81,9 @@ class FourICLIConfig:
 
     # Rate limiting
     request_delay: float = 2.0  # Seconds to wait between requests (API rate limit)
+    _profile_config_path: Path | None = None
+    _auth_config_path: Path | None = None
+    _legacy_config_path: Path | None = None
 
     @classmethod
     def from_profile(cls, profile: str | None = None) -> "FourICLIConfig":
@@ -130,6 +133,8 @@ class FourICLIConfig:
             # Fallback: check common locations
             config_path = None
 
+        auth_paths = get_auth_paths(profile)
+
         instance = cls(
             binary_path=binary_path,
             working_dir=working_dir,
@@ -152,8 +157,9 @@ class FourICLIConfig:
             ),
         )
 
-        # Store the profile config path for later use
         instance._profile_config_path = config_path
+        instance._auth_config_path = auth_paths.fouricli_config
+        instance._legacy_config_path = auth_paths.legacy_fouricli_config
 
         return instance
 
@@ -200,33 +206,37 @@ class FourICLIConfig:
         Ensure config.txt exists and is accessible.
 
                 Priority order (profile-aware):
-                1. Profile-specified config_path (from profile YAML)
-                2. Working directory (bronze) - may be symlink
+                1. Auth source-of-truth path under workspace/auth
+                2. Profile-specified config_path (from profile YAML)
+                3. Working directory (bronze) - legacy source
 
                 Returns path to config.txt.
 
                 Note: config.txt is a hashed file created by '4icli configure' command,
                 not a plain text file. It cannot be auto-generated from env vars.
         """
-        # 1. Check profile-specified config path first (profile-aware)
-        if hasattr(self, "_profile_config_path") and self._profile_config_path:
-            if self._profile_config_path.exists():
-                return self._profile_config_path
+        # 1. Prefer the auth source-of-truth path introduced for durable
+        # container restarts and IP/token diagnostics.
+        if self._auth_config_path and self._auth_config_path.exists():
+            return self._auth_config_path
 
-        # 2. Check working directory (bronze) - may be symlink to profile config
+        # 2. Check profile-specified config path (profile-aware)
+        if self._profile_config_path and self._profile_config_path.exists():
+            return self._profile_config_path
+
+        # 3. Check working directory (bronze) - legacy source
         config_file = self.working_dir / "config.txt"
         if config_file.exists():
             return config_file
 
         # No config.txt found
-        profile_path = (
-            self._profile_config_path if hasattr(self, "_profile_config_path") else "not configured"
-        )
+        profile_path = self._profile_config_path if self._profile_config_path else "not configured"
         raise FileNotFoundError(
             f"4icli config.txt not found. Checked:\n"
-            f"1. Profile config: {profile_path}\n"
-            f"2. Working dir: {config_file}\n"
-            f"Run '4icli configure' to create credentials file."
+            f"1. Auth config: {getattr(self, '_auth_config_path', 'not configured')}\n"
+            f"2. Profile config: {profile_path}\n"
+            f"3. Working dir: {config_file}\n"
+            f"Run 'aco 4icli setup' to create a verified credentials file."
         )
 
     def get_alignment_dir(self, alignment_type: str) -> Path:

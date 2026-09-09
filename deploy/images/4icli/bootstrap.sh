@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Bootstrap $BRONZE/config.txt from a fresh portal-issued key/secret pair.
+# Bootstrap the persistent 4icli config from a fresh portal-issued key/secret pair.
 #
 # When 4Innovation rotates credentials in the portal, the operator runs
-# this script once to produce a new $BRONZE/config.txt. The runtime 4icli
+# this script once to produce a new workspace auth config. The runtime 4icli
 # container (deploy/services/4icli.yml) is read-only with respect to
 # config.txt — it never calls `4icli configure` or `4icli rotate`.
 #
@@ -10,9 +10,9 @@
 #   1. Spin up a throwaway 4icli container with no entrypoint.
 #   2. Run `4icli configure --key $KEY --secret $SECRET` inside it.
 #   3. Verify with `4icli datahub -v -a $APM -y <year>`. If 401, abort
-#      without touching $BRONZE/config.txt — fresh portal creds that
+#      without touching the persisted config — fresh portal creds that
 #      can't auth means a copy/paste error or a not-yet-active key.
-#   4. On success, copy the in-container config.txt to $BRONZE/config.txt.
+#   4. On success, atomically copy the in-container config.txt to workspace/auth.
 #   5. Tear down the throwaway container.
 #
 # Usage:
@@ -50,15 +50,15 @@ fi
 
 YEAR="$(date -u +%Y)"
 
-WORKSPACE_CONFIG="/opt/s3/data/workspace/bronze/config.txt"
+AUTH_ROOT="${ACO_AUTH_ROOT:-/opt/s3/data/workspace/auth}"
+WORKSPACE_CONFIG="${FOURICLI_WORKSPACE_CONFIG:-$AUTH_ROOT/secrets/4icli/config.txt}"
+LEGACY_WORKSPACE_CONFIG="${FOURICLI_LEGACY_WORKSPACE_CONFIG:-/opt/s3/data/workspace/bronze/config.txt}"
+MANIFEST_FILE="$(dirname "$WORKSPACE_CONFIG")/manifest.json"
 IMAGE="ghcr.io/acoharmony/4icli:latest"
 NAME="4icli-bootstrap-$$"
 
-if [ ! -d "$(dirname "$WORKSPACE_CONFIG")" ]; then
-    echo "[bootstrap] $(dirname "$WORKSPACE_CONFIG") does not exist on host." >&2
-    echo "[bootstrap] Bring up the workspace mount before bootstrapping." >&2
-    exit 1
-fi
+mkdir -p "$(dirname "$WORKSPACE_CONFIG")"
+chmod 700 "$AUTH_ROOT" "$AUTH_ROOT/secrets" "$(dirname "$WORKSPACE_CONFIG")" 2>/dev/null || true
 
 cleanup() {
     docker rm -f "$NAME" >/dev/null 2>&1 || true
@@ -84,8 +84,32 @@ if ! docker exec "$NAME" 4icli datahub -v -a "$APM_ID" -y "$YEAR" >/dev/null 2>&
 fi
 
 echo "[bootstrap] verify ok — copying config.txt to $WORKSPACE_CONFIG"
-docker cp "$NAME:/home/care/.config/4icli/config.txt" "$WORKSPACE_CONFIG"
-chmod 644 "$WORKSPACE_CONFIG"
+tmp_config="$(mktemp "$(dirname "$WORKSPACE_CONFIG")/.config.txt.XXXXXX")"
+docker cp "$NAME:/home/care/.config/4icli/config.txt" "$tmp_config"
+chmod 600 "$tmp_config"
+
+if [ -s "$WORKSPACE_CONFIG" ]; then
+    backup="$WORKSPACE_CONFIG.bak.$(date -u +%Y%m%dT%H%M%SZ)"
+    cp -p "$WORKSPACE_CONFIG" "$backup"
+    chmod 600 "$backup"
+    echo "[bootstrap] backed up previous config to $backup"
+fi
+
+mv "$tmp_config" "$WORKSPACE_CONFIG"
+chmod 600 "$WORKSPACE_CONFIG"
+
+fingerprint="$(sha256sum "$WORKSPACE_CONFIG" | awk '{print $1}')"
+cat >"$MANIFEST_FILE" <<EOF
+{
+  "service": "4icli",
+  "entity_id": "$APM_ID",
+  "config_path": "$WORKSPACE_CONFIG",
+  "legacy_config_path": "$LEGACY_WORKSPACE_CONFIG",
+  "credential_fingerprint": "sha256:$fingerprint",
+  "verified_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+}
+EOF
+chmod 600 "$MANIFEST_FILE"
 
 echo "[bootstrap] done. Restart the 4icli service to pick up new creds:"
 echo "[bootstrap]   docker compose -f deploy/docker-compose.yml restart 4icli"

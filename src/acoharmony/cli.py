@@ -651,6 +651,11 @@ def main():
 
     acoms_parser = add_acoms_subparsers(subparsers)
 
+    # Auth command - public IP, registered IP, and persisted credential checks
+    from acoharmony._auth.cli import add_auth_subparsers
+
+    auth_parser = add_auth_subparsers(subparsers)
+
     # xfr command - file transfer between locations via pluggable profiles
     from acoharmony._xfr.cli import add_subparsers as _xfr_add_subparsers
 
@@ -1556,6 +1561,7 @@ notes:
             cmd_inventory,
             cmd_list,
             cmd_need_download,
+            cmd_setup,
         )
 
         def _acoms_status(value):
@@ -1570,10 +1576,27 @@ notes:
                 return _acoms_status(cmd_download(args))
             elif args.acoms_command == "list":
                 return _acoms_status(cmd_list(args))
+            elif args.acoms_command == "setup":
+                return _acoms_status(cmd_setup(args))
             else:
                 acoms_parser.print_help()
                 return 1
 
+        except Exception as e:  # ALLOWED: CLI top-level handler, prints error and returns exit code
+            print(f"[ERROR] Error: {e}")
+            import traceback
+
+            traceback.print_exc()
+            return 1
+
+    elif args.command == "auth":
+        from acoharmony._auth.cli import dispatch as _auth_dispatch
+
+        try:
+            if args.auth_command:
+                return _auth_dispatch(args)
+            auth_parser.print_help()
+            return 1
         except Exception as e:  # ALLOWED: CLI top-level handler, prints error and returns exit code
             print(f"[ERROR] Error: {e}")
             import traceback
