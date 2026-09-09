@@ -13,12 +13,24 @@ cohort analysis.
 
 from __future__ import annotations
 
+from datetime import date
 from pathlib import Path
 from typing import Any
 
 import polars as pl
+from dateutil.relativedelta import relativedelta
 
 from ._base import PluginRegistry
+
+
+def _month_bounds(year_month: str) -> tuple[date, date]:
+    year = int(year_month[:4])
+    month = int(year_month[4:6])
+    if month == 12:
+        next_month = date(year + 1, 1, 1)
+    else:
+        next_month = date(year, month + 1, 1)
+    return date(year, month, 1), next_month - relativedelta(days=1)
 
 
 class ConsolidatedAlignmentsPlugins(PluginRegistry):
@@ -26,11 +38,25 @@ class ConsolidatedAlignmentsPlugins(PluginRegistry):
 
     # ---- loading ----------------------------------------------------
 
-    def load_consolidated(self, gold_path: Path) -> pl.LazyFrame:
+    def load_consolidated(self, gold_path: Path, silver_path: Path | None = None) -> pl.LazyFrame:
         path = Path(gold_path) / "consolidated_alignment.parquet"
         if not path.exists():
             return pl.LazyFrame()
-        return pl.scan_parquet(str(path))
+        df = pl.scan_parquet(str(path))
+        if silver_path is None:
+            return df
+
+        last_ffs_path = Path(silver_path) / "last_ffs_service.parquet"
+        schema = df.collect_schema().names()
+        if not last_ffs_path.exists() or "last_ffs_date" in schema or "current_mbi" not in schema:
+            return df
+
+        last_ffs = (
+            pl.scan_parquet(str(last_ffs_path))
+            .select([pl.col("bene_mbi").alias("current_mbi"), "last_ffs_date"])
+            .unique(subset=["current_mbi"], keep="first")
+        )
+        return df.join(last_ffs, on="current_mbi", how="left")
 
     def load_emails(self, silver_path: Path) -> pl.LazyFrame:
         path = Path(silver_path) / "emails.parquet"
@@ -42,7 +68,7 @@ class ConsolidatedAlignmentsPlugins(PluginRegistry):
 
     # ---- filters / utilities -----------------------------------------
 
-    def living_filter(self, df: pl.LazyFrame) -> pl.Expr:
+    def living_filter(self, df: pl.LazyFrame | None) -> pl.Expr:
         """Filter expression: living beneficiaries only (handles missing death cols)."""
         if df is None:
             return pl.lit(True)
@@ -55,6 +81,8 @@ class ConsolidatedAlignmentsPlugins(PluginRegistry):
             cond = cond & pl.col("death_date").is_null()
         if "bene_death_date" in schema_names:
             cond = cond & pl.col("bene_death_date").is_null()
+        if "bene_date_of_death" in schema_names:
+            cond = cond & pl.col("bene_date_of_death").is_null()
         return cond
 
     def extract_year_months(self, df: pl.LazyFrame) -> tuple[str | None, list[str]]:
@@ -153,20 +181,62 @@ class ConsolidatedAlignmentsPlugins(PluginRegistry):
             return None
         df_active = df.filter(self.living_filter(df))
         schema = df_active.collect_schema().names()
-        stats: dict[str, int] = {}
-        for label, col in (
-            ("REACH", f"ym_{selected_ym}_reach"),
-            ("MSSP", f"ym_{selected_ym}_mssp"),
-            ("FFS", f"ym_{selected_ym}_ffs"),
-        ):
-            stats[label] = (
-                df_active.filter(pl.col(col)).select(pl.len()).collect().item()
-                if col in schema
-                else 0
+
+        def status_expr(col: str) -> pl.Expr:
+            if col in schema:
+                return pl.col(col).fill_null(False)
+            return pl.lit(False)
+
+        reach = status_expr(f"ym_{selected_ym}_reach")
+        mssp = status_expr(f"ym_{selected_ym}_mssp")
+        if "last_ffs_date" in schema:
+            _, month_end = _month_bounds(selected_ym)
+            lookback_start = month_end - relativedelta(months=24)
+            ffs = (
+                pl.col("last_ffs_date")
+                .cast(pl.Date, strict=False)
+                .is_between(lookback_start, month_end, closed="both")
+                .fill_null(False)
+                & ~reach
+                & ~mssp
             )
-        total = df.select(pl.len()).collect().item()
-        stats["Not Enrolled"] = total - (stats["REACH"] + stats["MSSP"] + stats["FFS"])
-        return stats
+        else:
+            ffs = status_expr(f"ym_{selected_ym}_ffs") & ~reach & ~mssp
+        normalized = df_active.with_columns(
+            [
+                reach.alias("_selected_reach"),
+                mssp.alias("_selected_mssp"),
+                ffs.alias("_selected_ffs"),
+            ]
+        )
+        id_column = next(
+            (col for col in ("current_mbi", "bene_mbi", "mbi") if col in schema),
+            None,
+        )
+        if id_column:
+            population = normalized.group_by(id_column).agg(
+                [
+                    pl.col("_selected_reach").any(),
+                    pl.col("_selected_mssp").any(),
+                    pl.col("_selected_ffs").any(),
+                ]
+            )
+        else:
+            population = normalized.select(["_selected_reach", "_selected_mssp", "_selected_ffs"])
+        result = population.select(
+            [
+                pl.col("_selected_reach").sum().alias("REACH"),
+                pl.col("_selected_mssp").sum().alias("MSSP"),
+                (pl.col("_selected_ffs") & ~pl.col("_selected_reach") & ~pl.col("_selected_mssp"))
+                .sum()
+                .alias("FFS"),
+                (~(pl.col("_selected_reach") | pl.col("_selected_mssp") | pl.col("_selected_ffs")))
+                .sum()
+                .alias("Not Enrolled"),
+                pl.len().alias("Living Beneficiaries"),
+            ]
+        ).collect()
+        return {key: int(value or 0) for key, value in result.row(0, named=True).items()}
 
     def alignment_trends(self, df: pl.LazyFrame, year_months: list[str]) -> pl.DataFrame | None:
         from acoharmony._transforms._notebook_trends import (

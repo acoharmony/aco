@@ -76,7 +76,9 @@ def apply_transform(
     if not force and catalog.get_table_metadata("aco_alignment") is not None:
         try:
             existing_matrix = catalog.scan_table("aco_alignment")
-            matrix_data = existing_matrix.select(["observable_end", "processed_at"]).first().collect()
+            matrix_data = (
+                existing_matrix.select(["observable_end", "processed_at"]).first().collect()
+            )
             existing_end_raw = matrix_data["observable_end"].item()
             matrix_processed_at = matrix_data["processed_at"].item()
 
@@ -90,13 +92,10 @@ def apply_transform(
 
             # Check 1: observable date range changed
             if observable_end > existing_end:
-                logger.info(f"Source data updated ({existing_end} → {observable_end}), rebuilding temporal matrix")
+                logger.info(
+                    f"Source data updated ({existing_end} → {observable_end}), rebuilding temporal matrix"
+                )
             else:
-                # Check 2: source data modified after matrix was built
-                # Get max processed_at from ALR and BAR sources
-                alr_max_processed = sources["alr"].select(pl.col("processed_at").max()).collect().item()
-                bar_max_processed = sources["bar"].select(pl.col("processed_at").max()).collect().item()
-
                 # Convert to datetime for comparison
                 def to_datetime(val):
                     if val is None:
@@ -105,13 +104,46 @@ def apply_transform(
                         return datetime.fromisoformat(val.replace("Z", "+00:00"))
                     return val
 
-                source_max_processed = max(to_datetime(alr_max_processed), to_datetime(bar_max_processed))
+                def source_freshness(source: pl.LazyFrame | None) -> datetime:
+                    if source is None:
+                        return datetime.min
+                    source_schema = source.collect_schema().names()
+                    freshness_col = next(
+                        (
+                            col
+                            for col in (
+                                "processed_at",
+                                "extracted_at",
+                                "lineage_processed_at",
+                            )
+                            if col in source_schema
+                        ),
+                        None,
+                    )
+                    if freshness_col is None:
+                        return datetime.min
+                    value = source.select(pl.col(freshness_col).max()).collect().item()
+                    return to_datetime(value)
+
+                source_max_processed = max(
+                    source_freshness(sources.get(name))
+                    for name in (
+                        "bar",
+                        "alr",
+                        "ffs_first_dates",
+                        "last_ffs_service",
+                    )
+                )
                 matrix_processed_dt = to_datetime(matrix_processed_at)
 
                 if source_max_processed > matrix_processed_dt:
-                    logger.info(f"Source data modified after matrix build ({matrix_processed_at} < {source_max_processed}), rebuilding")
+                    logger.info(
+                        f"Source data modified after matrix build ({matrix_processed_at} < {source_max_processed}), rebuilding"
+                    )
                 else:
-                    logger.info(f"Temporal matrix is current (observable_end: {existing_end}), loading from catalog")
+                    logger.info(
+                        f"Temporal matrix is current (observable_end: {existing_end}), loading from catalog"
+                    )
                     return existing_matrix
         except Exception as e:
             # Table metadata exists but file not found or other error, rebuild
@@ -127,7 +159,9 @@ def apply_transform(
     # STEP 3: Prepare source data using expression builders
     bar_data = _prepare_bar_data(sources["bar"], mbi_map, logger)
     alr_data = _prepare_alr_data(sources["alr"], mbi_map, logger)
-    ffs_data = _prepare_ffs_data(sources["ffs_first_dates"], mbi_map, logger)
+    ffs_data = _prepare_ffs_data(
+        sources["ffs_first_dates"], sources.get("last_ffs_service"), mbi_map, logger
+    )
     demographics = _prepare_demographics(sources["beneficiary_demographics"], mbi_map, logger)
 
     # STEP 4: Build temporal matrix (stateful loop logic)
@@ -217,7 +251,17 @@ def _collect_required_sources(catalog: Any, logger: Any) -> dict[str, pl.LazyFra
     timeline_path = silver_path / "identity_timeline.parquet"
 
     if not timeline_path.exists():
-        raise ValueError("identity_timeline not found - required for temporal matrix. Run 'aco pipeline identity_timeline' first.")
+        raise ValueError(
+            "identity_timeline not found - required for temporal matrix. Run 'aco pipeline identity_timeline' first."
+        )
+
+    try:
+        sources["last_ffs_service"] = catalog.scan_table("last_ffs_service")
+    except Exception as exc:
+        logger.warning(
+            "last_ffs_service source not found; FFS month flags will fall back to "
+            f"ffs_first_dates and may undercount recent returning beneficiaries: {exc}"
+        )
 
     sources["enterprise_crosswalk"] = current_mbi_lookup_lazy(silver_path)
 
@@ -301,19 +345,59 @@ def _prepare_alr_data(alr_df: pl.LazyFrame, mbi_map: dict, logger: Any) -> pl.La
     return alr_df.with_columns(build_alr_preparation_exprs(mbi_map)).select(build_alr_select_expr())
 
 
-def _prepare_ffs_data(ffs_df: pl.LazyFrame, mbi_map: dict, logger: Any) -> pl.LazyFrame:
+def _prepare_ffs_data(
+    ffs_first_df: pl.LazyFrame,
+    ffs_last_df: pl.LazyFrame | None,
+    mbi_map: dict,
+    logger: Any,
+) -> pl.LazyFrame:
     """
-    Prepare FFS first dates data using expression builders.
+    Prepare FFS service-window data using expression builders.
 
     Args:
-        ffs_df: Raw FFS first dates LazyFrame
+        ffs_first_df: Raw FFS first dates LazyFrame
+        ffs_last_df: Raw last FFS service LazyFrame, when available
         mbi_map: MBI crosswalk dictionary
         logger: Logger instance
 
     Returns:
-        pl.LazyFrame: Prepared FFS data
+        pl.LazyFrame: Prepared FFS data with first and last practice service dates
     """
-    return ffs_df.with_columns([build_ffs_mbi_crosswalk_expr(mbi_map)]).select(build_ffs_select_expr())
+    first_prepared = ffs_first_df.with_columns([build_ffs_mbi_crosswalk_expr(mbi_map)]).select(
+        build_ffs_select_expr()
+    )
+    if ffs_last_df is None:
+        logger.warning(
+            "last_ffs_service unavailable; using ffs_first_date as last_ffs_date for "
+            "24-month FFS eligibility"
+        )
+        return first_prepared.with_columns(
+            [
+                pl.col("ffs_first_date").alias("last_ffs_date"),
+                pl.lit(None).cast(pl.String).alias("last_ffs_tin"),
+                pl.lit(None).cast(pl.String).alias("last_ffs_npi"),
+            ]
+        )
+
+    last_prepared = ffs_last_df.with_columns([build_ffs_mbi_crosswalk_expr(mbi_map)]).select(
+        [
+            pl.col("current_mbi"),
+            pl.col("last_ffs_date"),
+            pl.col("last_ffs_tin"),
+            pl.col("last_ffs_npi"),
+            pl.col("claim_count").alias("last_ffs_claim_count"),
+        ]
+    )
+    return (
+        last_prepared.join(first_prepared, on="current_mbi", how="left")
+        .with_columns(
+            [
+                pl.col("has_ffs_service").fill_null(True),
+                pl.col("ffs_claim_count").fill_null(pl.col("last_ffs_claim_count")),
+            ]
+        )
+        .drop("last_ffs_claim_count")
+    )
 
 
 def _prepare_demographics(demo_df: pl.LazyFrame, mbi_map: dict, logger: Any) -> pl.LazyFrame:
@@ -426,10 +510,9 @@ def _build_temporal_matrix_vectorized(
     # Join demographics to get death dates for ALL beneficiaries (BAR and ALR)
     # Use left join to preserve all alignment records
     demographics_collected = demographics.collect()
-    demographics_deaths = demographics_collected.select([
-        pl.col("current_mbi"),
-        pl.col("death_date").alias("death_date_from_demo")
-    ])
+    demographics_deaths = demographics_collected.select(
+        [pl.col("current_mbi"), pl.col("death_date").alias("death_date_from_demo")]
+    )
     combined = combined.join(demographics_deaths, on="current_mbi", how="left")
 
     # Create unified death_date column: prefer BAR's bene_date_of_death, fallback to demographics
@@ -439,7 +522,9 @@ def _build_temporal_matrix_vectorized(
         )
     )
 
-    combined = combined.with_columns([pl.col("file_date_parsed").dt.strftime("%Y%m").alias("file_year_month")])
+    combined = combined.with_columns(
+        [pl.col("file_date_parsed").dt.strftime("%Y%m").alias("file_year_month")]
+    )
 
     # Sort and deduplicate - keep most recent per MBI/date
     combined = combined.sort(["current_mbi", "file_date_parsed", "program"]).unique(
@@ -449,16 +534,25 @@ def _build_temporal_matrix_vectorized(
     # Get all unique MBIs
     all_mbis = combined.select("current_mbi").unique()
 
-    # Build FFS lookup dictionary
+    # Build FFS lookup dictionaries. FFS is a current practice-touch universe:
+    # living beneficiaries with a practice-TIN claim inside the trailing
+    # 24-month window, excluding anyone aligned to REACH/MSSP for the month.
     ffs_dict = {}
+    ffs_last_dict = {}
     if ffs_data is not None:
         ffs_collected = ffs_data.collect()
         for row in ffs_collected.iter_rows(named=True):
             if row["ffs_first_date"]:
                 ffs_dict[row["current_mbi"]] = row["ffs_first_date"]
+            if "last_ffs_date" in ffs_collected.columns and row["last_ffs_date"]:
+                ffs_last_dict[row["current_mbi"]] = row["last_ffs_date"]
 
         ffs_mbis = ffs_collected.select("current_mbi").unique()
         all_mbis = pl.concat([all_mbis, ffs_mbis]).unique()
+
+    death_dict = {}
+    for row in demographics_collected.select(["current_mbi", "death_date"]).iter_rows(named=True):
+        death_dict[row["current_mbi"]] = row["death_date"]
 
     combined = combined.sort(["current_mbi", "file_date_parsed"])
 
@@ -490,6 +584,7 @@ def _build_temporal_matrix_vectorized(
             next_year = year
             next_month = month + 1
         month_end = date(next_year, next_month, 1) - relativedelta(days=1)
+        ffs_lookback_start = month_end - relativedelta(months=24)
 
         # Filter to data available AS OF this month (point-in-time)
         data_as_of_month = combined.filter(pl.col("file_date_parsed") <= month_end)
@@ -577,25 +672,36 @@ def _build_temporal_matrix_vectorized(
 
         # Calculate FFS status: has first claim AND not in ACO
         ffs_conditions = []
+        first_claim_conditions = []
         for mbi in result["current_mbi"].to_list():
             is_in_ffs = False
+            had_first_claim = False
             if mbi in ffs_dict:
-                if ffs_dict[mbi] <= month_date:
-                    is_in_ffs = True
+                had_first_claim = ffs_dict[mbi] <= month_end
+            last_ffs_date = ffs_last_dict.get(mbi, ffs_dict.get(mbi))
+            death_date = death_dict.get(mbi)
+            is_living_for_month = death_date is None or death_date >= month_date
+            if last_ffs_date is not None and is_living_for_month:
+                is_in_ffs = ffs_lookback_start <= last_ffs_date <= month_end
             ffs_conditions.append(is_in_ffs)
+            first_claim_conditions.append(had_first_claim)
 
         result = result.with_columns([pl.Series(f"ym_{ym}_ffs_eligible", ffs_conditions)])
+        result = result.with_columns(
+            [pl.Series(f"ym_{ym}_first_claim_seen", first_claim_conditions)]
+        )
 
         result = result.with_columns(
             [
-                # FFS = anyone NOT in REACH and NOT in MSSP (default for all Medicare beneficiaries)
+                # FFS = living, not ACO, and touched a practice TIN in the trailing 24 months.
                 (
                     ~pl.col(f"ym_{ym}_reach")
                     & ~pl.col(f"ym_{ym}_mssp")
+                    & pl.col(f"ym_{ym}_ffs_eligible")
                 ).alias(f"ym_{ym}_ffs"),
-                pl.col(f"ym_{ym}_ffs_eligible").alias(f"ym_{ym}_first_claim"),
+                pl.col(f"ym_{ym}_first_claim_seen").alias(f"ym_{ym}_first_claim"),
             ]
-        ).drop(f"ym_{ym}_ffs_eligible")
+        ).drop([f"ym_{ym}_ffs_eligible", f"ym_{ym}_first_claim_seen"])
 
     # Deduplicate
     result = result.unique(subset=["current_mbi"], keep="last")
@@ -603,9 +709,15 @@ def _build_temporal_matrix_vectorized(
     # Calculate summary columns
     result = result.with_columns(
         [
-            pl.sum_horizontal([pl.col(f"ym_{ym}_reach") for ym in year_months]).alias("months_in_reach"),
-            pl.sum_horizontal([pl.col(f"ym_{ym}_mssp") for ym in year_months]).alias("months_in_mssp"),
-            pl.sum_horizontal([pl.col(f"ym_{ym}_ffs") for ym in year_months]).alias("months_in_ffs"),
+            pl.sum_horizontal([pl.col(f"ym_{ym}_reach") for ym in year_months]).alias(
+                "months_in_reach"
+            ),
+            pl.sum_horizontal([pl.col(f"ym_{ym}_mssp") for ym in year_months]).alias(
+                "months_in_mssp"
+            ),
+            pl.sum_horizontal([pl.col(f"ym_{ym}_ffs") for ym in year_months]).alias(
+                "months_in_ffs"
+            ),
             pl.any_horizontal([pl.col(f"ym_{ym}_reach") for ym in year_months]).alias("ever_reach"),
             pl.any_horizontal([pl.col(f"ym_{ym}_mssp") for ym in year_months]).alias("ever_mssp"),
             pl.any_horizontal([pl.col(f"ym_{ym}_ffs") for ym in year_months]).alias("ever_ffs"),
@@ -620,7 +732,10 @@ def _build_temporal_matrix_vectorized(
             .alias("current_program"),
             pl.lit(None).cast(pl.String).alias("current_aco_id"),
             pl.sum_horizontal(
-                [pl.col(f"ym_{ym}_reach") | pl.col(f"ym_{ym}_mssp") | pl.col(f"ym_{ym}_ffs") for ym in year_months]
+                [
+                    pl.col(f"ym_{ym}_reach") | pl.col(f"ym_{ym}_mssp") | pl.col(f"ym_{ym}_ffs")
+                    for ym in year_months
+                ]
             )
             .eq(len(year_months))
             .alias("continuous_enrollment"),
@@ -628,7 +743,10 @@ def _build_temporal_matrix_vectorized(
             (
                 len(year_months)
                 - pl.sum_horizontal(
-                    [pl.col(f"ym_{ym}_reach") | pl.col(f"ym_{ym}_mssp") | pl.col(f"ym_{ym}_ffs") for ym in year_months]
+                    [
+                        pl.col(f"ym_{ym}_reach") | pl.col(f"ym_{ym}_mssp") | pl.col(f"ym_{ym}_ffs")
+                        for ym in year_months
+                    ]
                 )
             ).alias("enrollment_gaps"),
             pl.lit(0).alias("previous_mbi_count"),

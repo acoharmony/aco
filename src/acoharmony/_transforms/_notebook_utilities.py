@@ -8,10 +8,65 @@ Provides helper transforms for common operations like extracting year-months,
 calculating basic stats, preparing outreach data, and enriching datasets.
 """
 
+from datetime import date
+
 import polars as pl
+from dateutil.relativedelta import relativedelta
+
+_BENEFICIARY_ID_COLUMNS = ("current_mbi", "bene_mbi", "mbi")
+_DEATH_DATE_COLUMNS = ("death_date", "bene_death_date", "bene_date_of_death")
 
 
-def calculate_basic_stats(df: pl.LazyFrame) -> dict[str, int]:
+def _beneficiary_id_column(schema: list[str]) -> str | None:
+    return next((col for col in _BENEFICIARY_ID_COLUMNS if col in schema), None)
+
+
+def _bool_expr(schema: list[str], column: str) -> pl.Expr:
+    if column in schema:
+        return pl.col(column).fill_null(False)
+    return pl.lit(False)
+
+
+def _living_expr(schema: list[str]) -> pl.Expr:
+    expr = pl.lit(True)
+    for column in _DEATH_DATE_COLUMNS:
+        if column in schema:
+            expr = expr & pl.col(column).is_null()
+    return expr
+
+
+def _month_bounds(year_month: str) -> tuple[date, date]:
+    year = int(year_month[:4])
+    month = int(year_month[4:6])
+    if month == 12:
+        next_month = date(year + 1, 1, 1)
+    else:
+        next_month = date(year, month + 1, 1)
+    return date(year, month, 1), next_month - relativedelta(days=1)
+
+
+def _recent_ffs_expr(schema: list[str], year_month: str, reach: pl.Expr, mssp: pl.Expr) -> pl.Expr:
+    if "last_ffs_date" in schema:
+        _, month_end = _month_bounds(year_month)
+        lookback_start = month_end - relativedelta(months=24)
+        return (
+            pl.col("last_ffs_date")
+            .cast(pl.Date, strict=False)
+            .is_between(lookback_start, month_end, closed="both")
+            .fill_null(False)
+            & ~reach
+            & ~mssp
+        )
+    return _bool_expr(schema, f"ym_{year_month}_ffs") & ~reach & ~mssp
+
+
+def _beneficiary_count(df: pl.LazyFrame, schema: list[str]) -> int:
+    id_column = _beneficiary_id_column(schema)
+    expr = pl.col(id_column).n_unique() if id_column else pl.len()
+    return df.select(expr).collect().item()
+
+
+def calculate_basic_stats(df: pl.LazyFrame) -> dict[str, int | str | None]:
     """
     Calculate basic dataset statistics.
 
@@ -22,11 +77,56 @@ def calculate_basic_stats(df: pl.LazyFrame) -> dict[str, int]:
         dict with:
             - total_records: Total number of rows
             - total_columns: Total number of columns
+            - unique_beneficiaries: Unique beneficiary count when an ID column exists
+            - duplicate_beneficiary_records: Rows above the unique beneficiary grain
+            - living_beneficiaries: Beneficiaries without a death date
+            - deceased_beneficiaries: Beneficiaries with a death date
+            - most_recent_ym: Most recent year-month in the wide monthly columns
+            - current_aligned_beneficiaries: Living beneficiaries currently in REACH or MSSP
     """
+    schema = df.collect_schema().names()
     total_records = df.select(pl.len()).collect().item()
-    total_columns = len(df.collect_schema())
+    total_columns = len(schema)
+    unique_beneficiaries = _beneficiary_count(df, schema)
+    living_df = df.filter(_living_expr(schema))
+    living_beneficiaries = _beneficiary_count(living_df, schema)
+    deceased_beneficiaries = max(unique_beneficiaries - living_beneficiaries, 0)
 
-    return {"total_records": total_records, "total_columns": total_columns}
+    year_months = sorted({col.split("_")[1] for col in schema if col.startswith("ym_")})
+    most_recent_ym = year_months[-1] if year_months else None
+    current_aligned_beneficiaries = 0
+    current_ffs_beneficiaries = 0
+    current_view_beneficiaries = 0
+    if most_recent_ym:
+        reach_col = f"ym_{most_recent_ym}_reach"
+        mssp_col = f"ym_{most_recent_ym}_mssp"
+        reach = _bool_expr(schema, reach_col)
+        mssp = _bool_expr(schema, mssp_col)
+        ffs = _recent_ffs_expr(schema, most_recent_ym, reach, mssp)
+        current_counts = living_df.select(
+            [
+                (reach | mssp).sum().alias("current_aligned_beneficiaries"),
+                ffs.sum().alias("current_ffs_beneficiaries"),
+                (reach | mssp | ffs).sum().alias("current_view_beneficiaries"),
+            ]
+        ).collect()
+        current_aligned_beneficiaries = current_counts["current_aligned_beneficiaries"][0]
+        current_ffs_beneficiaries = current_counts["current_ffs_beneficiaries"][0]
+        current_view_beneficiaries = current_counts["current_view_beneficiaries"][0]
+
+    return {
+        "total_records": total_records,
+        "total_columns": total_columns,
+        "unique_beneficiaries": unique_beneficiaries,
+        "duplicate_beneficiary_records": total_records - unique_beneficiaries,
+        "living_beneficiaries": living_beneficiaries,
+        "deceased_beneficiaries": deceased_beneficiaries,
+        "most_recent_ym": most_recent_ym,
+        "current_aligned_beneficiaries": current_aligned_beneficiaries,
+        "current_aco_aligned_beneficiaries": current_aligned_beneficiaries,
+        "current_ffs_beneficiaries": current_ffs_beneficiaries,
+        "current_view_beneficiaries": current_view_beneficiaries,
+    }
 
 
 def extract_year_months(df: pl.LazyFrame) -> tuple[str | None, list[str]]:
@@ -70,39 +170,60 @@ def calculate_historical_program_distribution(df: pl.LazyFrame) -> pl.DataFrame:
 
     Returns:
         DataFrame with historical alignment counts:
-            - ever_reach_count: Ever enrolled in REACH
-            - ever_mssp_count: Ever enrolled in MSSP
+            - total_beneficiaries: Unique beneficiary count
+            - ever_reach_only_count: Ever enrolled in REACH but never MSSP
+            - ever_mssp_only_count: Ever enrolled in MSSP but never REACH
             - ever_both_count: Ever in both programs
             - never_aligned_count: Never enrolled in either
+            - ever_reach_count: Backward-compatible any-REACH count
+            - ever_mssp_count: Backward-compatible any-MSSP count
+            - ever_reach_any_count: Any REACH count
+            - ever_mssp_any_count: Any MSSP count
     """
     schema = df.collect_schema().names()
+    id_column = _beneficiary_id_column(schema)
 
-    # Build aggregations
-    agg_exprs = []
-
-    if "ever_reach" in schema:
-        agg_exprs.append(pl.col("ever_reach").sum().alias("ever_reach_count"))
+    normalized = df.with_columns(
+        [
+            _bool_expr(schema, "ever_reach").alias("_ever_reach"),
+            _bool_expr(schema, "ever_mssp").alias("_ever_mssp"),
+        ]
+    )
+    if id_column:
+        beneficiary_df = normalized.group_by(id_column).agg(
+            [
+                pl.col("_ever_reach").any().alias("ever_reach"),
+                pl.col("_ever_mssp").any().alias("ever_mssp"),
+            ]
+        )
     else:
-        agg_exprs.append(pl.lit(0).alias("ever_reach_count"))
+        beneficiary_df = normalized.select(
+            [
+                pl.col("_ever_reach").alias("ever_reach"),
+                pl.col("_ever_mssp").alias("ever_mssp"),
+            ]
+        )
 
-    if "ever_mssp" in schema:
-        agg_exprs.append(pl.col("ever_mssp").sum().alias("ever_mssp_count"))
-    else:
-        agg_exprs.append(pl.lit(0).alias("ever_mssp_count"))
+    reach = pl.col("ever_reach")
+    mssp = pl.col("ever_mssp")
+    return beneficiary_df.select(
+        [
+            pl.len().alias("total_beneficiaries"),
+            (reach & ~mssp).sum().alias("ever_reach_only_count"),
+            (~reach & mssp).sum().alias("ever_mssp_only_count"),
+            (reach & mssp).sum().alias("ever_both_count"),
+            (~reach & ~mssp).sum().alias("never_aligned_count"),
+            reach.sum().alias("ever_reach_count"),
+            mssp.sum().alias("ever_mssp_count"),
+            reach.sum().alias("ever_reach_any_count"),
+            mssp.sum().alias("ever_mssp_any_count"),
+        ]
+    ).collect()
 
-    if "ever_reach" in schema and "ever_mssp" in schema:
-        agg_exprs.append((pl.col("ever_reach") & pl.col("ever_mssp")).sum().alias("ever_both_count"))
-        agg_exprs.append((~pl.col("ever_reach") & ~pl.col("ever_mssp")).sum().alias("never_aligned_count"))
-    else:
-        agg_exprs.append(pl.lit(0).alias("ever_both_count"))
-        agg_exprs.append(pl.len().alias("never_aligned_count"))
 
-    historical_stats = df.select(agg_exprs).collect()
-
-    return historical_stats
-
-
-def calculate_current_program_distribution(df: pl.LazyFrame, most_recent_ym: str | None) -> pl.DataFrame:
+def calculate_current_program_distribution(
+    df: pl.LazyFrame, most_recent_ym: str | None
+) -> pl.DataFrame:
     """
     Calculate CURRENT program distribution based on most recent month.
 
@@ -115,10 +236,14 @@ def calculate_current_program_distribution(df: pl.LazyFrame, most_recent_ym: str
 
     Returns:
         DataFrame with current alignment counts:
-            - currently_reach: Currently in REACH only
-            - currently_mssp: Currently in MSSP only
+            - living_beneficiaries: Living denominator
+            - currently_reach_only: Currently in REACH only
+            - currently_mssp_only: Currently in MSSP only
             - currently_both: Currently in both programs
-            - currently_neither: Not currently in either program
+            - currently_ffs: Currently FFS
+            - currently_unassigned: Living beneficiaries not in REACH/MSSP/FFS
+            - currently_reach/currently_mssp: Backward-compatible any counts
+            - currently_neither: Backward-compatible not-REACH-or-MSSP count
     """
     if most_recent_ym:
         # Use the most recent month columns for current status
@@ -128,22 +253,67 @@ def calculate_current_program_distribution(df: pl.LazyFrame, most_recent_ym: str
         # Check if columns exist
         schema_names = df.collect_schema().names()
 
-        if current_reach_col in schema_names and current_mssp_col in schema_names:
-            current_alignment_stats = df.select(
+        if current_reach_col in schema_names or current_mssp_col in schema_names:
+            id_column = _beneficiary_id_column(schema_names)
+            reach_input = _bool_expr(schema_names, current_reach_col)
+            mssp_input = _bool_expr(schema_names, current_mssp_col)
+            ffs_input = _recent_ffs_expr(schema_names, most_recent_ym, reach_input, mssp_input)
+            normalized = df.filter(_living_expr(schema_names)).with_columns(
                 [
-                    pl.col(current_reach_col).sum().alias("currently_reach"),
-                    pl.col(current_mssp_col).sum().alias("currently_mssp"),
-                    (pl.col(current_reach_col) & pl.col(current_mssp_col)).sum().alias("currently_both"),
-                    (~pl.col(current_reach_col) & ~pl.col(current_mssp_col)).sum().alias("currently_neither"),
+                    reach_input.alias("_current_reach"),
+                    mssp_input.alias("_current_mssp"),
+                    ffs_input.alias("_current_ffs"),
+                ]
+            )
+            if id_column:
+                beneficiary_df = normalized.group_by(id_column).agg(
+                    [
+                        pl.col("_current_reach").any().alias("current_reach"),
+                        pl.col("_current_mssp").any().alias("current_mssp"),
+                        pl.col("_current_ffs").any().alias("current_ffs"),
+                    ]
+                )
+            else:
+                beneficiary_df = normalized.select(
+                    [
+                        pl.col("_current_reach").alias("current_reach"),
+                        pl.col("_current_mssp").alias("current_mssp"),
+                        pl.col("_current_ffs").alias("current_ffs"),
+                    ]
+                )
+
+            reach = pl.col("current_reach")
+            mssp = pl.col("current_mssp")
+            ffs = pl.col("current_ffs") & ~reach & ~mssp
+            current_alignment_stats = beneficiary_df.select(
+                [
+                    pl.len().alias("living_beneficiaries"),
+                    (reach & ~mssp).sum().alias("currently_reach_only"),
+                    (~reach & mssp).sum().alias("currently_mssp_only"),
+                    (reach & mssp).sum().alias("currently_both"),
+                    ffs.sum().alias("currently_ffs"),
+                    (~reach & ~mssp & ~ffs).sum().alias("currently_unassigned"),
+                    reach.sum().alias("currently_reach"),
+                    mssp.sum().alias("currently_mssp"),
+                    (reach | mssp).sum().alias("currently_aligned_any"),
+                    (reach | mssp | ffs).sum().alias("currently_active_any"),
+                    (~reach & ~mssp).sum().alias("currently_neither"),
                 ]
             ).collect()
         else:
             # Fallback if columns don't exist
             current_alignment_stats = pl.DataFrame(
                 {
+                    "living_beneficiaries": [0],
+                    "currently_reach_only": [0],
+                    "currently_mssp_only": [0],
+                    "currently_both": [0],
+                    "currently_ffs": [0],
+                    "currently_unassigned": [0],
                     "currently_reach": [0],
                     "currently_mssp": [0],
-                    "currently_both": [0],
+                    "currently_aligned_any": [0],
+                    "currently_active_any": [0],
                     "currently_neither": [0],
                 }
             )
@@ -151,9 +321,16 @@ def calculate_current_program_distribution(df: pl.LazyFrame, most_recent_ym: str
         # No temporal data available
         current_alignment_stats = pl.DataFrame(
             {
+                "living_beneficiaries": [0],
+                "currently_reach_only": [0],
+                "currently_mssp_only": [0],
+                "currently_both": [0],
+                "currently_ffs": [0],
+                "currently_unassigned": [0],
                 "currently_reach": [0],
                 "currently_mssp": [0],
-                "currently_both": [0],
+                "currently_aligned_any": [0],
+                "currently_active_any": [0],
                 "currently_neither": [0],
             }
         )
@@ -181,7 +358,10 @@ def analyze_sva_action_categories(df_enriched: pl.LazyFrame) -> pl.DataFrame:
         return pl.DataFrame({"sva_action_needed": [], "count": []})
 
     action_stats = (
-        df_enriched.group_by("sva_action_needed").agg(pl.len().alias("count")).collect().sort("count", descending=True)
+        df_enriched.group_by("sva_action_needed")
+        .agg(pl.len().alias("count"))
+        .collect()
+        .sort("count", descending=True)
     )
 
     return action_stats
@@ -214,7 +394,9 @@ def calculate_current_and_historical_sources(
         if reach_col in schema and mssp_col in schema:
             # Filter to living and currently aligned
             living_expr = build_living_beneficiary_expr(schema)
-            currently_aligned = df_enriched.filter((pl.col(reach_col) | pl.col(mssp_col)) & living_expr)
+            currently_aligned = df_enriched.filter(
+                (pl.col(reach_col) | pl.col(mssp_col)) & living_expr
+            )
 
             if currently_aligned.select(pl.len()).collect().item() > 0:
                 # Build current source expression
@@ -265,9 +447,13 @@ def calculate_current_and_historical_sources(
                     .collect()
                 )
             else:
-                current_source_stats = pl.DataFrame({"current_alignment_source": ["NO DATA"], "count": [0]})
+                current_source_stats = pl.DataFrame(
+                    {"current_alignment_source": ["NO DATA"], "count": [0]}
+                )
         else:
-            current_source_stats = pl.DataFrame({"current_alignment_source": ["NO DATA"], "count": [0]})
+            current_source_stats = pl.DataFrame(
+                {"current_alignment_source": ["NO DATA"], "count": [0]}
+            )
     else:
         current_source_stats = pl.DataFrame({"current_alignment_source": ["NO DATA"], "count": [0]})
 
@@ -280,7 +466,9 @@ def calculate_current_and_historical_sources(
             .collect()
         )
     else:
-        historical_source_stats = pl.DataFrame({"primary_alignment_source": ["Unknown"], "count": [0]})
+        historical_source_stats = pl.DataFrame(
+            {"primary_alignment_source": ["Unknown"], "count": [0]}
+        )
 
     return current_source_stats, historical_source_stats
 
@@ -313,7 +501,9 @@ def prepare_voluntary_outreach_data(
     # Filter for voluntary alignment campaigns only and extract quarter
     voluntary_emails = (
         emails_df.filter(
-            pl.col("campaign").str.contains("ACO Voluntary Alignment") if "campaign" in email_schema else pl.lit(False)
+            pl.col("campaign").str.contains("ACO Voluntary Alignment")
+            if "campaign" in email_schema
+            else pl.lit(False)
         )
         .with_columns(
             [
@@ -326,12 +516,16 @@ def prepare_voluntary_outreach_data(
                 else pl.lit(None),
             ]
         )
-        .with_columns((pl.col("campaign_year") + "_Q" + pl.col("campaign_quarter")).alias("campaign_period"))
+        .with_columns(
+            (pl.col("campaign_year") + "_Q" + pl.col("campaign_quarter")).alias("campaign_period")
+        )
     )
 
     # Get unique MBIs that have received voluntary alignment emails
     email_mbis = (
-        voluntary_emails.filter(pl.col("mbi").is_not_null() if "mbi" in email_schema else pl.lit(False))
+        voluntary_emails.filter(
+            pl.col("mbi").is_not_null() if "mbi" in email_schema else pl.lit(False)
+        )
         .group_by("mbi")
         .agg(
             [
@@ -340,11 +534,15 @@ def prepare_voluntary_outreach_data(
                 if "campaign" in email_schema
                 else pl.lit(0),
                 pl.col("campaign_period").str.join(", ").alias("email_campaign_periods"),
-                ((pl.col("has_been_opened") == "true").sum() if "has_been_opened" in email_schema else pl.lit(0)).alias(
-                    "voluntary_emails_opened"
-                ),
                 (
-                    (pl.col("has_been_clicked") == "true").sum() if "has_been_clicked" in email_schema else pl.lit(0)
+                    (pl.col("has_been_opened") == "true").sum()
+                    if "has_been_opened" in email_schema
+                    else pl.lit(0)
+                ).alias("voluntary_emails_opened"),
+                (
+                    (pl.col("has_been_clicked") == "true").sum()
+                    if "has_been_clicked" in email_schema
+                    else pl.lit(0)
                 ).alias("voluntary_emails_clicked"),
                 pl.col("send_datetime").max().alias("last_voluntary_email_date")
                 if "send_datetime" in email_schema
@@ -371,12 +569,16 @@ def prepare_voluntary_outreach_data(
                 else pl.lit(None),
             ]
         )
-        .with_columns((pl.col("campaign_year") + "_Q" + pl.col("campaign_quarter")).alias("campaign_period"))
+        .with_columns(
+            (pl.col("campaign_year") + "_Q" + pl.col("campaign_quarter")).alias("campaign_period")
+        )
     )
 
     # Get unique MBIs that have received voluntary alignment letters
     mailed_mbis = (
-        voluntary_mailed.filter(pl.col("mbi").is_not_null() if "mbi" in mail_schema else pl.lit(False))
+        voluntary_mailed.filter(
+            pl.col("mbi").is_not_null() if "mbi" in mail_schema else pl.lit(False)
+        )
         .group_by("mbi")
         .agg(
             [
@@ -396,11 +598,15 @@ def prepare_voluntary_outreach_data(
     email_by_campaign = voluntary_emails.group_by(["campaign_period", "mbi"]).agg(
         [
             pl.len().alias("emails_sent"),
-            ((pl.col("has_been_opened") == "true").any() if "has_been_opened" in email_schema else pl.lit(False)).alias(
-                "opened"
-            ),
             (
-                (pl.col("has_been_clicked") == "true").any() if "has_been_clicked" in email_schema else pl.lit(False)
+                (pl.col("has_been_opened") == "true").any()
+                if "has_been_opened" in email_schema
+                else pl.lit(False)
+            ).alias("opened"),
+            (
+                (pl.col("has_been_clicked") == "true").any()
+                if "has_been_clicked" in email_schema
+                else pl.lit(False)
             ).alias("clicked"),
         ]
     )
@@ -408,7 +614,9 @@ def prepare_voluntary_outreach_data(
     mailed_by_campaign = voluntary_mailed.group_by(["campaign_period", "mbi"]).agg(
         [
             pl.len().alias("letters_sent"),
-            pl.col("status").first().alias("letter_status") if "status" in mail_schema else pl.lit(None),
+            pl.col("status").first().alias("letter_status")
+            if "status" in mail_schema
+            else pl.lit(None),
         ]
     )
 
@@ -441,15 +649,18 @@ def enrich_with_outreach_data(
     df_with_emails = df.join(email_mbis, left_on="current_mbi", right_on="mbi", how="left")
 
     # Join mailed letter outreach data
-    df_enriched = df_with_emails.join(mailed_mbis, left_on="current_mbi", right_on="mbi", how="left")
+    df_enriched = df_with_emails.join(
+        mailed_mbis, left_on="current_mbi", right_on="mbi", how="left"
+    )
 
     # Create outreach summary columns for VOLUNTARY ALIGNMENT campaigns
     df_enriched = df_enriched.with_columns(
         [
             # Total voluntary alignment outreach attempts
-            (pl.col("voluntary_email_count").fill_null(0) + pl.col("voluntary_letter_count").fill_null(0)).alias(
-                "voluntary_outreach_attempts"
-            ),
+            (
+                pl.col("voluntary_email_count").fill_null(0)
+                + pl.col("voluntary_letter_count").fill_null(0)
+            ).alias("voluntary_outreach_attempts"),
             # Has been contacted for voluntary alignment
             ((pl.col("voluntary_email_count") > 0) | (pl.col("voluntary_letter_count") > 0)).alias(
                 "has_voluntary_outreach"
@@ -473,7 +684,10 @@ def enrich_with_outreach_data(
             .otherwise(pl.lit("Not Contacted"))
             .alias("voluntary_engagement_level"),
             # Campaign periods contacted (for tracking which quarters)
-            pl.when(pl.col("email_campaign_periods").is_not_null() & pl.col("letter_campaign_periods").is_not_null())
+            pl.when(
+                pl.col("email_campaign_periods").is_not_null()
+                & pl.col("letter_campaign_periods").is_not_null()
+            )
             .then(pl.col("email_campaign_periods") + ", " + pl.col("letter_campaign_periods"))
             .when(pl.col("email_campaign_periods").is_not_null())
             .then(pl.col("email_campaign_periods"))

@@ -10,13 +10,28 @@ from acoharmony._test._import_magic import auto_import
 class _:
     pass  # noqa: E701
 
+
 import inspect
 from datetime import date, datetime
 from unittest.mock import MagicMock, patch
 
 import polars as pl
 import pytest
-import acoharmony
+
+from acoharmony._transforms import _aco_alignment_temporal as aco_alignment_temporal
+from acoharmony._transforms._aco_alignment_temporal import (
+    _build_mbi_map,
+    _build_temporal_matrix_vectorized,
+    _calculate_first_program_date,
+    _calculate_last_program_date,
+    _collect_required_sources,
+    _determine_observable_range,
+    _prepare_alr_data,
+    _prepare_bar_data,
+    _prepare_demographics,
+    _prepare_ffs_data,
+    apply_transform,
+)
 
 
 class TestAcoAlignmentTemporal:
@@ -24,7 +39,7 @@ class TestAcoAlignmentTemporal:
 
     @pytest.mark.unit
     def test_import_module(self):
-        assert acoharmony._transforms._aco_alignment_temporal is not None
+        assert aco_alignment_temporal is not None
 
     @pytest.mark.unit
     def test_apply_transform_exists(self):
@@ -36,15 +51,16 @@ class TestCalculateFirstProgramDate:
 
     @pytest.mark.unit
     def test_basic(self):
-
         year_months = ["202401", "202402", "202403"]
         expr = _calculate_first_program_date(year_months, "reach")
 
-        df = pl.DataFrame({
-            "ym_202401_reach": [False, True],
-            "ym_202402_reach": [True, True],
-            "ym_202403_reach": [True, False],
-        })
+        df = pl.DataFrame(
+            {
+                "ym_202401_reach": [False, True],
+                "ym_202402_reach": [True, True],
+                "ym_202403_reach": [True, False],
+            }
+        )
 
         result = df.with_columns(expr.alias("first_date"))
         assert result["first_date"][0] == date(2024, 2, 1)
@@ -52,21 +68,21 @@ class TestCalculateFirstProgramDate:
 
     @pytest.mark.unit
     def test_all_false(self):
-
         year_months = ["202401", "202402"]
         expr = _calculate_first_program_date(year_months, "mssp")
 
-        df = pl.DataFrame({
-            "ym_202401_mssp": [False],
-            "ym_202402_mssp": [False],
-        })
+        df = pl.DataFrame(
+            {
+                "ym_202401_mssp": [False],
+                "ym_202402_mssp": [False],
+            }
+        )
 
         result = df.with_columns(expr.alias("first_date"))
         assert result["first_date"][0] is None
 
     @pytest.mark.unit
     def test_single_month(self):
-
         year_months = ["202406"]
         expr = _calculate_first_program_date(year_months, "reach")
 
@@ -81,15 +97,16 @@ class TestCalculateLastProgramDate:
 
     @pytest.mark.unit
     def test_basic(self):
-
         year_months = ["202401", "202402", "202403"]
         expr = _calculate_last_program_date(year_months, "reach")
 
-        df = pl.DataFrame({
-            "ym_202401_reach": [True, False],
-            "ym_202402_reach": [True, False],
-            "ym_202403_reach": [False, True],
-        })
+        df = pl.DataFrame(
+            {
+                "ym_202401_reach": [True, False],
+                "ym_202402_reach": [True, False],
+                "ym_202403_reach": [False, True],
+            }
+        )
 
         result = df.with_columns(expr.alias("last_date"))
         assert result["last_date"][0] == date(2024, 2, 1)
@@ -97,21 +114,21 @@ class TestCalculateLastProgramDate:
 
     @pytest.mark.unit
     def test_all_false(self):
-
         year_months = ["202401", "202402"]
         expr = _calculate_last_program_date(year_months, "mssp")
 
-        df = pl.DataFrame({
-            "ym_202401_mssp": [False],
-            "ym_202402_mssp": [False],
-        })
+        df = pl.DataFrame(
+            {
+                "ym_202401_mssp": [False],
+                "ym_202402_mssp": [False],
+            }
+        )
 
         result = df.with_columns(expr.alias("last_date"))
         assert result["last_date"][0] is None
 
     @pytest.mark.unit
     def test_single_month(self):
-
         year_months = ["202412"]
         expr = _calculate_last_program_date(year_months, "mssp")
 
@@ -121,15 +138,16 @@ class TestCalculateLastProgramDate:
 
     @pytest.mark.unit
     def test_all_true(self):
-
         year_months = ["202401", "202402", "202403"]
         expr = _calculate_last_program_date(year_months, "reach")
 
-        df = pl.DataFrame({
-            "ym_202401_reach": [True],
-            "ym_202402_reach": [True],
-            "ym_202403_reach": [True],
-        })
+        df = pl.DataFrame(
+            {
+                "ym_202401_reach": [True],
+                "ym_202402_reach": [True],
+                "ym_202403_reach": [True],
+            }
+        )
 
         result = df.with_columns(expr.alias("last_date"))
         assert result["last_date"][0] == date(2024, 3, 1)
@@ -140,11 +158,12 @@ class TestBuildMbiMap:
 
     @pytest.mark.unit
     def test_basic(self):
-
-        crosswalk_df = pl.DataFrame({
-            "prvs_num": ["MBI_OLD1", "MBI_OLD2", "MBI_SAME"],
-            "crnt_num": ["MBI_NEW1", "MBI_NEW2", "MBI_SAME"],
-        }).lazy()
+        crosswalk_df = pl.DataFrame(
+            {
+                "prvs_num": ["MBI_OLD1", "MBI_OLD2", "MBI_SAME"],
+                "crnt_num": ["MBI_NEW1", "MBI_NEW2", "MBI_SAME"],
+            }
+        ).lazy()
 
         logger = MagicMock()
         result = _build_mbi_map(crosswalk_df, logger)
@@ -154,11 +173,12 @@ class TestBuildMbiMap:
 
     @pytest.mark.unit
     def test_empty(self):
-
-        crosswalk_df = pl.DataFrame({
-            "prvs_num": pl.Series([], dtype=pl.Utf8),
-            "crnt_num": pl.Series([], dtype=pl.Utf8),
-        }).lazy()
+        crosswalk_df = pl.DataFrame(
+            {
+                "prvs_num": pl.Series([], dtype=pl.Utf8),
+                "crnt_num": pl.Series([], dtype=pl.Utf8),
+            }
+        ).lazy()
 
         logger = MagicMock()
         result = _build_mbi_map(crosswalk_df, logger)
@@ -166,11 +186,12 @@ class TestBuildMbiMap:
 
     @pytest.mark.unit
     def test_null_values(self):
-
-        crosswalk_df = pl.DataFrame({
-            "prvs_num": ["MBI1", None, "MBI3"],
-            "crnt_num": ["MBI2", "MBI4", None],
-        }).lazy()
+        crosswalk_df = pl.DataFrame(
+            {
+                "prvs_num": ["MBI1", None, "MBI3"],
+                "crnt_num": ["MBI2", "MBI4", None],
+            }
+        ).lazy()
 
         logger = MagicMock()
         result = _build_mbi_map(crosswalk_df, logger)
@@ -183,7 +204,6 @@ class TestDetermineObservableRange:
 
     @pytest.mark.unit
     def test_basic(self):
-
         sources = {
             "bar": pl.DataFrame({"file_date": ["2024-01-15", "2024-06-15"]}).lazy(),
             "alr": pl.DataFrame({"file_date": ["2024-03-01", "2024-09-01"]}).lazy(),
@@ -195,7 +215,6 @@ class TestDetermineObservableRange:
 
     @pytest.mark.unit
     def test_single_date_each(self):
-
         sources = {
             "bar": pl.DataFrame({"file_date": ["2024-05-01"]}).lazy(),
             "alr": pl.DataFrame({"file_date": ["2024-05-01"]}).lazy(),
@@ -211,13 +230,14 @@ class TestPrepareBarData:
 
     @pytest.mark.unit
     def test_basic(self):
-
-        bar_df = pl.DataFrame({
-            "bene_mbi": ["MBI1", "MBI2"],
-            "source_filename": ["D0259_BAR_202401.csv", "D0259_BAR_202401.csv"],
-            "file_date": ["2024-01-15", "2024-01-15"],
-            "bene_date_of_death": [None, None],
-        }).lazy()
+        bar_df = pl.DataFrame(
+            {
+                "bene_mbi": ["MBI1", "MBI2"],
+                "source_filename": ["D0259_BAR_202401.csv", "D0259_BAR_202401.csv"],
+                "file_date": ["2024-01-15", "2024-01-15"],
+                "bene_date_of_death": [None, None],
+            }
+        ).lazy()
 
         mbi_map = {"MBI1": "MBI1_NEW"}
         logger = MagicMock()
@@ -236,12 +256,13 @@ class TestPrepareAlrData:
 
     @pytest.mark.unit
     def test_basic(self):
-
-        alr_df = pl.DataFrame({
-            "bene_mbi": ["MBI_A", "MBI_B"],
-            "source_filename": ["A1234_ALR_202403.csv", "A1234_ALR_202403.csv"],
-            "file_date": ["2024-03-01", "2024-03-01"],
-        }).lazy()
+        alr_df = pl.DataFrame(
+            {
+                "bene_mbi": ["MBI_A", "MBI_B"],
+                "source_filename": ["A1234_ALR_202403.csv", "A1234_ALR_202403.csv"],
+                "file_date": ["2024-03-01", "2024-03-01"],
+            }
+        ).lazy()
 
         mbi_map = {}
         logger = MagicMock()
@@ -258,21 +279,50 @@ class TestPrepareFfsData:
 
     @pytest.mark.unit
     def test_basic(self):
-
-        ffs_df = pl.DataFrame({
-            "bene_mbi": ["MBI_X"],
-            "ffs_first_date": [date(2024, 1, 15)],
-            "claim_count": [5],
-        }).lazy()
+        ffs_df = pl.DataFrame(
+            {
+                "bene_mbi": ["MBI_X"],
+                "ffs_first_date": [date(2024, 1, 15)],
+                "claim_count": [5],
+            }
+        ).lazy()
+        last_ffs_df = pl.DataFrame(
+            {
+                "bene_mbi": ["MBI_X"],
+                "last_ffs_date": [date(2024, 6, 15)],
+                "last_ffs_tin": ["123456789"],
+                "last_ffs_npi": ["1234567890"],
+                "claim_count": [8],
+            }
+        ).lazy()
 
         mbi_map = {"MBI_X": "MBI_Y"}
         logger = MagicMock()
-        result = _prepare_ffs_data(ffs_df, mbi_map, logger)
+        result = _prepare_ffs_data(ffs_df, last_ffs_df, mbi_map, logger)
         collected = result.collect()
 
         assert "current_mbi" in collected.columns
         assert collected["current_mbi"][0] == "MBI_Y"
         assert "ffs_first_date" in collected.columns
+        assert collected["last_ffs_date"][0] == date(2024, 6, 15)
+
+    @pytest.mark.unit
+    def test_falls_back_to_first_date_when_last_ffs_missing(self):
+        ffs_df = pl.DataFrame(
+            {
+                "bene_mbi": ["MBI_X"],
+                "ffs_first_date": [date(2024, 1, 15)],
+                "claim_count": [5],
+            }
+        ).lazy()
+
+        mbi_map = {}
+        logger = MagicMock()
+        result = _prepare_ffs_data(ffs_df, None, mbi_map, logger)
+        collected = result.collect()
+
+        assert collected["last_ffs_date"][0] == date(2024, 1, 15)
+        logger.warning.assert_called_once()
 
 
 class TestPrepareDemographics:
@@ -280,17 +330,18 @@ class TestPrepareDemographics:
 
     @pytest.mark.unit
     def test_basic(self):
-
-        demo_df = pl.DataFrame({
-            "current_bene_mbi_id": ["MBI1"],
-            "bene_dob": [date(1950, 1, 1)],
-            "bene_death_dt": [None],
-            "bene_sex_cd": ["1"],
-            "bene_race_cd": ["1"],
-            "bene_fips_state_cd": ["36"],
-            "bene_fips_cnty_cd": ["061"],
-            "bene_zip_cd": ["10001"],
-        }).lazy()
+        demo_df = pl.DataFrame(
+            {
+                "current_bene_mbi_id": ["MBI1"],
+                "bene_dob": [date(1950, 1, 1)],
+                "bene_death_dt": [None],
+                "bene_sex_cd": ["1"],
+                "bene_race_cd": ["1"],
+                "bene_fips_state_cd": ["36"],
+                "bene_fips_cnty_cd": ["061"],
+                "bene_zip_cd": ["10001"],
+            }
+        ).lazy()
 
         mbi_map = {}
         logger = MagicMock()
@@ -308,42 +359,51 @@ class TestBuildTemporalMatrixVectorized:
 
     @pytest.mark.unit
     def test_basic_reach_only(self):
+        bar_data = pl.DataFrame(
+            {
+                "current_mbi": ["MBI1"],
+                "aco_id": ["D0259"],
+                "program": ["REACH"],
+                "file_date_parsed": [date(2024, 1, 15)],
+                "bene_mbi": ["MBI1"],
+                "bene_date_of_death": pl.Series([None], dtype=pl.Date),
+            }
+        ).lazy()
 
-        bar_data = pl.DataFrame({
-            "current_mbi": ["MBI1"],
-            "aco_id": ["D0259"],
-            "program": ["REACH"],
-            "file_date_parsed": [date(2024, 1, 15)],
-            "bene_mbi": ["MBI1"],
-            "bene_date_of_death": pl.Series([None], dtype=pl.Date),
-        }).lazy()
+        alr_data = pl.DataFrame(
+            {
+                "current_mbi": pl.Series([], dtype=pl.Utf8),
+                "aco_id": pl.Series([], dtype=pl.Utf8),
+                "program": pl.Series([], dtype=pl.Utf8),
+                "file_date_parsed": pl.Series([], dtype=pl.Date),
+                "bene_mbi": pl.Series([], dtype=pl.Utf8),
+                "bene_date_of_death": pl.Series([], dtype=pl.Date),
+            }
+        ).lazy()
 
-        alr_data = pl.DataFrame({
-            "current_mbi": pl.Series([], dtype=pl.Utf8),
-            "aco_id": pl.Series([], dtype=pl.Utf8),
-            "program": pl.Series([], dtype=pl.Utf8),
-            "file_date_parsed": pl.Series([], dtype=pl.Date),
-            "bene_mbi": pl.Series([], dtype=pl.Utf8),
-            "bene_date_of_death": pl.Series([], dtype=pl.Date),
-        }).lazy()
-
-        demographics = pl.DataFrame({
-            "current_mbi": ["MBI1"],
-            "birth_date": [date(1950, 1, 1)],
-            "death_date": [None],
-            "sex": ["1"],
-            "race": ["1"],
-            "ethnicity": [None],
-            "state": ["36"],
-            "county": ["061"],
-            "zip_code": ["10001"],
-        }).lazy()
+        demographics = pl.DataFrame(
+            {
+                "current_mbi": ["MBI1"],
+                "birth_date": [date(1950, 1, 1)],
+                "death_date": [None],
+                "sex": ["1"],
+                "race": ["1"],
+                "ethnicity": [None],
+                "state": ["36"],
+                "county": ["061"],
+                "zip_code": ["10001"],
+            }
+        ).lazy()
 
         logger = MagicMock()
         result = _build_temporal_matrix_vectorized(
-            bar_data, alr_data,
-            date(2024, 1, 1), date(2024, 1, 31),
-            None, demographics, logger,
+            bar_data,
+            alr_data,
+            date(2024, 1, 1),
+            date(2024, 1, 31),
+            None,
+            demographics,
+            logger,
         )
 
         collected = result.collect()
@@ -354,42 +414,51 @@ class TestBuildTemporalMatrixVectorized:
 
     @pytest.mark.unit
     def test_reach_and_mssp_exclusive(self):
+        bar_data = pl.DataFrame(
+            {
+                "current_mbi": ["MBI1"],
+                "aco_id": ["D0259"],
+                "program": ["REACH"],
+                "file_date_parsed": [date(2024, 1, 15)],
+                "bene_mbi": ["MBI1"],
+                "bene_date_of_death": [None],
+            }
+        ).lazy()
 
-        bar_data = pl.DataFrame({
-            "current_mbi": ["MBI1"],
-            "aco_id": ["D0259"],
-            "program": ["REACH"],
-            "file_date_parsed": [date(2024, 1, 15)],
-            "bene_mbi": ["MBI1"],
-            "bene_date_of_death": [None],
-        }).lazy()
+        alr_data = pl.DataFrame(
+            {
+                "current_mbi": ["MBI1"],
+                "aco_id": ["A1234"],
+                "program": ["MSSP"],
+                "file_date_parsed": [date(2024, 1, 15)],
+                "bene_mbi": ["MBI1"],
+                "bene_date_of_death": [None],
+            }
+        ).lazy()
 
-        alr_data = pl.DataFrame({
-            "current_mbi": ["MBI1"],
-            "aco_id": ["A1234"],
-            "program": ["MSSP"],
-            "file_date_parsed": [date(2024, 1, 15)],
-            "bene_mbi": ["MBI1"],
-            "bene_date_of_death": [None],
-        }).lazy()
-
-        demographics = pl.DataFrame({
-            "current_mbi": ["MBI1"],
-            "birth_date": [date(1950, 1, 1)],
-            "death_date": [None],
-            "sex": ["1"],
-            "race": ["1"],
-            "ethnicity": [None],
-            "state": ["36"],
-            "county": ["061"],
-            "zip_code": ["10001"],
-        }).lazy()
+        demographics = pl.DataFrame(
+            {
+                "current_mbi": ["MBI1"],
+                "birth_date": [date(1950, 1, 1)],
+                "death_date": [None],
+                "sex": ["1"],
+                "race": ["1"],
+                "ethnicity": [None],
+                "state": ["36"],
+                "county": ["061"],
+                "zip_code": ["10001"],
+            }
+        ).lazy()
 
         logger = MagicMock()
         result = _build_temporal_matrix_vectorized(
-            bar_data, alr_data,
-            date(2024, 1, 1), date(2024, 1, 31),
-            None, demographics, logger,
+            bar_data,
+            alr_data,
+            date(2024, 1, 1),
+            date(2024, 1, 31),
+            None,
+            demographics,
+            logger,
         )
 
         collected = result.collect()
@@ -399,49 +468,60 @@ class TestBuildTemporalMatrixVectorized:
 
     @pytest.mark.unit
     def test_ffs_data_tracked(self):
+        bar_data = pl.DataFrame(
+            {
+                "current_mbi": ["MBI_OTHER"],
+                "aco_id": ["D0259"],
+                "program": ["REACH"],
+                "file_date_parsed": [date(2024, 1, 15)],
+                "bene_mbi": ["MBI_OTHER"],
+                "bene_date_of_death": pl.Series([None], dtype=pl.Date),
+            }
+        ).lazy()
 
-        bar_data = pl.DataFrame({
-            "current_mbi": ["MBI_OTHER"],
-            "aco_id": ["D0259"],
-            "program": ["REACH"],
-            "file_date_parsed": [date(2024, 1, 15)],
-            "bene_mbi": ["MBI_OTHER"],
-            "bene_date_of_death": pl.Series([None], dtype=pl.Date),
-        }).lazy()
+        alr_data = pl.DataFrame(
+            {
+                "current_mbi": pl.Series([], dtype=pl.Utf8),
+                "aco_id": pl.Series([], dtype=pl.Utf8),
+                "program": pl.Series([], dtype=pl.Utf8),
+                "file_date_parsed": pl.Series([], dtype=pl.Date),
+                "bene_mbi": pl.Series([], dtype=pl.Utf8),
+                "bene_date_of_death": pl.Series([], dtype=pl.Date),
+            }
+        ).lazy()
 
-        alr_data = pl.DataFrame({
-            "current_mbi": pl.Series([], dtype=pl.Utf8),
-            "aco_id": pl.Series([], dtype=pl.Utf8),
-            "program": pl.Series([], dtype=pl.Utf8),
-            "file_date_parsed": pl.Series([], dtype=pl.Date),
-            "bene_mbi": pl.Series([], dtype=pl.Utf8),
-            "bene_date_of_death": pl.Series([], dtype=pl.Date),
-        }).lazy()
+        ffs_data = pl.DataFrame(
+            {
+                "current_mbi": ["MBI_FFS"],
+                "has_ffs_service": [True],
+                "ffs_first_date": [date(2023, 6, 1)],
+                "ffs_claim_count": [10],
+            }
+        ).lazy()
 
-        ffs_data = pl.DataFrame({
-            "current_mbi": ["MBI_FFS"],
-            "has_ffs_service": [True],
-            "ffs_first_date": [date(2023, 6, 1)],
-            "ffs_claim_count": [10],
-        }).lazy()
-
-        demographics = pl.DataFrame({
-            "current_mbi": ["MBI_FFS", "MBI_OTHER"],
-            "birth_date": [date(1960, 3, 1), date(1955, 5, 1)],
-            "death_date": pl.Series([None, None], dtype=pl.Date),
-            "sex": ["2", "1"],
-            "race": ["2", "1"],
-            "ethnicity": [None, None],
-            "state": ["06", "36"],
-            "county": ["037", "061"],
-            "zip_code": ["90001", "10001"],
-        }).lazy()
+        demographics = pl.DataFrame(
+            {
+                "current_mbi": ["MBI_FFS", "MBI_OTHER"],
+                "birth_date": [date(1960, 3, 1), date(1955, 5, 1)],
+                "death_date": pl.Series([None, None], dtype=pl.Date),
+                "sex": ["2", "1"],
+                "race": ["2", "1"],
+                "ethnicity": [None, None],
+                "state": ["06", "36"],
+                "county": ["037", "061"],
+                "zip_code": ["90001", "10001"],
+            }
+        ).lazy()
 
         logger = MagicMock()
         result = _build_temporal_matrix_vectorized(
-            bar_data, alr_data,
-            date(2024, 1, 1), date(2024, 1, 31),
-            ffs_data, demographics, logger,
+            bar_data,
+            alr_data,
+            date(2024, 1, 1),
+            date(2024, 1, 31),
+            ffs_data,
+            demographics,
+            logger,
         )
 
         collected = result.collect()
@@ -456,87 +536,231 @@ class TestBuildTemporalMatrixVectorized:
 
     @pytest.mark.unit
     def test_death_date_exclusion(self):
+        bar_data = pl.DataFrame(
+            {
+                "current_mbi": ["MBI_DEAD"],
+                "aco_id": ["D0259"],
+                "program": ["REACH"],
+                "file_date_parsed": [date(2024, 1, 15)],
+                "bene_mbi": ["MBI_DEAD"],
+                "bene_date_of_death": [date(2023, 6, 1)],  # Died before 2024
+            }
+        ).lazy()
 
-        bar_data = pl.DataFrame({
-            "current_mbi": ["MBI_DEAD"],
-            "aco_id": ["D0259"],
-            "program": ["REACH"],
-            "file_date_parsed": [date(2024, 1, 15)],
-            "bene_mbi": ["MBI_DEAD"],
-            "bene_date_of_death": [date(2023, 6, 1)],  # Died before 2024
-        }).lazy()
+        alr_data = pl.DataFrame(
+            {
+                "current_mbi": pl.Series([], dtype=pl.Utf8),
+                "aco_id": pl.Series([], dtype=pl.Utf8),
+                "program": pl.Series([], dtype=pl.Utf8),
+                "file_date_parsed": pl.Series([], dtype=pl.Date),
+                "bene_mbi": pl.Series([], dtype=pl.Utf8),
+                "bene_date_of_death": pl.Series([], dtype=pl.Date),
+            }
+        ).lazy()
 
-        alr_data = pl.DataFrame({
-            "current_mbi": pl.Series([], dtype=pl.Utf8),
-            "aco_id": pl.Series([], dtype=pl.Utf8),
-            "program": pl.Series([], dtype=pl.Utf8),
-            "file_date_parsed": pl.Series([], dtype=pl.Date),
-            "bene_mbi": pl.Series([], dtype=pl.Utf8),
-            "bene_date_of_death": pl.Series([], dtype=pl.Date),
-        }).lazy()
-
-        demographics = pl.DataFrame({
-            "current_mbi": ["MBI_DEAD"],
-            "birth_date": [date(1940, 1, 1)],
-            "death_date": [date(2023, 6, 1)],
-            "sex": ["1"],
-            "race": ["1"],
-            "ethnicity": [None],
-            "state": ["36"],
-            "county": ["061"],
-            "zip_code": ["10001"],
-        }).lazy()
+        demographics = pl.DataFrame(
+            {
+                "current_mbi": ["MBI_DEAD"],
+                "birth_date": [date(1940, 1, 1)],
+                "death_date": [date(2023, 6, 1)],
+                "sex": ["1"],
+                "race": ["1"],
+                "ethnicity": [None],
+                "state": ["36"],
+                "county": ["061"],
+                "zip_code": ["10001"],
+            }
+        ).lazy()
 
         logger = MagicMock()
         result = _build_temporal_matrix_vectorized(
-            bar_data, alr_data,
-            date(2024, 1, 1), date(2024, 1, 31),
-            None, demographics, logger,
+            bar_data,
+            alr_data,
+            date(2024, 1, 1),
+            date(2024, 1, 31),
+            None,
+            demographics,
+            logger,
         )
 
         collected = result.collect()
         dead_row = collected.filter(pl.col("current_mbi") == "MBI_DEAD")
         # Beneficiary died before month, so should NOT be in REACH
         assert dead_row["ym_202401_reach"][0] is False
+        assert dead_row["ym_202401_ffs"][0] is False
 
     @pytest.mark.unit
-    def test_multi_month_range(self):
+    def test_historical_aco_beneficiary_without_recent_practice_claim_is_not_ffs(self):
+        bar_data = pl.DataFrame(
+            {
+                "current_mbi": ["MBI_OLD", "MBI_CURRENT"],
+                "aco_id": ["D0259", "D0259"],
+                "program": ["REACH", "REACH"],
+                "file_date_parsed": [date(2024, 1, 15), date(2026, 8, 15)],
+                "bene_mbi": ["MBI_OLD", "MBI_CURRENT"],
+                "bene_date_of_death": pl.Series([None, None], dtype=pl.Date),
+            }
+        ).lazy()
 
-        bar_data = pl.DataFrame({
-            "current_mbi": ["MBI1", "MBI1"],
-            "aco_id": ["D0259", "D0259"],
-            "program": ["REACH", "REACH"],
-            "file_date_parsed": [date(2024, 1, 15), date(2024, 2, 15)],
-            "bene_mbi": ["MBI1", "MBI1"],
-            "bene_date_of_death": pl.Series([None, None], dtype=pl.Date),
-        }).lazy()
+        alr_data = pl.DataFrame(
+            {
+                "current_mbi": pl.Series([], dtype=pl.Utf8),
+                "aco_id": pl.Series([], dtype=pl.Utf8),
+                "program": pl.Series([], dtype=pl.Utf8),
+                "file_date_parsed": pl.Series([], dtype=pl.Date),
+                "bene_mbi": pl.Series([], dtype=pl.Utf8),
+                "bene_date_of_death": pl.Series([], dtype=pl.Date),
+            }
+        ).lazy()
 
-        alr_data = pl.DataFrame({
-            "current_mbi": pl.Series([], dtype=pl.Utf8),
-            "aco_id": pl.Series([], dtype=pl.Utf8),
-            "program": pl.Series([], dtype=pl.Utf8),
-            "file_date_parsed": pl.Series([], dtype=pl.Date),
-            "bene_mbi": pl.Series([], dtype=pl.Utf8),
-            "bene_date_of_death": pl.Series([], dtype=pl.Date),
-        }).lazy()
-
-        demographics = pl.DataFrame({
-            "current_mbi": ["MBI1"],
-            "birth_date": [date(1950, 1, 1)],
-            "death_date": [None],
-            "sex": ["1"],
-            "race": ["1"],
-            "ethnicity": [None],
-            "state": ["36"],
-            "county": ["061"],
-            "zip_code": ["10001"],
-        }).lazy()
+        demographics = pl.DataFrame(
+            {
+                "current_mbi": ["MBI_OLD", "MBI_CURRENT"],
+                "birth_date": [date(1950, 1, 1), date(1951, 1, 1)],
+                "death_date": pl.Series([None, None], dtype=pl.Date),
+                "sex": ["1", "1"],
+                "race": ["1", "1"],
+                "ethnicity": [None, None],
+                "state": ["36", "36"],
+                "county": ["061", "061"],
+                "zip_code": ["10001", "10001"],
+            }
+        ).lazy()
 
         logger = MagicMock()
         result = _build_temporal_matrix_vectorized(
-            bar_data, alr_data,
-            date(2024, 1, 1), date(2024, 2, 28),
-            None, demographics, logger,
+            bar_data,
+            alr_data,
+            date(2024, 1, 1),
+            date(2026, 8, 31),
+            None,
+            demographics,
+            logger,
+        )
+
+        row = result.collect().filter(pl.col("current_mbi") == "MBI_OLD")
+        assert row["ym_202608_reach"][0] is False
+        assert row["ym_202608_mssp"][0] is False
+        assert row["ym_202608_ffs"][0] is False
+
+    @pytest.mark.unit
+    def test_ffs_requires_practice_claim_within_24_months(self):
+        bar_data = pl.DataFrame(
+            {
+                "current_mbi": ["MBI_ANCHOR"],
+                "aco_id": ["D0259"],
+                "program": ["REACH"],
+                "file_date_parsed": [date(2024, 1, 15)],
+                "bene_mbi": ["MBI_ANCHOR"],
+                "bene_date_of_death": pl.Series([None], dtype=pl.Date),
+            }
+        ).lazy()
+
+        alr_data = pl.DataFrame(
+            {
+                "current_mbi": pl.Series([], dtype=pl.Utf8),
+                "aco_id": pl.Series([], dtype=pl.Utf8),
+                "program": pl.Series([], dtype=pl.Utf8),
+                "file_date_parsed": pl.Series([], dtype=pl.Date),
+                "bene_mbi": pl.Series([], dtype=pl.Utf8),
+                "bene_date_of_death": pl.Series([], dtype=pl.Date),
+            }
+        ).lazy()
+
+        ffs_data = pl.DataFrame(
+            {
+                "current_mbi": ["MBI_RECENT", "MBI_STALE", "MBI_DEAD"],
+                "has_ffs_service": [True, True, True],
+                "ffs_first_date": [date(2023, 1, 1), date(2020, 1, 1), date(2023, 1, 1)],
+                "last_ffs_date": [date(2025, 8, 31), date(2024, 8, 30), date(2025, 8, 31)],
+                "ffs_claim_count": [2, 1, 2],
+            }
+        ).lazy()
+
+        demographics = pl.DataFrame(
+            {
+                "current_mbi": ["MBI_ANCHOR", "MBI_RECENT", "MBI_STALE", "MBI_DEAD"],
+                "birth_date": [
+                    date(1950, 1, 1),
+                    date(1955, 1, 1),
+                    date(1956, 1, 1),
+                    date(1957, 1, 1),
+                ],
+                "death_date": pl.Series([None, None, None, date(2025, 1, 1)], dtype=pl.Date),
+                "sex": ["1", "1", "1", "1"],
+                "race": ["1", "1", "1", "1"],
+                "ethnicity": [None, None, None, None],
+                "state": ["36", "36", "36", "36"],
+                "county": ["061", "061", "061", "061"],
+                "zip_code": ["10001", "10001", "10001", "10001"],
+            }
+        ).lazy()
+
+        logger = MagicMock()
+        result = _build_temporal_matrix_vectorized(
+            bar_data,
+            alr_data,
+            date(2024, 1, 1),
+            date(2026, 8, 31),
+            ffs_data,
+            demographics,
+            logger,
+        ).collect()
+
+        recent = result.filter(pl.col("current_mbi") == "MBI_RECENT")
+        stale = result.filter(pl.col("current_mbi") == "MBI_STALE")
+        dead = result.filter(pl.col("current_mbi") == "MBI_DEAD")
+        assert recent["ym_202608_ffs"][0] is True
+        assert stale["ym_202608_ffs"][0] is False
+        assert dead["ym_202608_ffs"][0] is False
+
+    @pytest.mark.unit
+    def test_multi_month_range(self):
+        bar_data = pl.DataFrame(
+            {
+                "current_mbi": ["MBI1", "MBI1"],
+                "aco_id": ["D0259", "D0259"],
+                "program": ["REACH", "REACH"],
+                "file_date_parsed": [date(2024, 1, 15), date(2024, 2, 15)],
+                "bene_mbi": ["MBI1", "MBI1"],
+                "bene_date_of_death": pl.Series([None, None], dtype=pl.Date),
+            }
+        ).lazy()
+
+        alr_data = pl.DataFrame(
+            {
+                "current_mbi": pl.Series([], dtype=pl.Utf8),
+                "aco_id": pl.Series([], dtype=pl.Utf8),
+                "program": pl.Series([], dtype=pl.Utf8),
+                "file_date_parsed": pl.Series([], dtype=pl.Date),
+                "bene_mbi": pl.Series([], dtype=pl.Utf8),
+                "bene_date_of_death": pl.Series([], dtype=pl.Date),
+            }
+        ).lazy()
+
+        demographics = pl.DataFrame(
+            {
+                "current_mbi": ["MBI1"],
+                "birth_date": [date(1950, 1, 1)],
+                "death_date": [None],
+                "sex": ["1"],
+                "race": ["1"],
+                "ethnicity": [None],
+                "state": ["36"],
+                "county": ["061"],
+                "zip_code": ["10001"],
+            }
+        ).lazy()
+
+        logger = MagicMock()
+        result = _build_temporal_matrix_vectorized(
+            bar_data,
+            alr_data,
+            date(2024, 1, 1),
+            date(2024, 2, 28),
+            None,
+            demographics,
+            logger,
         )
 
         collected = result.collect()
@@ -550,7 +774,6 @@ class TestCollectRequiredSources:
 
     @pytest.mark.unit
     def test_missing_source_raises(self):
-
         catalog = MagicMock()
         catalog.scan_table.return_value = None
         logger = MagicMock()
@@ -561,7 +784,6 @@ class TestCollectRequiredSources:
     @patch("acoharmony.config.get_config")
     @pytest.mark.unit
     def test_missing_crosswalk_raises(self, mock_config, tmp_path):
-
         catalog = MagicMock()
         catalog.scan_table.return_value = pl.DataFrame({"col": ["val"]}).lazy()
 
@@ -581,8 +803,6 @@ class TestApplyTransformIdempotency:
 
     @pytest.mark.unit
     def test_apply_transform_has_force_parameter(self):
-
-
         inner = getattr(apply_transform, "func", apply_transform)
         sig = inspect.signature(inner)
         assert "force" in sig.parameters
@@ -593,40 +813,55 @@ class TestApplyTransformCaching:
 
     def _make_sources(self):
         """Helper to build minimal sources dict used by _collect_required_sources."""
-        bar = pl.DataFrame({
-            "file_date": ["2024-01-15"],
-            "processed_at": ["2024-01-15T00:00:00"],
-            "bene_mbi": ["MBI1"],
-            "source_filename": ["BAR_202401.csv"],
-            "bene_date_of_death": pl.Series([None], dtype=pl.Date),
-        }).lazy()
-        alr = pl.DataFrame({
-            "file_date": ["2024-01-15"],
-            "processed_at": ["2024-01-15T00:00:00"],
-            "bene_mbi": ["MBI2"],
-            "source_filename": ["ALR_202401.csv"],
-        }).lazy()
-        ffs = pl.DataFrame({
-            "bene_mbi": ["MBI3"],
-            "ffs_first_date": [date(2024, 1, 1)],
-            "claim_count": [1],
-        }).lazy()
-        demo = pl.DataFrame({
-            "current_bene_mbi_id": ["MBI1"],
-            "bene_dob": [date(1950, 1, 1)],
-            "bene_death_dt": pl.Series([None], dtype=pl.Date),
-            "bene_sex_cd": ["1"],
-            "bene_race_cd": ["1"],
-            "bene_fips_state_cd": ["36"],
-            "bene_fips_cnty_cd": ["061"],
-            "bene_zip_cd": ["10001"],
-        }).lazy()
-        xwalk = pl.DataFrame({
-            "prvs_num": ["MBI1"],
-            "crnt_num": ["MBI1"],
-        }).lazy()
-        return {"bar": bar, "alr": alr, "ffs_first_dates": ffs,
-                "beneficiary_demographics": demo, "enterprise_crosswalk": xwalk}
+        bar = pl.DataFrame(
+            {
+                "file_date": ["2024-01-15"],
+                "processed_at": ["2024-01-15T00:00:00"],
+                "bene_mbi": ["MBI1"],
+                "source_filename": ["BAR_202401.csv"],
+                "bene_date_of_death": pl.Series([None], dtype=pl.Date),
+            }
+        ).lazy()
+        alr = pl.DataFrame(
+            {
+                "file_date": ["2024-01-15"],
+                "processed_at": ["2024-01-15T00:00:00"],
+                "bene_mbi": ["MBI2"],
+                "source_filename": ["ALR_202401.csv"],
+            }
+        ).lazy()
+        ffs = pl.DataFrame(
+            {
+                "bene_mbi": ["MBI3"],
+                "ffs_first_date": [date(2024, 1, 1)],
+                "claim_count": [1],
+            }
+        ).lazy()
+        demo = pl.DataFrame(
+            {
+                "current_bene_mbi_id": ["MBI1"],
+                "bene_dob": [date(1950, 1, 1)],
+                "bene_death_dt": pl.Series([None], dtype=pl.Date),
+                "bene_sex_cd": ["1"],
+                "bene_race_cd": ["1"],
+                "bene_fips_state_cd": ["36"],
+                "bene_fips_cnty_cd": ["061"],
+                "bene_zip_cd": ["10001"],
+            }
+        ).lazy()
+        xwalk = pl.DataFrame(
+            {
+                "prvs_num": ["MBI1"],
+                "crnt_num": ["MBI1"],
+            }
+        ).lazy()
+        return {
+            "bar": bar,
+            "alr": alr,
+            "ffs_first_dates": ffs,
+            "beneficiary_demographics": demo,
+            "enterprise_crosswalk": xwalk,
+        }
 
     @patch("acoharmony._transforms._aco_alignment_temporal._collect_required_sources")
     @patch("acoharmony._transforms._aco_alignment_temporal._determine_observable_range")
@@ -641,10 +876,12 @@ class TestApplyTransformCaching:
         catalog = MagicMock()
         catalog.get_table_metadata.return_value = {"exists": True}
 
-        existing = pl.DataFrame({
-            "observable_end": ["2024-01-15"],
-            "processed_at": ["2025-01-01T00:00:00"],
-        }).lazy()
+        existing = pl.DataFrame(
+            {
+                "observable_end": ["2024-01-15"],
+                "processed_at": ["2025-01-01T00:00:00"],
+            }
+        ).lazy()
         catalog.scan_table.return_value = existing
 
         # The sources' processed_at are before the matrix processed_at
@@ -668,24 +905,31 @@ class TestApplyTransformCaching:
         catalog = MagicMock()
         catalog.get_table_metadata.return_value = {"exists": True}
 
-        existing = pl.DataFrame({
-            "observable_end": ["2024-01-15"],
-            "processed_at": ["2025-01-01T00:00:00"],
-        }).lazy()
+        existing = pl.DataFrame(
+            {
+                "observable_end": ["2024-01-15"],
+                "processed_at": ["2025-01-01T00:00:00"],
+            }
+        ).lazy()
         catalog.scan_table.return_value = existing
 
         logger = MagicMock()
         inner = getattr(apply_transform, "func", apply_transform)
         # The rebuild path will fail trying to access config/storage, which is fine:
         # we just need to verify the caching logic was bypassed
-        with patch("acoharmony._transforms._aco_alignment_temporal._build_mbi_map", return_value={}), \
-             patch("acoharmony._transforms._aco_alignment_temporal._prepare_bar_data") as mock_bar, \
-             patch("acoharmony._transforms._aco_alignment_temporal._prepare_alr_data") as mock_alr, \
-             patch("acoharmony._transforms._aco_alignment_temporal._prepare_ffs_data") as mock_ffs, \
-             patch("acoharmony._transforms._aco_alignment_temporal._prepare_demographics") as mock_demo, \
-             patch("acoharmony._transforms._aco_alignment_temporal._build_temporal_matrix_vectorized") as mock_build, \
-             patch("acoharmony.config.get_config") as mock_config:
-
+        with (
+            patch("acoharmony._transforms._aco_alignment_temporal._build_mbi_map", return_value={}),
+            patch("acoharmony._transforms._aco_alignment_temporal._prepare_bar_data") as mock_bar,
+            patch("acoharmony._transforms._aco_alignment_temporal._prepare_alr_data") as mock_alr,
+            patch("acoharmony._transforms._aco_alignment_temporal._prepare_ffs_data") as mock_ffs,
+            patch(
+                "acoharmony._transforms._aco_alignment_temporal._prepare_demographics"
+            ) as mock_demo,
+            patch(
+                "acoharmony._transforms._aco_alignment_temporal._build_temporal_matrix_vectorized"
+            ) as mock_build,
+            patch("acoharmony.config.get_config") as mock_config,
+        ):
             mock_bar.return_value = pl.DataFrame({"current_mbi": ["MBI1"]}).lazy()
             mock_alr.return_value = pl.DataFrame({"current_mbi": ["MBI1"]}).lazy()
             mock_ffs.return_value = pl.DataFrame({"current_mbi": ["MBI1"]}).lazy()
@@ -719,29 +963,44 @@ class TestApplyTransformCaching:
     def test_rebuild_when_source_modified_after_matrix(self, mock_range, mock_sources):
         """When source data is modified after matrix was built, should rebuild."""
 
-        bar = pl.DataFrame({
-            "file_date": ["2024-01-15"],
-            "processed_at": ["2025-06-01T00:00:00"],  # Newer than matrix
-            "bene_mbi": ["MBI1"],
-            "source_filename": ["BAR.csv"],
-            "bene_date_of_death": pl.Series([None], dtype=pl.Date),
-        }).lazy()
-        alr = pl.DataFrame({
-            "file_date": ["2024-01-15"],
-            "processed_at": ["2025-06-01T00:00:00"],  # Newer than matrix
-            "bene_mbi": ["MBI2"],
-            "source_filename": ["ALR.csv"],
-        }).lazy()
+        bar = pl.DataFrame(
+            {
+                "file_date": ["2024-01-15"],
+                "processed_at": ["2025-06-01T00:00:00"],  # Newer than matrix
+                "bene_mbi": ["MBI1"],
+                "source_filename": ["BAR.csv"],
+                "bene_date_of_death": pl.Series([None], dtype=pl.Date),
+            }
+        ).lazy()
+        alr = pl.DataFrame(
+            {
+                "file_date": ["2024-01-15"],
+                "processed_at": ["2025-06-01T00:00:00"],  # Newer than matrix
+                "bene_mbi": ["MBI2"],
+                "source_filename": ["ALR.csv"],
+            }
+        ).lazy()
         sources = {
-            "bar": bar, "alr": alr,
-            "ffs_first_dates": pl.DataFrame({"bene_mbi": ["X"], "ffs_first_date": [date(2024, 1, 1)], "claim_count": [1]}).lazy(),
-            "beneficiary_demographics": pl.DataFrame({
-                "current_bene_mbi_id": ["MBI1"], "bene_dob": [date(1950, 1, 1)],
-                "bene_death_dt": pl.Series([None], dtype=pl.Date), "bene_sex_cd": ["1"],
-                "bene_race_cd": ["1"], "bene_fips_state_cd": ["36"],
-                "bene_fips_cnty_cd": ["061"], "bene_zip_cd": ["10001"],
-            }).lazy(),
-            "enterprise_crosswalk": pl.DataFrame({"prvs_num": ["MBI1"], "crnt_num": ["MBI1"]}).lazy(),
+            "bar": bar,
+            "alr": alr,
+            "ffs_first_dates": pl.DataFrame(
+                {"bene_mbi": ["X"], "ffs_first_date": [date(2024, 1, 1)], "claim_count": [1]}
+            ).lazy(),
+            "beneficiary_demographics": pl.DataFrame(
+                {
+                    "current_bene_mbi_id": ["MBI1"],
+                    "bene_dob": [date(1950, 1, 1)],
+                    "bene_death_dt": pl.Series([None], dtype=pl.Date),
+                    "bene_sex_cd": ["1"],
+                    "bene_race_cd": ["1"],
+                    "bene_fips_state_cd": ["36"],
+                    "bene_fips_cnty_cd": ["061"],
+                    "bene_zip_cd": ["10001"],
+                }
+            ).lazy(),
+            "enterprise_crosswalk": pl.DataFrame(
+                {"prvs_num": ["MBI1"], "crnt_num": ["MBI1"]}
+            ).lazy(),
         }
         mock_sources.return_value = sources
         mock_range.return_value = (date(2024, 1, 15), date(2024, 1, 15))
@@ -749,10 +1008,12 @@ class TestApplyTransformCaching:
         catalog = MagicMock()
         catalog.get_table_metadata.return_value = {"exists": True}
 
-        existing = pl.DataFrame({
-            "observable_end": ["2024-01-15"],
-            "processed_at": ["2025-01-01T00:00:00"],  # Older than source
-        }).lazy()
+        existing = pl.DataFrame(
+            {
+                "observable_end": ["2024-01-15"],
+                "processed_at": ["2025-01-01T00:00:00"],  # Older than source
+            }
+        ).lazy()
         catalog.scan_table.return_value = existing
 
         logger = MagicMock()
@@ -764,8 +1025,91 @@ class TestApplyTransformCaching:
         except Exception:
             pass
         rebuild_logged = any(
-            "Source data modified after matrix build" in str(c)
-            for c in logger.info.call_args_list
+            "Source data modified after matrix build" in str(c) for c in logger.info.call_args_list
+        )
+        assert rebuild_logged
+
+    @patch("acoharmony._transforms._aco_alignment_temporal._collect_required_sources")
+    @patch("acoharmony._transforms._aco_alignment_temporal._determine_observable_range")
+    @pytest.mark.unit
+    def test_rebuild_when_ffs_source_modified_after_matrix(
+        self, mock_range, mock_sources, tmp_path
+    ):
+        """Updated FFS service data should invalidate the cached temporal matrix."""
+        sources = self._make_sources()
+        sources["bar"] = pl.DataFrame(
+            {
+                "file_date": ["2024-01-15"],
+                "processed_at": ["2024-01-01T00:00:00"],
+            }
+        ).lazy()
+        sources["alr"] = pl.DataFrame(
+            {
+                "file_date": ["2024-01-15"],
+                "processed_at": ["2024-01-01T00:00:00"],
+            }
+        ).lazy()
+        sources["last_ffs_service"] = pl.DataFrame(
+            {
+                "bene_mbi": ["MBI3"],
+                "last_ffs_date": [date(2024, 1, 1)],
+                "last_ffs_tin": ["123456789"],
+                "last_ffs_npi": ["1234567890"],
+                "claim_count": [1],
+                "extracted_at": ["2025-06-01T00:00:00"],
+            }
+        ).lazy()
+        mock_sources.return_value = sources
+        mock_range.return_value = (date(2024, 1, 1), date(2024, 1, 15))
+
+        catalog = MagicMock()
+        catalog.get_table_metadata.return_value = {"exists": True}
+        catalog.scan_table.return_value = pl.DataFrame(
+            {
+                "observable_end": ["2024-01-15"],
+                "processed_at": ["2025-01-01T00:00:00"],
+            }
+        ).lazy()
+
+        logger = MagicMock()
+        inner = getattr(apply_transform, "func", apply_transform)
+        with (
+            patch(
+                "acoharmony._transforms._aco_alignment_temporal._build_mbi_map",
+                return_value={},
+            ),
+            patch("acoharmony._transforms._aco_alignment_temporal._prepare_bar_data") as mock_bar,
+            patch("acoharmony._transforms._aco_alignment_temporal._prepare_alr_data") as mock_alr,
+            patch("acoharmony._transforms._aco_alignment_temporal._prepare_ffs_data") as mock_ffs,
+            patch(
+                "acoharmony._transforms._aco_alignment_temporal._prepare_demographics"
+            ) as mock_demo,
+            patch(
+                "acoharmony._transforms._aco_alignment_temporal._build_temporal_matrix_vectorized"
+            ) as mock_build,
+            patch("acoharmony.config.get_config") as mock_config,
+        ):
+            mock_bar.return_value = pl.DataFrame({"current_mbi": ["MBI1"]}).lazy()
+            mock_alr.return_value = pl.DataFrame({"current_mbi": ["MBI1"]}).lazy()
+            mock_ffs.return_value = pl.DataFrame({"current_mbi": ["MBI1"]}).lazy()
+            mock_demo.return_value = pl.DataFrame({"current_mbi": ["MBI1"]}).lazy()
+            mock_build.return_value = pl.DataFrame({"current_mbi": ["MBI1"]}).lazy()
+
+            cfg = MagicMock()
+            cfg.storage.base_path = tmp_path
+            cfg.storage.silver_dir = "silver"
+            cfg.transform.compression = "zstd"
+            cfg.transform.row_group_size = 100
+            mock_config.return_value = cfg
+            (tmp_path / "silver").mkdir(parents=True, exist_ok=True)
+
+            try:
+                inner(None, {}, catalog, logger, force=False)
+            except Exception:
+                pass
+
+        rebuild_logged = any(
+            "Source data modified after matrix build" in str(c) for c in logger.info.call_args_list
         )
         assert rebuild_logged
 
@@ -789,9 +1133,7 @@ class TestApplyTransformCaching:
             inner(None, {}, catalog, logger, force=False)
         except Exception:
             pass  # Expected to fail during rebuild
-        rebuild_logged = any(
-            "needs rebuild" in str(c) for c in logger.info.call_args_list
-        )
+        rebuild_logged = any("needs rebuild" in str(c) for c in logger.info.call_args_list)
         assert rebuild_logged
 
     @patch("acoharmony._transforms._aco_alignment_temporal._collect_required_sources")
@@ -853,7 +1195,6 @@ class TestCollectRequiredSourcesSuccess:
     @patch("acoharmony.config.get_config")
     @pytest.mark.unit
     def test_all_sources_collected(self, mock_config, tmp_path):
-
         mock_cfg = MagicMock()
         mock_cfg.storage.base_path = tmp_path
         mock_cfg.storage.silver_dir = "silver"
@@ -878,10 +1219,16 @@ class TestCollectRequiredSourcesSuccess:
                 "is_current_as_of_file_date": [True, True],
             },
             schema={
-                "mbi": pl.String, "maps_to_mbi": pl.String,
-                "effective_date": pl.Date, "obsolete_date": pl.Date, "file_date": pl.Date,
-                "observation_type": pl.String, "source_file": pl.String, "hcmpi": pl.String,
-                "chain_id": pl.String, "hop_index": pl.Int64,
+                "mbi": pl.String,
+                "maps_to_mbi": pl.String,
+                "effective_date": pl.Date,
+                "obsolete_date": pl.Date,
+                "file_date": pl.Date,
+                "observation_type": pl.String,
+                "source_file": pl.String,
+                "hcmpi": pl.String,
+                "chain_id": pl.String,
+                "hop_index": pl.Int64,
                 "is_current_as_of_file_date": pl.Boolean,
             },
         ).write_parquet(silver / "identity_timeline.parquet")
@@ -894,9 +1241,10 @@ class TestCollectRequiredSourcesSuccess:
         assert "bar" in sources
         assert "alr" in sources
         assert "ffs_first_dates" in sources
+        assert "last_ffs_service" in sources
         assert "beneficiary_demographics" in sources
         assert "enterprise_crosswalk" in sources
-        assert len(sources) == 5
+        assert len(sources) == 6
 
 
 class TestBuildTemporalMatrixEdgeCases:
@@ -907,38 +1255,52 @@ class TestBuildTemporalMatrixEdgeCases:
         """When no data exists for a given month, all columns should be False."""
 
         # Bar data is from Feb, but we ask for Jan too
-        bar_data = pl.DataFrame({
-            "current_mbi": ["MBI1"],
-            "aco_id": ["D0259"],
-            "program": ["REACH"],
-            "file_date_parsed": [date(2024, 2, 15)],
-            "bene_mbi": ["MBI1"],
-            "bene_date_of_death": pl.Series([None], dtype=pl.Date),
-        }).lazy()
+        bar_data = pl.DataFrame(
+            {
+                "current_mbi": ["MBI1"],
+                "aco_id": ["D0259"],
+                "program": ["REACH"],
+                "file_date_parsed": [date(2024, 2, 15)],
+                "bene_mbi": ["MBI1"],
+                "bene_date_of_death": pl.Series([None], dtype=pl.Date),
+            }
+        ).lazy()
 
-        alr_data = pl.DataFrame({
-            "current_mbi": pl.Series([], dtype=pl.Utf8),
-            "aco_id": pl.Series([], dtype=pl.Utf8),
-            "program": pl.Series([], dtype=pl.Utf8),
-            "file_date_parsed": pl.Series([], dtype=pl.Date),
-            "bene_mbi": pl.Series([], dtype=pl.Utf8),
-            "bene_date_of_death": pl.Series([], dtype=pl.Date),
-        }).lazy()
+        alr_data = pl.DataFrame(
+            {
+                "current_mbi": pl.Series([], dtype=pl.Utf8),
+                "aco_id": pl.Series([], dtype=pl.Utf8),
+                "program": pl.Series([], dtype=pl.Utf8),
+                "file_date_parsed": pl.Series([], dtype=pl.Date),
+                "bene_mbi": pl.Series([], dtype=pl.Utf8),
+                "bene_date_of_death": pl.Series([], dtype=pl.Date),
+            }
+        ).lazy()
 
-        demographics = pl.DataFrame({
-            "current_mbi": ["MBI1"],
-            "birth_date": [date(1950, 1, 1)],
-            "death_date": pl.Series([None], dtype=pl.Date),
-            "sex": ["1"], "race": ["1"], "ethnicity": [None],
-            "state": ["36"], "county": ["061"], "zip_code": ["10001"],
-        }).lazy()
+        demographics = pl.DataFrame(
+            {
+                "current_mbi": ["MBI1"],
+                "birth_date": [date(1950, 1, 1)],
+                "death_date": pl.Series([None], dtype=pl.Date),
+                "sex": ["1"],
+                "race": ["1"],
+                "ethnicity": [None],
+                "state": ["36"],
+                "county": ["061"],
+                "zip_code": ["10001"],
+            }
+        ).lazy()
 
         logger = MagicMock()
         # Start date is Jan but bar data starts Feb - Jan should have all False
         result = _build_temporal_matrix_vectorized(
-            bar_data, alr_data,
-            date(2024, 1, 1), date(2024, 2, 28),
-            None, demographics, logger,
+            bar_data,
+            alr_data,
+            date(2024, 1, 1),
+            date(2024, 2, 28),
+            None,
+            demographics,
+            logger,
         )
         collected = result.collect()
         # Jan should be all false since no data as of Jan (empty path sets all to False)
@@ -953,37 +1315,51 @@ class TestBuildTemporalMatrixEdgeCases:
     def test_mssp_only_no_reach(self):
         """MSSP-only beneficiary with no REACH data."""
 
-        bar_data = pl.DataFrame({
-            "current_mbi": pl.Series([], dtype=pl.Utf8),
-            "aco_id": pl.Series([], dtype=pl.Utf8),
-            "program": pl.Series([], dtype=pl.Utf8),
-            "file_date_parsed": pl.Series([], dtype=pl.Date),
-            "bene_mbi": pl.Series([], dtype=pl.Utf8),
-            "bene_date_of_death": pl.Series([], dtype=pl.Date),
-        }).lazy()
+        bar_data = pl.DataFrame(
+            {
+                "current_mbi": pl.Series([], dtype=pl.Utf8),
+                "aco_id": pl.Series([], dtype=pl.Utf8),
+                "program": pl.Series([], dtype=pl.Utf8),
+                "file_date_parsed": pl.Series([], dtype=pl.Date),
+                "bene_mbi": pl.Series([], dtype=pl.Utf8),
+                "bene_date_of_death": pl.Series([], dtype=pl.Date),
+            }
+        ).lazy()
 
-        alr_data = pl.DataFrame({
-            "current_mbi": ["MBI_MSSP"],
-            "aco_id": ["A1234"],
-            "program": ["MSSP"],
-            "file_date_parsed": [date(2024, 3, 1)],
-            "bene_mbi": ["MBI_MSSP"],
-            "bene_date_of_death": pl.Series([None], dtype=pl.Date),
-        }).lazy()
+        alr_data = pl.DataFrame(
+            {
+                "current_mbi": ["MBI_MSSP"],
+                "aco_id": ["A1234"],
+                "program": ["MSSP"],
+                "file_date_parsed": [date(2024, 3, 1)],
+                "bene_mbi": ["MBI_MSSP"],
+                "bene_date_of_death": pl.Series([None], dtype=pl.Date),
+            }
+        ).lazy()
 
-        demographics = pl.DataFrame({
-            "current_mbi": ["MBI_MSSP"],
-            "birth_date": [date(1955, 6, 1)],
-            "death_date": pl.Series([None], dtype=pl.Date),
-            "sex": ["2"], "race": ["2"], "ethnicity": [None],
-            "state": ["06"], "county": ["037"], "zip_code": ["90001"],
-        }).lazy()
+        demographics = pl.DataFrame(
+            {
+                "current_mbi": ["MBI_MSSP"],
+                "birth_date": [date(1955, 6, 1)],
+                "death_date": pl.Series([None], dtype=pl.Date),
+                "sex": ["2"],
+                "race": ["2"],
+                "ethnicity": [None],
+                "state": ["06"],
+                "county": ["037"],
+                "zip_code": ["90001"],
+            }
+        ).lazy()
 
         logger = MagicMock()
         result = _build_temporal_matrix_vectorized(
-            bar_data, alr_data,
-            date(2024, 3, 1), date(2024, 3, 31),
-            None, demographics, logger,
+            bar_data,
+            alr_data,
+            date(2024, 3, 1),
+            date(2024, 3, 31),
+            None,
+            demographics,
+            logger,
         )
         collected = result.collect()
         assert collected["ym_202403_mssp"][0] is True
@@ -994,37 +1370,51 @@ class TestBuildTemporalMatrixEdgeCases:
     def test_december_month_boundary(self):
         """Test that December to January boundary is handled correctly."""
 
-        bar_data = pl.DataFrame({
-            "current_mbi": ["MBI1"],
-            "aco_id": ["D0259"],
-            "program": ["REACH"],
-            "file_date_parsed": [date(2024, 12, 15)],
-            "bene_mbi": ["MBI1"],
-            "bene_date_of_death": pl.Series([None], dtype=pl.Date),
-        }).lazy()
+        bar_data = pl.DataFrame(
+            {
+                "current_mbi": ["MBI1"],
+                "aco_id": ["D0259"],
+                "program": ["REACH"],
+                "file_date_parsed": [date(2024, 12, 15)],
+                "bene_mbi": ["MBI1"],
+                "bene_date_of_death": pl.Series([None], dtype=pl.Date),
+            }
+        ).lazy()
 
-        alr_data = pl.DataFrame({
-            "current_mbi": pl.Series([], dtype=pl.Utf8),
-            "aco_id": pl.Series([], dtype=pl.Utf8),
-            "program": pl.Series([], dtype=pl.Utf8),
-            "file_date_parsed": pl.Series([], dtype=pl.Date),
-            "bene_mbi": pl.Series([], dtype=pl.Utf8),
-            "bene_date_of_death": pl.Series([], dtype=pl.Date),
-        }).lazy()
+        alr_data = pl.DataFrame(
+            {
+                "current_mbi": pl.Series([], dtype=pl.Utf8),
+                "aco_id": pl.Series([], dtype=pl.Utf8),
+                "program": pl.Series([], dtype=pl.Utf8),
+                "file_date_parsed": pl.Series([], dtype=pl.Date),
+                "bene_mbi": pl.Series([], dtype=pl.Utf8),
+                "bene_date_of_death": pl.Series([], dtype=pl.Date),
+            }
+        ).lazy()
 
-        demographics = pl.DataFrame({
-            "current_mbi": ["MBI1"],
-            "birth_date": [date(1950, 1, 1)],
-            "death_date": pl.Series([None], dtype=pl.Date),
-            "sex": ["1"], "race": ["1"], "ethnicity": [None],
-            "state": ["36"], "county": ["061"], "zip_code": ["10001"],
-        }).lazy()
+        demographics = pl.DataFrame(
+            {
+                "current_mbi": ["MBI1"],
+                "birth_date": [date(1950, 1, 1)],
+                "death_date": pl.Series([None], dtype=pl.Date),
+                "sex": ["1"],
+                "race": ["1"],
+                "ethnicity": [None],
+                "state": ["36"],
+                "county": ["061"],
+                "zip_code": ["10001"],
+            }
+        ).lazy()
 
         logger = MagicMock()
         result = _build_temporal_matrix_vectorized(
-            bar_data, alr_data,
-            date(2024, 12, 1), date(2024, 12, 31),
-            None, demographics, logger,
+            bar_data,
+            alr_data,
+            date(2024, 12, 1),
+            date(2024, 12, 31),
+            None,
+            demographics,
+            logger,
         )
         collected = result.collect()
         assert "ym_202412_reach" in collected.columns
@@ -1034,37 +1424,51 @@ class TestBuildTemporalMatrixEdgeCases:
     def test_summary_columns_calculated(self):
         """Test that summary columns (ever_reach, continuous_enrollment, etc.) are computed."""
 
-        bar_data = pl.DataFrame({
-            "current_mbi": ["MBI1", "MBI1"],
-            "aco_id": ["D0259", "D0259"],
-            "program": ["REACH", "REACH"],
-            "file_date_parsed": [date(2024, 1, 15), date(2024, 2, 15)],
-            "bene_mbi": ["MBI1", "MBI1"],
-            "bene_date_of_death": pl.Series([None, None], dtype=pl.Date),
-        }).lazy()
+        bar_data = pl.DataFrame(
+            {
+                "current_mbi": ["MBI1", "MBI1"],
+                "aco_id": ["D0259", "D0259"],
+                "program": ["REACH", "REACH"],
+                "file_date_parsed": [date(2024, 1, 15), date(2024, 2, 15)],
+                "bene_mbi": ["MBI1", "MBI1"],
+                "bene_date_of_death": pl.Series([None, None], dtype=pl.Date),
+            }
+        ).lazy()
 
-        alr_data = pl.DataFrame({
-            "current_mbi": pl.Series([], dtype=pl.Utf8),
-            "aco_id": pl.Series([], dtype=pl.Utf8),
-            "program": pl.Series([], dtype=pl.Utf8),
-            "file_date_parsed": pl.Series([], dtype=pl.Date),
-            "bene_mbi": pl.Series([], dtype=pl.Utf8),
-            "bene_date_of_death": pl.Series([], dtype=pl.Date),
-        }).lazy()
+        alr_data = pl.DataFrame(
+            {
+                "current_mbi": pl.Series([], dtype=pl.Utf8),
+                "aco_id": pl.Series([], dtype=pl.Utf8),
+                "program": pl.Series([], dtype=pl.Utf8),
+                "file_date_parsed": pl.Series([], dtype=pl.Date),
+                "bene_mbi": pl.Series([], dtype=pl.Utf8),
+                "bene_date_of_death": pl.Series([], dtype=pl.Date),
+            }
+        ).lazy()
 
-        demographics = pl.DataFrame({
-            "current_mbi": ["MBI1"],
-            "birth_date": [date(1950, 1, 1)],
-            "death_date": pl.Series([None], dtype=pl.Date),
-            "sex": ["1"], "race": ["1"], "ethnicity": [None],
-            "state": ["36"], "county": ["061"], "zip_code": ["10001"],
-        }).lazy()
+        demographics = pl.DataFrame(
+            {
+                "current_mbi": ["MBI1"],
+                "birth_date": [date(1950, 1, 1)],
+                "death_date": pl.Series([None], dtype=pl.Date),
+                "sex": ["1"],
+                "race": ["1"],
+                "ethnicity": [None],
+                "state": ["36"],
+                "county": ["061"],
+                "zip_code": ["10001"],
+            }
+        ).lazy()
 
         logger = MagicMock()
         result = _build_temporal_matrix_vectorized(
-            bar_data, alr_data,
-            date(2024, 1, 1), date(2024, 2, 28),
-            None, demographics, logger,
+            bar_data,
+            alr_data,
+            date(2024, 1, 1),
+            date(2024, 2, 28),
+            None,
+            demographics,
+            logger,
         )
         collected = result.collect()
         assert collected["ever_reach"][0] is True
@@ -1086,29 +1490,57 @@ class TestBuildTemporalMatrixEdgeCases:
         catalog = MagicMock()
         catalog.get_table_metadata.return_value = {"exists": True}
 
-        existing = pl.DataFrame({
-            "observable_end": [datetime(2024, 1, 15)],
-            "processed_at": [datetime(2025, 1, 1)],
-        }).lazy()
+        existing = pl.DataFrame(
+            {
+                "observable_end": [datetime(2024, 1, 15)],
+                "processed_at": [datetime(2025, 1, 1)],
+            }
+        ).lazy()
         catalog.scan_table.return_value = existing
 
         sources = {
-            "bar": pl.DataFrame({"file_date": ["2024-01-15"], "processed_at": [datetime(2024, 1, 1)]}).lazy(),
-            "alr": pl.DataFrame({"file_date": ["2024-01-15"], "processed_at": [datetime(2024, 1, 1)]}).lazy(),
+            "bar": pl.DataFrame(
+                {"file_date": ["2024-01-15"], "processed_at": [datetime(2024, 1, 1)]}
+            ).lazy(),
+            "alr": pl.DataFrame(
+                {"file_date": ["2024-01-15"], "processed_at": [datetime(2024, 1, 1)]}
+            ).lazy(),
         }
 
-        with patch("acoharmony._transforms._aco_alignment_temporal._collect_required_sources", return_value={**sources,
-            "ffs_first_dates": pl.DataFrame({"bene_mbi": ["X"], "ffs_first_date": [date(2024, 1, 1)], "claim_count": [1]}).lazy(),
-            "beneficiary_demographics": pl.DataFrame({
-                "current_bene_mbi_id": ["MBI1"], "bene_dob": [date(1950, 1, 1)],
-                "bene_death_dt": pl.Series([None], dtype=pl.Date), "bene_sex_cd": ["1"],
-                "bene_race_cd": ["1"], "bene_fips_state_cd": ["36"],
-                "bene_fips_cnty_cd": ["061"], "bene_zip_cd": ["10001"],
-            }).lazy(),
-            "enterprise_crosswalk": pl.DataFrame({"prvs_num": ["MBI1"], "crnt_num": ["MBI1"]}).lazy(),
-        }), \
-            patch("acoharmony._transforms._aco_alignment_temporal._determine_observable_range",
-                  return_value=(date(2024, 1, 1), date(2024, 1, 15))):
+        with (
+            patch(
+                "acoharmony._transforms._aco_alignment_temporal._collect_required_sources",
+                return_value={
+                    **sources,
+                    "ffs_first_dates": pl.DataFrame(
+                        {
+                            "bene_mbi": ["X"],
+                            "ffs_first_date": [date(2024, 1, 1)],
+                            "claim_count": [1],
+                        }
+                    ).lazy(),
+                    "beneficiary_demographics": pl.DataFrame(
+                        {
+                            "current_bene_mbi_id": ["MBI1"],
+                            "bene_dob": [date(1950, 1, 1)],
+                            "bene_death_dt": pl.Series([None], dtype=pl.Date),
+                            "bene_sex_cd": ["1"],
+                            "bene_race_cd": ["1"],
+                            "bene_fips_state_cd": ["36"],
+                            "bene_fips_cnty_cd": ["061"],
+                            "bene_zip_cd": ["10001"],
+                        }
+                    ).lazy(),
+                    "enterprise_crosswalk": pl.DataFrame(
+                        {"prvs_num": ["MBI1"], "crnt_num": ["MBI1"]}
+                    ).lazy(),
+                },
+            ),
+            patch(
+                "acoharmony._transforms._aco_alignment_temporal._determine_observable_range",
+                return_value=(date(2024, 1, 1), date(2024, 1, 15)),
+            ),
+        ):
             logger = MagicMock()
             result = inner(None, {}, catalog, logger, force=False)
             # With datetime observable_end and matching dates, should return cached
@@ -1134,26 +1566,42 @@ class TestAcoAlignmentTemporalGaps:
 
         # Use a plain date object for observable_end so it falls through both
         # isinstance(str) and isinstance(datetime) checks into the else branch.
-        existing = pl.DataFrame({
-            "observable_end": pl.Series([date(2024, 6, 15)], dtype=pl.Date),
-            "processed_at": [datetime(2025, 6, 1)],
-        }).lazy()
+        existing = pl.DataFrame(
+            {
+                "observable_end": pl.Series([date(2024, 6, 15)], dtype=pl.Date),
+                "processed_at": [datetime(2025, 6, 1)],
+            }
+        ).lazy()
         catalog.scan_table.return_value = existing
 
         sources = {
-            "bar": pl.DataFrame({"file_date": ["2024-01-15"], "processed_at": [datetime(2024, 1, 1)]}).lazy(),
-            "alr": pl.DataFrame({"file_date": ["2024-01-15"], "processed_at": [datetime(2024, 1, 1)]}).lazy(),
+            "bar": pl.DataFrame(
+                {"file_date": ["2024-01-15"], "processed_at": [datetime(2024, 1, 1)]}
+            ).lazy(),
+            "alr": pl.DataFrame(
+                {"file_date": ["2024-01-15"], "processed_at": [datetime(2024, 1, 1)]}
+            ).lazy(),
         }
         mock_sources.return_value = {
             **sources,
-            "ffs_first_dates": pl.DataFrame({"bene_mbi": ["X"], "ffs_first_date": [date(2024, 1, 1)], "claim_count": [1]}).lazy(),
-            "beneficiary_demographics": pl.DataFrame({
-                "current_bene_mbi_id": ["MBI1"], "bene_dob": [date(1950, 1, 1)],
-                "bene_death_dt": pl.Series([None], dtype=pl.Date), "bene_sex_cd": ["1"],
-                "bene_race_cd": ["1"], "bene_fips_state_cd": ["36"],
-                "bene_fips_cnty_cd": ["061"], "bene_zip_cd": ["10001"],
-            }).lazy(),
-            "enterprise_crosswalk": pl.DataFrame({"prvs_num": ["MBI1"], "crnt_num": ["MBI1"]}).lazy(),
+            "ffs_first_dates": pl.DataFrame(
+                {"bene_mbi": ["X"], "ffs_first_date": [date(2024, 1, 1)], "claim_count": [1]}
+            ).lazy(),
+            "beneficiary_demographics": pl.DataFrame(
+                {
+                    "current_bene_mbi_id": ["MBI1"],
+                    "bene_dob": [date(1950, 1, 1)],
+                    "bene_death_dt": pl.Series([None], dtype=pl.Date),
+                    "bene_sex_cd": ["1"],
+                    "bene_race_cd": ["1"],
+                    "bene_fips_state_cd": ["36"],
+                    "bene_fips_cnty_cd": ["061"],
+                    "bene_zip_cd": ["10001"],
+                }
+            ).lazy(),
+            "enterprise_crosswalk": pl.DataFrame(
+                {"prvs_num": ["MBI1"], "crnt_num": ["MBI1"]}
+            ).lazy(),
         }
         # observable_end <= existing_end so we go into the source-modified check
         mock_range.return_value = (date(2024, 1, 1), date(2024, 6, 15))
@@ -1173,27 +1621,43 @@ class TestAcoAlignmentTemporalGaps:
         catalog = MagicMock()
         catalog.get_table_metadata.return_value = {"exists": True}
 
-        existing = pl.DataFrame({
-            "observable_end": ["2024-06-15"],
-            "processed_at": [datetime(2025, 6, 1)],
-        }).lazy()
+        existing = pl.DataFrame(
+            {
+                "observable_end": ["2024-06-15"],
+                "processed_at": [datetime(2025, 6, 1)],
+            }
+        ).lazy()
         catalog.scan_table.return_value = existing
 
         # Both sources have None as processed_at to trigger `to_datetime(None)`
         sources = {
-            "bar": pl.DataFrame({"file_date": ["2024-01-15"], "processed_at": pl.Series([None], dtype=pl.Datetime)}).lazy(),
-            "alr": pl.DataFrame({"file_date": ["2024-01-15"], "processed_at": pl.Series([None], dtype=pl.Datetime)}).lazy(),
+            "bar": pl.DataFrame(
+                {"file_date": ["2024-01-15"], "processed_at": pl.Series([None], dtype=pl.Datetime)}
+            ).lazy(),
+            "alr": pl.DataFrame(
+                {"file_date": ["2024-01-15"], "processed_at": pl.Series([None], dtype=pl.Datetime)}
+            ).lazy(),
         }
         mock_sources.return_value = {
             **sources,
-            "ffs_first_dates": pl.DataFrame({"bene_mbi": ["X"], "ffs_first_date": [date(2024, 1, 1)], "claim_count": [1]}).lazy(),
-            "beneficiary_demographics": pl.DataFrame({
-                "current_bene_mbi_id": ["MBI1"], "bene_dob": [date(1950, 1, 1)],
-                "bene_death_dt": pl.Series([None], dtype=pl.Date), "bene_sex_cd": ["1"],
-                "bene_race_cd": ["1"], "bene_fips_state_cd": ["36"],
-                "bene_fips_cnty_cd": ["061"], "bene_zip_cd": ["10001"],
-            }).lazy(),
-            "enterprise_crosswalk": pl.DataFrame({"prvs_num": ["MBI1"], "crnt_num": ["MBI1"]}).lazy(),
+            "ffs_first_dates": pl.DataFrame(
+                {"bene_mbi": ["X"], "ffs_first_date": [date(2024, 1, 1)], "claim_count": [1]}
+            ).lazy(),
+            "beneficiary_demographics": pl.DataFrame(
+                {
+                    "current_bene_mbi_id": ["MBI1"],
+                    "bene_dob": [date(1950, 1, 1)],
+                    "bene_death_dt": pl.Series([None], dtype=pl.Date),
+                    "bene_sex_cd": ["1"],
+                    "bene_race_cd": ["1"],
+                    "bene_fips_state_cd": ["36"],
+                    "bene_fips_cnty_cd": ["061"],
+                    "bene_zip_cd": ["10001"],
+                }
+            ).lazy(),
+            "enterprise_crosswalk": pl.DataFrame(
+                {"prvs_num": ["MBI1"], "crnt_num": ["MBI1"]}
+            ).lazy(),
         }
         # observable_end <= existing_end so we proceed to source-modified check
         mock_range.return_value = (date(2024, 1, 1), date(2024, 6, 15))
@@ -1207,45 +1671,61 @@ class TestAcoAlignmentTemporalGaps:
     @pytest.mark.unit
     def test_ffs_data_with_null_first_date_skipped(self):
         """Branch 453->452: ffs row with None ffs_first_date is skipped in dict build."""
-        bar_data = pl.DataFrame({
-            "current_mbi": ["MBI1"],
-            "aco_id": ["D0259"],
-            "program": ["REACH"],
-            "file_date_parsed": [date(2024, 1, 15)],
-            "bene_mbi": ["MBI1"],
-            "bene_date_of_death": pl.Series([None], dtype=pl.Date),
-        }).lazy()
+        bar_data = pl.DataFrame(
+            {
+                "current_mbi": ["MBI1"],
+                "aco_id": ["D0259"],
+                "program": ["REACH"],
+                "file_date_parsed": [date(2024, 1, 15)],
+                "bene_mbi": ["MBI1"],
+                "bene_date_of_death": pl.Series([None], dtype=pl.Date),
+            }
+        ).lazy()
 
-        alr_data = pl.DataFrame({
-            "current_mbi": pl.Series([], dtype=pl.Utf8),
-            "aco_id": pl.Series([], dtype=pl.Utf8),
-            "program": pl.Series([], dtype=pl.Utf8),
-            "file_date_parsed": pl.Series([], dtype=pl.Date),
-            "bene_mbi": pl.Series([], dtype=pl.Utf8),
-            "bene_date_of_death": pl.Series([], dtype=pl.Date),
-        }).lazy()
+        alr_data = pl.DataFrame(
+            {
+                "current_mbi": pl.Series([], dtype=pl.Utf8),
+                "aco_id": pl.Series([], dtype=pl.Utf8),
+                "program": pl.Series([], dtype=pl.Utf8),
+                "file_date_parsed": pl.Series([], dtype=pl.Date),
+                "bene_mbi": pl.Series([], dtype=pl.Utf8),
+                "bene_date_of_death": pl.Series([], dtype=pl.Date),
+            }
+        ).lazy()
 
         # ffs_data has a row with None ffs_first_date which should be skipped
-        ffs_data = pl.DataFrame({
-            "current_mbi": ["MBI_FFS_NULL"],
-            "has_ffs_service": [True],
-            "ffs_first_date": pl.Series([None], dtype=pl.Date),
-            "ffs_claim_count": [0],
-        }).lazy()
+        ffs_data = pl.DataFrame(
+            {
+                "current_mbi": ["MBI_FFS_NULL"],
+                "has_ffs_service": [True],
+                "ffs_first_date": pl.Series([None], dtype=pl.Date),
+                "ffs_claim_count": [0],
+            }
+        ).lazy()
 
-        demographics = pl.DataFrame({
-            "current_mbi": ["MBI1", "MBI_FFS_NULL"],
-            "birth_date": [date(1950, 1, 1), date(1955, 1, 1)],
-            "death_date": pl.Series([None, None], dtype=pl.Date),
-            "sex": ["1", "1"], "race": ["1", "1"], "ethnicity": [None, None],
-            "state": ["36", "36"], "county": ["061", "061"], "zip_code": ["10001", "10001"],
-        }).lazy()
+        demographics = pl.DataFrame(
+            {
+                "current_mbi": ["MBI1", "MBI_FFS_NULL"],
+                "birth_date": [date(1950, 1, 1), date(1955, 1, 1)],
+                "death_date": pl.Series([None, None], dtype=pl.Date),
+                "sex": ["1", "1"],
+                "race": ["1", "1"],
+                "ethnicity": [None, None],
+                "state": ["36", "36"],
+                "county": ["061", "061"],
+                "zip_code": ["10001", "10001"],
+            }
+        ).lazy()
 
         logger = MagicMock()
         result = _build_temporal_matrix_vectorized(
-            bar_data, alr_data,
-            date(2024, 1, 1), date(2024, 1, 31),
-            ffs_data, demographics, logger,
+            bar_data,
+            alr_data,
+            date(2024, 1, 1),
+            date(2024, 1, 31),
+            ffs_data,
+            demographics,
+            logger,
         )
         collected = result.collect()
         # The FFS-null MBI should still be in the result (from ffs_data's unique MBIs)
@@ -1260,39 +1740,53 @@ class TestAcoAlignmentTemporalGaps:
         """Branch 470->471: end_date.day > 1 and its month not yet in year_months."""
         # Use start_date > end_date so the while loop produces an empty list,
         # but end_date.day > 1 triggers the safety-net append.
-        bar_data = pl.DataFrame({
-            "current_mbi": ["MBI1"],
-            "aco_id": ["D0259"],
-            "program": ["REACH"],
-            "file_date_parsed": [date(2024, 2, 15)],
-            "bene_mbi": ["MBI1"],
-            "bene_date_of_death": pl.Series([None], dtype=pl.Date),
-        }).lazy()
+        bar_data = pl.DataFrame(
+            {
+                "current_mbi": ["MBI1"],
+                "aco_id": ["D0259"],
+                "program": ["REACH"],
+                "file_date_parsed": [date(2024, 2, 15)],
+                "bene_mbi": ["MBI1"],
+                "bene_date_of_death": pl.Series([None], dtype=pl.Date),
+            }
+        ).lazy()
 
-        alr_data = pl.DataFrame({
-            "current_mbi": pl.Series([], dtype=pl.Utf8),
-            "aco_id": pl.Series([], dtype=pl.Utf8),
-            "program": pl.Series([], dtype=pl.Utf8),
-            "file_date_parsed": pl.Series([], dtype=pl.Date),
-            "bene_mbi": pl.Series([], dtype=pl.Utf8),
-            "bene_date_of_death": pl.Series([], dtype=pl.Date),
-        }).lazy()
+        alr_data = pl.DataFrame(
+            {
+                "current_mbi": pl.Series([], dtype=pl.Utf8),
+                "aco_id": pl.Series([], dtype=pl.Utf8),
+                "program": pl.Series([], dtype=pl.Utf8),
+                "file_date_parsed": pl.Series([], dtype=pl.Date),
+                "bene_mbi": pl.Series([], dtype=pl.Utf8),
+                "bene_date_of_death": pl.Series([], dtype=pl.Date),
+            }
+        ).lazy()
 
-        demographics = pl.DataFrame({
-            "current_mbi": ["MBI1"],
-            "birth_date": [date(1950, 1, 1)],
-            "death_date": pl.Series([None], dtype=pl.Date),
-            "sex": ["1"], "race": ["1"], "ethnicity": [None],
-            "state": ["36"], "county": ["061"], "zip_code": ["10001"],
-        }).lazy()
+        demographics = pl.DataFrame(
+            {
+                "current_mbi": ["MBI1"],
+                "birth_date": [date(1950, 1, 1)],
+                "death_date": pl.Series([None], dtype=pl.Date),
+                "sex": ["1"],
+                "race": ["1"],
+                "ethnicity": [None],
+                "state": ["36"],
+                "county": ["061"],
+                "zip_code": ["10001"],
+            }
+        ).lazy()
 
         logger = MagicMock()
         # start_date (March) > end_date (Feb 15) — while loop empty,
         # but end_date.day=15 > 1 and "202402" not in [], so it gets appended.
         result = _build_temporal_matrix_vectorized(
-            bar_data, alr_data,
-            date(2024, 3, 1), date(2024, 2, 15),
-            None, demographics, logger,
+            bar_data,
+            alr_data,
+            date(2024, 3, 1),
+            date(2024, 2, 15),
+            None,
+            demographics,
+            logger,
         )
         collected = result.collect()
         assert "ym_202402_reach" in collected.columns
@@ -1302,37 +1796,51 @@ class TestAcoAlignmentTemporalGaps:
         """Branch 548->549: when reach_mbis is non-empty, MSSP candidates are filtered."""
         # MBI1 is in both REACH and MSSP; MBI2 is MSSP only.
         # REACH should take precedence for MBI1; MBI2 stays MSSP.
-        bar_data = pl.DataFrame({
-            "current_mbi": ["MBI1"],
-            "aco_id": ["D0259"],
-            "program": ["REACH"],
-            "file_date_parsed": [date(2024, 3, 15)],
-            "bene_mbi": ["MBI1"],
-            "bene_date_of_death": pl.Series([None], dtype=pl.Date),
-        }).lazy()
+        bar_data = pl.DataFrame(
+            {
+                "current_mbi": ["MBI1"],
+                "aco_id": ["D0259"],
+                "program": ["REACH"],
+                "file_date_parsed": [date(2024, 3, 15)],
+                "bene_mbi": ["MBI1"],
+                "bene_date_of_death": pl.Series([None], dtype=pl.Date),
+            }
+        ).lazy()
 
-        alr_data = pl.DataFrame({
-            "current_mbi": ["MBI1", "MBI2"],
-            "aco_id": ["A1234", "A1234"],
-            "program": ["MSSP", "MSSP"],
-            "file_date_parsed": [date(2024, 3, 15), date(2024, 3, 15)],
-            "bene_mbi": ["MBI1", "MBI2"],
-            "bene_date_of_death": pl.Series([None, None], dtype=pl.Date),
-        }).lazy()
+        alr_data = pl.DataFrame(
+            {
+                "current_mbi": ["MBI1", "MBI2"],
+                "aco_id": ["A1234", "A1234"],
+                "program": ["MSSP", "MSSP"],
+                "file_date_parsed": [date(2024, 3, 15), date(2024, 3, 15)],
+                "bene_mbi": ["MBI1", "MBI2"],
+                "bene_date_of_death": pl.Series([None, None], dtype=pl.Date),
+            }
+        ).lazy()
 
-        demographics = pl.DataFrame({
-            "current_mbi": ["MBI1", "MBI2"],
-            "birth_date": [date(1950, 1, 1), date(1955, 1, 1)],
-            "death_date": pl.Series([None, None], dtype=pl.Date),
-            "sex": ["1", "2"], "race": ["1", "2"], "ethnicity": [None, None],
-            "state": ["36", "06"], "county": ["061", "037"], "zip_code": ["10001", "90001"],
-        }).lazy()
+        demographics = pl.DataFrame(
+            {
+                "current_mbi": ["MBI1", "MBI2"],
+                "birth_date": [date(1950, 1, 1), date(1955, 1, 1)],
+                "death_date": pl.Series([None, None], dtype=pl.Date),
+                "sex": ["1", "2"],
+                "race": ["1", "2"],
+                "ethnicity": [None, None],
+                "state": ["36", "06"],
+                "county": ["061", "037"],
+                "zip_code": ["10001", "90001"],
+            }
+        ).lazy()
 
         logger = MagicMock()
         result = _build_temporal_matrix_vectorized(
-            bar_data, alr_data,
-            date(2024, 3, 1), date(2024, 3, 31),
-            None, demographics, logger,
+            bar_data,
+            alr_data,
+            date(2024, 3, 1),
+            date(2024, 3, 31),
+            None,
+            demographics,
+            logger,
         )
         collected = result.collect()
         mbi1 = collected.filter(pl.col("current_mbi") == "MBI1")
@@ -1349,45 +1857,61 @@ class TestAcoAlignmentTemporalGaps:
         """Branch 579->581: ffs_dict[mbi] > month_date, so is_in_ffs stays False."""
         # Need at least one record in combined data so the month loop doesn't
         # hit the early-continue (data_as_of_month.height == 0) branch.
-        bar_data = pl.DataFrame({
-            "current_mbi": ["MBI_OTHER"],
-            "aco_id": ["D0259"],
-            "program": ["REACH"],
-            "file_date_parsed": [date(2024, 1, 15)],
-            "bene_mbi": ["MBI_OTHER"],
-            "bene_date_of_death": pl.Series([None], dtype=pl.Date),
-        }).lazy()
+        bar_data = pl.DataFrame(
+            {
+                "current_mbi": ["MBI_OTHER"],
+                "aco_id": ["D0259"],
+                "program": ["REACH"],
+                "file_date_parsed": [date(2024, 1, 15)],
+                "bene_mbi": ["MBI_OTHER"],
+                "bene_date_of_death": pl.Series([None], dtype=pl.Date),
+            }
+        ).lazy()
 
-        alr_data = pl.DataFrame({
-            "current_mbi": pl.Series([], dtype=pl.Utf8),
-            "aco_id": pl.Series([], dtype=pl.Utf8),
-            "program": pl.Series([], dtype=pl.Utf8),
-            "file_date_parsed": pl.Series([], dtype=pl.Date),
-            "bene_mbi": pl.Series([], dtype=pl.Utf8),
-            "bene_date_of_death": pl.Series([], dtype=pl.Date),
-        }).lazy()
+        alr_data = pl.DataFrame(
+            {
+                "current_mbi": pl.Series([], dtype=pl.Utf8),
+                "aco_id": pl.Series([], dtype=pl.Utf8),
+                "program": pl.Series([], dtype=pl.Utf8),
+                "file_date_parsed": pl.Series([], dtype=pl.Date),
+                "bene_mbi": pl.Series([], dtype=pl.Utf8),
+                "bene_date_of_death": pl.Series([], dtype=pl.Date),
+            }
+        ).lazy()
 
         # FFS first date is in the future relative to the month being processed
-        ffs_data = pl.DataFrame({
-            "current_mbi": ["MBI_FFS"],
-            "has_ffs_service": [True],
-            "ffs_first_date": [date(2024, 6, 1)],  # After Jan 2024
-            "ffs_claim_count": [5],
-        }).lazy()
+        ffs_data = pl.DataFrame(
+            {
+                "current_mbi": ["MBI_FFS"],
+                "has_ffs_service": [True],
+                "ffs_first_date": [date(2024, 6, 1)],  # After Jan 2024
+                "ffs_claim_count": [5],
+            }
+        ).lazy()
 
-        demographics = pl.DataFrame({
-            "current_mbi": ["MBI_FFS", "MBI_OTHER"],
-            "birth_date": [date(1960, 3, 1), date(1955, 5, 1)],
-            "death_date": pl.Series([None, None], dtype=pl.Date),
-            "sex": ["1", "1"], "race": ["1", "1"], "ethnicity": [None, None],
-            "state": ["36", "36"], "county": ["061", "061"], "zip_code": ["10001", "10001"],
-        }).lazy()
+        demographics = pl.DataFrame(
+            {
+                "current_mbi": ["MBI_FFS", "MBI_OTHER"],
+                "birth_date": [date(1960, 3, 1), date(1955, 5, 1)],
+                "death_date": pl.Series([None, None], dtype=pl.Date),
+                "sex": ["1", "1"],
+                "race": ["1", "1"],
+                "ethnicity": [None, None],
+                "state": ["36", "36"],
+                "county": ["061", "061"],
+                "zip_code": ["10001", "10001"],
+            }
+        ).lazy()
 
         logger = MagicMock()
         result = _build_temporal_matrix_vectorized(
-            bar_data, alr_data,
-            date(2024, 1, 1), date(2024, 1, 31),
-            ffs_data, demographics, logger,
+            bar_data,
+            alr_data,
+            date(2024, 1, 1),
+            date(2024, 1, 31),
+            ffs_data,
+            demographics,
+            logger,
         )
         collected = result.collect()
         ffs_row = collected.filter(pl.col("current_mbi") == "MBI_FFS")

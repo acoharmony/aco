@@ -55,6 +55,25 @@ class TestLoaders:
         assert out.collect().height == 3
 
     @pytest.mark.unit
+    def test_load_consolidated_enriches_last_ffs_date(self, tmp_path: Path) -> None:
+        gold = tmp_path / "gold"
+        silver = tmp_path / "silver"
+        gold.mkdir()
+        silver.mkdir()
+        _consolidated_df().write_parquet(gold / "consolidated_alignment.parquet")
+        pl.DataFrame(
+            {
+                "bene_mbi": ["M3", "M3"],
+                "last_ffs_date": [date(2025, 8, 31), date(2025, 8, 31)],
+            }
+        ).write_parquet(silver / "last_ffs_service.parquet")
+
+        out = ConsolidatedAlignmentsPlugins().load_consolidated(gold, silver).collect()
+        assert out.height == 3
+        assert "last_ffs_date" in out.columns
+        assert out.filter(pl.col("current_mbi") == "M3")["last_ffs_date"][0] == date(2025, 8, 31)
+
+    @pytest.mark.unit
     def test_load_emails_missing(self, tmp_path: Path) -> None:
         assert ConsolidatedAlignmentsPlugins().load_emails(tmp_path).collect().is_empty()
 
@@ -170,18 +189,23 @@ class TestDistributions:
 class TestSelectedMonthEnrollment:
     @pytest.mark.unit
     def test_no_selected(self) -> None:
-        assert ConsolidatedAlignmentsPlugins().selected_month_enrollment(
-            _consolidated_df().lazy(), None
-        ) is None
+        assert (
+            ConsolidatedAlignmentsPlugins().selected_month_enrollment(
+                _consolidated_df().lazy(), None
+            )
+            is None
+        )
 
     @pytest.mark.unit
     def test_returns_counts(self) -> None:
         out = ConsolidatedAlignmentsPlugins().selected_month_enrollment(
             _consolidated_df().lazy(), "202401"
         )
+        assert out is not None
         assert out["REACH"] == 1
         assert out["MSSP"] == 1
         assert out["FFS"] == 1
+        assert out["Living Beneficiaries"] == 3
         assert out["Not Enrolled"] == 0
 
     @pytest.mark.unit
@@ -190,8 +214,55 @@ class TestSelectedMonthEnrollment:
         out = ConsolidatedAlignmentsPlugins().selected_month_enrollment(
             _consolidated_df().lazy(), "999999"
         )
+        assert out is not None
         assert out["REACH"] == 0
+        assert out["Living Beneficiaries"] == 3
         assert out["Not Enrolled"] == 3
+
+    @pytest.mark.unit
+    def test_deceased_beneficiaries_are_not_counted_as_not_enrolled(self) -> None:
+        df = pl.DataFrame(
+            {
+                "current_mbi": ["M1", "M2", "M3"],
+                "death_date": [None, None, date(2024, 1, 1)],
+                "bene_death_date": [None, None, None],
+                "ym_202608_reach": [True, False, False],
+                "ym_202608_mssp": [False, False, False],
+                "ym_202608_ffs": [False, True, False],
+            }
+        )
+
+        out = ConsolidatedAlignmentsPlugins().selected_month_enrollment(df.lazy(), "202608")
+        assert out is not None
+        assert out["REACH"] == 1
+        assert out["FFS"] == 1
+        assert out["Living Beneficiaries"] == 2
+        assert out["Not Enrolled"] == 0
+
+    @pytest.mark.unit
+    def test_ffs_uses_last_practice_claim_within_24_months(self) -> None:
+        df = pl.DataFrame(
+            {
+                "current_mbi": ["M1", "M2", "M3", "M4"],
+                "death_date": [None, None, None, date(2025, 1, 1)],
+                "ym_202608_reach": [True, False, False, False],
+                "ym_202608_mssp": [False, False, False, False],
+                "ym_202608_ffs": [False, True, True, True],
+                "last_ffs_date": [
+                    date(2025, 8, 31),
+                    date(2025, 8, 31),
+                    date(2024, 8, 30),
+                    date(2025, 8, 31),
+                ],
+            }
+        )
+
+        out = ConsolidatedAlignmentsPlugins().selected_month_enrollment(df.lazy(), "202608")
+        assert out is not None
+        assert out["REACH"] == 1
+        assert out["FFS"] == 1
+        assert out["Living Beneficiaries"] == 3
+        assert out["Not Enrolled"] == 1
 
 
 # ---------------------------------------------------------------------------
@@ -202,9 +273,7 @@ class TestSelectedMonthEnrollment:
 class TestSample:
     @pytest.mark.unit
     def test_sample_includes_current_mbi(self) -> None:
-        out = ConsolidatedAlignmentsPlugins().sample(
-            _consolidated_df().lazy(), sample_size=2
-        )
+        out = ConsolidatedAlignmentsPlugins().sample(_consolidated_df().lazy(), sample_size=2)
         assert "current_mbi" in out.columns
         assert out.height == 2
 
@@ -248,6 +317,7 @@ class TestDelegationStubs:
         ) as fn:
             out = ConsolidatedAlignmentsPlugins().alignment_trends(df, ["202401"])
         fn.assert_called_once()
+        assert out is not None
         assert out.height == 1
 
     @pytest.mark.unit
@@ -270,6 +340,7 @@ class TestDelegationStubs:
         ) as fn:
             out = ConsolidatedAlignmentsPlugins().office_enrollment(df, "202401")
         fn.assert_called_once()
+        assert out is not None
         assert out.height == 1
 
     @pytest.mark.unit

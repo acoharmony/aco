@@ -10,13 +10,13 @@ from acoharmony._test._import_magic import auto_import
 class _:
     pass  # noqa: E701
 
+
 import datetime
 
 import polars as pl
 import pytest
 
-import acoharmony
-import acoharmony._transforms._notebook_utilities as _notebook_utilities
+from acoharmony._transforms import _notebook_utilities as notebook_utilities
 from acoharmony._transforms._notebook_utilities import (
     analyze_sva_action_categories,
     calculate_basic_stats,
@@ -36,12 +36,14 @@ def collect(lf: pl.LazyFrame) -> pl.DataFrame:
 
 def _date(y: int, m: int, d: int) -> datetime.date:
     return datetime.date(y, m, d)
+
+
 class TestNotebookUtilities:
     """Tests for notebook utilities."""
 
     @pytest.mark.unit
     def test_import_module(self):
-        assert acoharmony._transforms._notebook_utilities is not None
+        assert notebook_utilities is not None
 
     @pytest.mark.unit
     def test_calculate_basic_stats(self):
@@ -49,6 +51,9 @@ class TestNotebookUtilities:
         stats = calculate_basic_stats(df)
         assert stats["total_records"] == 3
         assert stats["total_columns"] == 2
+        assert stats["unique_beneficiaries"] == 3
+        assert stats["duplicate_beneficiary_records"] == 0
+        assert stats["living_beneficiaries"] == 3
 
     @pytest.mark.unit
     def test_extract_year_months_exists(self):
@@ -81,13 +86,15 @@ class TestNotebookUtilitiesDeep:
 
     @pytest.mark.unit
     def test_extract_year_months_with_ym_cols(self):
-        df = pl.LazyFrame({
-            "ym_202401_reach": [True],
-            "ym_202401_mssp": [False],
-            "ym_202402_reach": [True],
-            "ym_202402_mssp": [True],
-            "other_col": [1],
-        })
+        df = pl.LazyFrame(
+            {
+                "ym_202401_reach": [True],
+                "ym_202401_mssp": [False],
+                "ym_202402_reach": [True],
+                "ym_202402_mssp": [True],
+                "other_col": [1],
+            }
+        )
         most_recent, year_months = extract_year_months(df)
         assert len(year_months) > 0
         assert "202401" in year_months or "202402" in year_months
@@ -98,28 +105,40 @@ class TestNotebookUtilitiesV2:
 
     @pytest.mark.unit
     def test_calculate_basic_stats(self):
-
-        df = pl.DataFrame({
-            "col1": [1, 2, 3],
-            "col2": ["a", "b", "c"],
-        }).lazy()
+        df = pl.DataFrame(
+            {
+                "current_mbi": ["M1", "M2", "M2"],
+                "col1": [1, 2, 3],
+                "col2": ["a", "b", "c"],
+                "death_date": [None, None, _date(2024, 1, 1)],
+                "ym_202403_reach": [True, False, True],
+                "ym_202403_mssp": [False, True, False],
+            }
+        ).lazy()
 
         stats = calculate_basic_stats(df)
         assert stats["total_records"] == 3
-        assert stats["total_columns"] == 2
+        assert stats["total_columns"] == 6
+        assert stats["unique_beneficiaries"] == 2
+        assert stats["duplicate_beneficiary_records"] == 1
+        assert stats["living_beneficiaries"] == 2
+        assert stats["deceased_beneficiaries"] == 0
+        assert stats["most_recent_ym"] == "202403"
+        assert stats["current_aligned_beneficiaries"] == 2
 
     @pytest.mark.unit
     def test_extract_year_months(self):
-
-        df = pl.DataFrame({
-            "current_mbi": ["MBI1"],
-            "ym_202401_reach": [True],
-            "ym_202401_mssp": [False],
-            "ym_202402_reach": [True],
-            "ym_202402_mssp": [True],
-            "ym_202403_reach": [False],
-            "ym_202403_mssp": [True],
-        }).lazy()
+        df = pl.DataFrame(
+            {
+                "current_mbi": ["MBI1"],
+                "ym_202401_reach": [True],
+                "ym_202401_mssp": [False],
+                "ym_202402_reach": [True],
+                "ym_202402_mssp": [True],
+                "ym_202403_reach": [False],
+                "ym_202403_mssp": [True],
+            }
+        ).lazy()
 
         most_recent, year_months = extract_year_months(df)
         assert most_recent == "202403"
@@ -127,7 +146,6 @@ class TestNotebookUtilitiesV2:
 
     @pytest.mark.unit
     def test_extract_year_months_no_ym_columns(self):
-
         df = pl.DataFrame({"col1": [1, 2]}).lazy()
         most_recent, year_months = extract_year_months(df)
         assert most_recent is None
@@ -135,41 +153,113 @@ class TestNotebookUtilitiesV2:
 
     @pytest.mark.unit
     def test_calculate_historical_program_distribution(self):
-        df = pl.DataFrame({
-            "ever_reach": [True, True, False, False],
-            "ever_mssp": [True, False, True, False],
-        }).lazy()
+        df = pl.DataFrame(
+            {
+                "ever_reach": [True, True, False, False],
+                "ever_mssp": [True, False, True, False],
+            }
+        ).lazy()
 
         result = calculate_historical_program_distribution(df)
+        assert result["total_beneficiaries"][0] == 4
+        assert result["ever_reach_only_count"][0] == 1
+        assert result["ever_mssp_only_count"][0] == 1
         assert result["ever_reach_count"][0] == 2
         assert result["ever_mssp_count"][0] == 2
+        assert result["ever_reach_any_count"][0] == 2
+        assert result["ever_mssp_any_count"][0] == 2
         assert result["ever_both_count"][0] == 1
         assert result["never_aligned_count"][0] == 1
+        exclusive_sum = (
+            result["ever_reach_only_count"][0]
+            + result["ever_mssp_only_count"][0]
+            + result["ever_both_count"][0]
+            + result["never_aligned_count"][0]
+        )
+        assert exclusive_sum == result["total_beneficiaries"][0]
 
     @pytest.mark.unit
     def test_calculate_historical_program_distribution_no_columns(self):
         df = pl.DataFrame({"other_col": [1, 2, 3]}).lazy()
         result = calculate_historical_program_distribution(df)
+        assert result["total_beneficiaries"][0] == 3
+        assert result["ever_reach_only_count"][0] == 0
         assert result["ever_reach_count"][0] == 0
+        assert result["never_aligned_count"][0] == 3
 
     @pytest.mark.unit
     def test_calculate_current_program_distribution(self):
-        df = pl.DataFrame({
-            "ym_202403_reach": [True, False, True, False],
-            "ym_202403_mssp": [False, True, True, False],
-        }).lazy()
+        df = pl.DataFrame(
+            {
+                "ym_202403_reach": [True, False, True, False],
+                "ym_202403_mssp": [False, True, True, False],
+            }
+        ).lazy()
 
         result = calculate_current_program_distribution(df, "202403")
+        assert result["living_beneficiaries"][0] == 4
+        assert result["currently_reach_only"][0] == 1
+        assert result["currently_mssp_only"][0] == 1
         assert result["currently_reach"][0] == 2
         assert result["currently_mssp"][0] == 2
         assert result["currently_both"][0] == 1
+        assert result["currently_ffs"][0] == 0
+        assert result["currently_unassigned"][0] == 1
+        assert result["currently_aligned_any"][0] == 3
         assert result["currently_neither"][0] == 1
+
+    @pytest.mark.unit
+    def test_calculate_current_program_distribution_uses_living_beneficiaries(self):
+        df = pl.DataFrame(
+            {
+                "current_mbi": ["M1", "M2", "M3", "M4"],
+                "death_date": [None, None, None, _date(2024, 1, 1)],
+                "ym_202403_reach": [True, False, False, True],
+                "ym_202403_mssp": [False, True, False, False],
+                "ym_202403_ffs": [False, False, True, False],
+            }
+        ).lazy()
+
+        result = calculate_current_program_distribution(df, "202403")
+        assert result["living_beneficiaries"][0] == 3
+        assert result["currently_reach_only"][0] == 1
+        assert result["currently_mssp_only"][0] == 1
+        assert result["currently_ffs"][0] == 1
+        assert result["currently_unassigned"][0] == 0
+        assert result["currently_reach"][0] == 1
+
+    @pytest.mark.unit
+    def test_calculate_current_program_distribution_uses_24_month_practice_touch(self):
+        df = pl.DataFrame(
+            {
+                "current_mbi": ["M1", "M2", "M3", "M4"],
+                "death_date": [None, None, None, None],
+                "ym_202608_reach": [True, False, False, False],
+                "ym_202608_mssp": [False, True, False, False],
+                "ym_202608_ffs": [False, True, True, True],
+                "last_ffs_date": [
+                    _date(2025, 8, 31),
+                    _date(2025, 8, 31),
+                    _date(2024, 8, 31),
+                    _date(2024, 8, 30),
+                ],
+            }
+        ).lazy()
+
+        result = calculate_current_program_distribution(df, "202608")
+        assert result["living_beneficiaries"][0] == 4
+        assert result["currently_reach_only"][0] == 1
+        assert result["currently_mssp_only"][0] == 1
+        assert result["currently_ffs"][0] == 1
+        assert result["currently_active_any"][0] == 3
+        assert result["currently_unassigned"][0] == 1
 
     @pytest.mark.unit
     def test_calculate_current_program_distribution_no_ym(self):
         df = pl.DataFrame({"col": [1]}).lazy()
         result = calculate_current_program_distribution(df, None)
         assert result["currently_reach"][0] == 0
+        assert result["currently_active_any"][0] == 0
 
     @pytest.mark.unit
     def test_calculate_current_program_distribution_missing_cols(self):
@@ -179,9 +269,11 @@ class TestNotebookUtilitiesV2:
 
     @pytest.mark.unit
     def test_analyze_sva_action_categories(self):
-        df = pl.DataFrame({
-            "sva_action_needed": ["renew", "new", "renew", "none"],
-        }).lazy()
+        df = pl.DataFrame(
+            {
+                "sva_action_needed": ["renew", "new", "renew", "none"],
+            }
+        ).lazy()
 
         result = analyze_sva_action_categories(df)
         assert result.height == 3
@@ -203,9 +295,11 @@ class TestNotebookUtilitiesV2:
 
     @pytest.mark.unit
     def test_calculate_current_and_historical_sources_with_primary(self):
-        df = pl.DataFrame({
-            "primary_alignment_source": ["sva", "claims", "sva"],
-        }).lazy()
+        df = pl.DataFrame(
+            {
+                "primary_alignment_source": ["sva", "claims", "sva"],
+            }
+        ).lazy()
 
         current, historical = calculate_current_and_historical_sources(df, None)
         assert historical.height == 2  # sva and claims
@@ -213,27 +307,33 @@ class TestNotebookUtilitiesV2:
 
     @pytest.mark.unit
     def test_enrich_with_outreach_data(self):
-        df = pl.DataFrame({
-            "current_mbi": ["MBI1", "MBI2"],
-        }).lazy()
+        df = pl.DataFrame(
+            {
+                "current_mbi": ["MBI1", "MBI2"],
+            }
+        ).lazy()
 
-        email_mbis = pl.DataFrame({
-            "mbi": ["MBI1"],
-            "voluntary_email_count": [3],
-            "voluntary_email_campaigns": [2],
-            "email_campaign_periods": ["2024_Q1"],
-            "voluntary_emails_opened": [2],
-            "voluntary_emails_clicked": [1],
-            "last_voluntary_email_date": [None],
-        }).lazy()
+        email_mbis = pl.DataFrame(
+            {
+                "mbi": ["MBI1"],
+                "voluntary_email_count": [3],
+                "voluntary_email_campaigns": [2],
+                "email_campaign_periods": ["2024_Q1"],
+                "voluntary_emails_opened": [2],
+                "voluntary_emails_clicked": [1],
+                "last_voluntary_email_date": [None],
+            }
+        ).lazy()
 
-        mailed_mbis = pl.DataFrame({
-            "mbi": ["MBI2"],
-            "voluntary_letter_count": [1],
-            "voluntary_letter_campaigns": [1],
-            "letter_campaign_periods": ["2024_Q2"],
-            "last_voluntary_letter_date": [None],
-        }).lazy()
+        mailed_mbis = pl.DataFrame(
+            {
+                "mbi": ["MBI2"],
+                "voluntary_letter_count": [1],
+                "voluntary_letter_campaigns": [1],
+                "letter_campaign_periods": ["2024_Q2"],
+                "last_voluntary_letter_date": [None],
+            }
+        ).lazy()
 
         result = enrich_with_outreach_data(df, email_mbis, mailed_mbis).collect()
         assert "voluntary_outreach_attempts" in result.columns
@@ -248,15 +348,18 @@ class TestNotebookUtilitiesV2:
 
 # ===================== Coverage gap: lines 268-270, 310-415 =====================
 
+
 class TestAlignmentSourceFallbackNoData:
     """Test calculate_alignment_source_stats fallback paths (lines 268-270)."""
 
     @pytest.mark.unit
     def test_no_data_when_source_expr_missing(self):
         """Returns NO DATA fallback when current_alignment_source cannot be built."""
-        df_enriched = pl.DataFrame({
-            "current_mbi": ["A", "B"],
-        }).lazy()
+        df_enriched = pl.DataFrame(
+            {
+                "current_mbi": ["A", "B"],
+            }
+        ).lazy()
 
         current, historical = calculate_current_and_historical_sources(df_enriched, None)
         # Without selected_ym, current source should be NO DATA fallback
@@ -270,21 +373,24 @@ class TestPrepareVoluntaryOutreachData:
     def test_basic_email_and_mail_preparation(self):
         """Test basic email and mail voluntary outreach data preparation."""
 
+        emails_df = pl.DataFrame(
+            {
+                "campaign": ["2024 Q2 ACO Voluntary Alignment", "Other Campaign"],
+                "mbi": ["MBI1", "MBI2"],
+                "has_been_opened": ["true", "false"],
+                "has_been_clicked": ["false", "false"],
+                "send_datetime": ["2024-06-01", "2024-06-01"],
+            }
+        ).lazy()
 
-        emails_df = pl.DataFrame({
-            "campaign": ["2024 Q2 ACO Voluntary Alignment", "Other Campaign"],
-            "mbi": ["MBI1", "MBI2"],
-            "has_been_opened": ["true", "false"],
-            "has_been_clicked": ["false", "false"],
-            "send_datetime": ["2024-06-01", "2024-06-01"],
-        }).lazy()
-
-        mailed_df = pl.DataFrame({
-            "campaign_name": ["2024 Q2 ACO Voluntary Alignment", "Other"],
-            "mbi": ["MBI1", "MBI3"],
-            "status": ["delivered", "pending"],
-            "send_datetime": ["2024-06-15", "2024-06-15"],
-        }).lazy()
+        mailed_df = pl.DataFrame(
+            {
+                "campaign_name": ["2024 Q2 ACO Voluntary Alignment", "Other"],
+                "mbi": ["MBI1", "MBI3"],
+                "status": ["delivered", "pending"],
+                "send_datetime": ["2024-06-15", "2024-06-15"],
+            }
+        ).lazy()
 
         email_by_campaign, email_mbis, mailed_by_campaign, mailed_mbis = (
             prepare_voluntary_outreach_data(emails_df, mailed_df)
@@ -304,21 +410,24 @@ class TestPrepareVoluntaryOutreachData:
     def test_no_voluntary_campaigns(self):
         """When no voluntary alignment campaigns exist."""
 
+        emails_df = pl.DataFrame(
+            {
+                "campaign": ["Other Campaign"],
+                "mbi": ["MBI1"],
+                "has_been_opened": ["false"],
+                "has_been_clicked": ["false"],
+                "send_datetime": ["2024-06-01"],
+            }
+        ).lazy()
 
-        emails_df = pl.DataFrame({
-            "campaign": ["Other Campaign"],
-            "mbi": ["MBI1"],
-            "has_been_opened": ["false"],
-            "has_been_clicked": ["false"],
-            "send_datetime": ["2024-06-01"],
-        }).lazy()
-
-        mailed_df = pl.DataFrame({
-            "campaign_name": ["Other"],
-            "mbi": ["MBI1"],
-            "status": ["delivered"],
-            "send_datetime": ["2024-06-01"],
-        }).lazy()
+        mailed_df = pl.DataFrame(
+            {
+                "campaign_name": ["Other"],
+                "mbi": ["MBI1"],
+                "status": ["delivered"],
+                "send_datetime": ["2024-06-01"],
+            }
+        ).lazy()
 
         email_by_campaign, email_mbis, mailed_by_campaign, mailed_mbis = (
             prepare_voluntary_outreach_data(emails_df, mailed_df)
@@ -340,9 +449,11 @@ class TestAlignmentSourceStatsNoData:
     def test_current_alignment_source_no_data_branch(self):
         """Lines 268, 270: missing columns produce NO DATA entries."""
         # DataFrame without current_alignment_source column
-        df = pl.DataFrame({
-            "current_mbi": ["MBI001"],
-        }).lazy()
+        df = pl.DataFrame(
+            {
+                "current_mbi": ["MBI001"],
+            }
+        ).lazy()
 
         current, historical = calculate_current_and_historical_sources(df, None)
         assert current["current_alignment_source"][0] == "NO DATA"
@@ -354,9 +465,11 @@ class TestCurrentSourceMissingCols:
     @pytest.mark.unit
     def test_selected_ym_but_missing_columns(self):
         """Branch 214->270: reach_col not in schema produces NO DATA."""
-        df = pl.DataFrame({
-            "current_mbi": ["MBI001"],
-        }).lazy()
+        df = pl.DataFrame(
+            {
+                "current_mbi": ["MBI001"],
+            }
+        ).lazy()
         current, _historical = calculate_current_and_historical_sources(df, "202403")
         assert current["current_alignment_source"][0] == "NO DATA"
         assert current["count"][0] == 0
@@ -368,12 +481,14 @@ class TestCurrentSourceEmptyAligned:
     @pytest.mark.unit
     def test_no_currently_aligned_beneficiaries(self):
         """Branch 219->268: columns exist but no rows pass the filter."""
-        df = pl.DataFrame({
-            "ym_202403_reach": [False, False],
-            "ym_202403_mssp": [False, False],
-            "primary_alignment_source": ["sva", "claims"],
-            "has_valid_voluntary_alignment": [True, False],
-        }).lazy()
+        df = pl.DataFrame(
+            {
+                "ym_202403_reach": [False, False],
+                "ym_202403_mssp": [False, False],
+                "primary_alignment_source": ["sva", "claims"],
+                "has_valid_voluntary_alignment": [True, False],
+            }
+        ).lazy()
         current, _historical = calculate_current_and_historical_sources(df, "202403")
         assert current["current_alignment_source"][0] == "NO DATA"
         assert current["count"][0] == 0
