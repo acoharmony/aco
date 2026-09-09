@@ -78,6 +78,34 @@ def test_check_service_reports_missing_config(tmp_path, monkeypatch: pytest.Monk
 
 
 @pytest.mark.unit
+def test_check_service_treats_empty_config_dir_as_missing(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    paths = _paths(tmp_path)
+    paths.acoms_config_dir.mkdir(parents=True)
+    registry = AuthRegistry(paths.registry)
+
+    monkeypatch.setattr("acoharmony._auth.doctor._deploy_nonsecret_env", lambda: {})
+    monkeypatch.setattr(
+        "acoharmony._auth.doctor.fetch_container_public_ip",
+        lambda *a, **k: ProbeResult("203.0.113.10", source="test"),
+    )
+
+    report = check_service(
+        "acoms",
+        paths=paths,
+        registry=registry,
+        host_public_ip=ProbeResult("203.0.113.10", source="test"),
+        skip_live=True,
+    )
+
+    assert report.diagnosis == "MISSING_CONFIG"
+    assert report.config.warning is not None
+    assert "contains no config files" in report.config.warning
+
+
+@pytest.mark.unit
 def test_register_ip_command_updates_registry(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
     from acoharmony._auth import cli as auth_cli
 

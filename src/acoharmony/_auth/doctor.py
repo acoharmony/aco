@@ -99,6 +99,21 @@ def path_status(path: Path, *, directory: bool = False) -> PathStatus:
 
     st = path.stat()
     mode = stat.S_IMODE(st.st_mode)
+    owner = _safe_owner(st.st_uid)
+    group = _safe_group(st.st_gid)
+    mtime = datetime.fromtimestamp(st.st_mtime).isoformat(timespec="seconds")
+    if directory and path.is_dir() and not any(child.is_file() for child in path.rglob("*")):
+        return PathStatus(
+            path=str(path),
+            exists=False,
+            kind="directory",
+            mode=f"{mode:04o}",
+            owner=owner,
+            group=group,
+            mtime=mtime,
+            warning="directory exists but contains no config files; run `aco acoms setup`",
+        )
+
     fingerprint = directory_fingerprint(path) if path.is_dir() else file_fingerprint(path)
     warning = None
     if mode & 0o077:
@@ -109,10 +124,10 @@ def path_status(path: Path, *, directory: bool = False) -> PathStatus:
         exists=True,
         kind="directory" if path.is_dir() else "file",
         mode=f"{mode:04o}",
-        owner=_safe_owner(st.st_uid),
-        group=_safe_group(st.st_gid),
+        owner=owner,
+        group=group,
         size_bytes=None if path.is_dir() else st.st_size,
-        mtime=datetime.fromtimestamp(st.st_mtime).isoformat(timespec="seconds"),
+        mtime=mtime,
         fingerprint=fingerprint,
         warning=warning,
     )
