@@ -17,11 +17,17 @@ aco auth doctor
 
 The doctor compares:
 
-- host public IP
-- container public IP
+- host public IPs observed from multiple providers
+- container public IPs observed from multiple providers
 - locally recorded portal-registered public IPs
 - persisted config path, mode, owner, mtime, and fingerprint
 - live vendor auth smoke test
+
+Under Zscaler, different public-IP providers may report different egress IPs
+from the same host/container. For example, one provider may show the direct ISP
+egress while another shows the Zscaler proxy egress. `aco auth doctor` reports
+all observed IPs and treats the registered IP as matching if it appears in that
+observed set.
 
 Diagnoses include `OK`, `IP_MISMATCH`, `BAD_SECRET`, `MISSING_CONFIG`,
 `TLS_OR_ZSCALER`, and `CONTAINER_DOWN`.
@@ -35,6 +41,11 @@ non-secret metadata locally:
 aco auth register-ip 4icli --ip <portal-registered-public-ip>
 aco auth register-ip acoms --ip <portal-registered-public-ip>
 ```
+
+If you omit `--ip`, the command records the current host IP only when there is
+a single clear result. When Zscaler/direct routing exposes more than one public
+IP, pass the portal value explicitly so the local registry mirrors the vendor
+record instead of guessing.
 
 The registry lives at:
 

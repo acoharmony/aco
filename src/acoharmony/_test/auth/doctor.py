@@ -55,6 +55,39 @@ def test_check_service_reports_ip_mismatch(tmp_path, monkeypatch: pytest.MonkeyP
 
 
 @pytest.mark.unit
+def test_check_service_accepts_registered_secondary_egress_ip(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    paths = _paths(tmp_path)
+    paths.fouricli_config.parent.mkdir(parents=True)
+    paths.fouricli_config.write_text("hashed-config")
+    registry = AuthRegistry(paths.registry)
+    registry.update("4icli", entity_id="D0259", registered_ips=["136.226.69.108"])
+
+    observed = ProbeResult(
+        "68.134.99.31",
+        source="test",
+        values=("68.134.99.31", "136.226.69.108"),
+    )
+    monkeypatch.setattr("acoharmony._auth.doctor._deploy_nonsecret_env", lambda: {})
+    monkeypatch.setattr(
+        "acoharmony._auth.doctor.fetch_container_public_ip",
+        lambda *a, **k: observed,
+    )
+
+    report = check_service(
+        "4icli",
+        paths=paths,
+        registry=registry,
+        host_public_ip=observed,
+        skip_live=True,
+    )
+
+    assert report.diagnosis == "CHECK_SKIPPED"
+
+
+@pytest.mark.unit
 def test_check_service_reports_missing_config(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
     paths = _paths(tmp_path)
     registry = AuthRegistry(paths.registry)
@@ -128,3 +161,39 @@ def test_register_ip_command_updates_registry(tmp_path, monkeypatch: pytest.Monk
     record = AuthRegistry(paths.registry).get("4icli")
     assert record.entity_id == "D0259"
     assert record.registered_ips == ["203.0.113.10"]
+
+
+@pytest.mark.unit
+def test_register_ip_requires_explicit_ip_when_probe_is_ambiguous(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from acoharmony._auth import cli as auth_cli
+
+    paths = _paths(tmp_path)
+    monkeypatch.setattr(auth_cli, "get_auth_paths", lambda: paths)
+    monkeypatch.setattr(
+        auth_cli,
+        "fetch_public_ip",
+        lambda: ProbeResult(
+            "68.134.99.31",
+            source="test",
+            values=("68.134.99.31", "136.226.69.108"),
+        ),
+    )
+
+    rc = auth_cli.cmd_register_ip(
+        SimpleNamespace(
+            service="4icli",
+            ip=None,
+            entity_id=None,
+            token_label=None,
+            replace=False,
+            notes=None,
+        )
+    )
+
+    assert rc == 1
+    assert "Multiple public IPs observed" in capsys.readouterr().out
+    assert AuthRegistry(paths.registry).get("4icli").registered_ips == []

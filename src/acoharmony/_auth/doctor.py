@@ -258,7 +258,7 @@ def live_check(service: str, entity_id: str | None, year: int, timeout: float) -
 def _diagnose(
     *,
     config: PathStatus,
-    current_ip: str | None,
+    current_ips: list[str],
     registered_ips: list[str],
     live: LiveCheck,
 ) -> str:
@@ -268,7 +268,7 @@ def _diagnose(
         return "CONTAINER_DOWN"
     if live.status == "TLS_OR_ZSCALER":
         return "TLS_OR_ZSCALER"
-    if current_ip and registered_ips and current_ip not in registered_ips:
+    if current_ips and registered_ips and not any(ip in registered_ips for ip in current_ips):
         return "IP_MISMATCH"
     if live.status == "BAD_SECRET":
         return "BAD_SECRET"
@@ -279,6 +279,16 @@ def _diagnose(
     if live.status == "SKIPPED":
         return "CHECK_SKIPPED"
     return live.status
+
+
+def _observed_ips(*probes: ProbeResult) -> list[str]:
+    """Return unique observed IPs from multiple probes."""
+    values: list[str] = []
+    for probe in probes:
+        for ip in probe.observed_values:
+            if ip not in values:
+                values.append(ip)
+    return values
 
 
 def check_service(
@@ -315,10 +325,10 @@ def check_service(
     else:
         live = live_check(service, entity_id, check_year, timeout)
 
-    current_ip = container_ip.value or host_ip.value
+    current_ips = _observed_ips(container_ip, host_ip)
     diagnosis = _diagnose(
         config=config,
-        current_ip=current_ip,
+        current_ips=current_ips,
         registered_ips=registered_ips,
         live=live,
     )

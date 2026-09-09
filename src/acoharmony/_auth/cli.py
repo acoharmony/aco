@@ -10,7 +10,7 @@ from pathlib import Path
 from .doctor import SERVICES, check_service, write_audit_log
 from .env_file import find_deploy_dir, read_env_file
 from .paths import get_auth_paths
-from .public_ip import fetch_public_ip, parse_ip_values
+from .public_ip import ProbeResult, fetch_public_ip, parse_ip_values
 from .registry import AuthRegistry
 
 
@@ -84,9 +84,16 @@ def _legacy_entity_id(service: str) -> str | None:
     return None
 
 
+def _format_probe(probe: ProbeResult) -> str:
+    observed = probe.observed_values
+    if observed:
+        return ", ".join(observed)
+    return f"unknown ({probe.error})"
+
+
 def _print_report(report) -> None:
-    host = report.host_public_ip.value or f"unknown ({report.host_public_ip.error})"
-    container = report.container_public_ip.value or f"unknown ({report.container_public_ip.error})"
+    host = _format_probe(report.host_public_ip)
+    container = _format_probe(report.container_public_ip)
     registered = ", ".join(report.registered_ips) if report.registered_ips else "(not recorded)"
     fingerprint = report.config.fingerprint or "(unavailable)"
     if len(fingerprint) > 24:
@@ -95,9 +102,9 @@ def _print_report(report) -> None:
     print(report.service)
     print(f"  Diagnosis:     {report.diagnosis}")
     print(f"  Entity ID:     {report.entity_id or '(not configured)'}")
-    print(f"  Host IP:       {host}")
-    print(f"  Container IP:  {container}")
-    print(f"  Registered IP: {registered}")
+    print(f"  Host IPs:      {host}")
+    print(f"  Container IPs: {container}")
+    print(f"  Registered IPs: {registered}")
     print(f"  Config:        {report.config.path}")
     print(
         "  Config state:  "
@@ -170,7 +177,11 @@ def cmd_register_ip(args) -> int:
         if not probe.value:
             print(f"[ERROR] Could not determine current public IP: {probe.error}")
             return 1
-        ips = [probe.value]
+        ips = list(probe.observed_values)
+        if len(ips) > 1:
+            print(f"[ERROR] Multiple public IPs observed: {', '.join(ips)}")
+            print("Pass the portal-registered value explicitly with --ip.")
+            return 1
 
     paths = get_auth_paths()
     registry = AuthRegistry(paths.registry)
