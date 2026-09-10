@@ -9,10 +9,10 @@ error categories, eligibility issues, and precedence flags.
 
 Response Code Categories (per CMS documentation):
 - A0/A1: Accepted alignments
-- A2: Accepted but ineligible for performance year
-- V0-V2: Validation errors (invalid signature, missing data, etc.)
-- P0-P2: Precedence issues (duplicate, superseded, already in another model)
-- E0-E5: Eligibility issues (deceased, not enrolled, MA, outside service area, etc.)
+- A2: Accepted but previously lost eligibility for the performance year
+- V0-V2: Validation errors (MBI, signature date, TIN/NPI)
+- P0-P2: Precedence issues (duplicate, superseded, another model/ACO)
+- E0-E5: Eligibility issues (deceased, High Needs, Medicare coverage, MA, service area)
 """
 
 import polars as pl
@@ -24,24 +24,66 @@ from ._registry import register_expression
 # Response code mapping (per CMS REACH/MSSP documentation)
 RESPONSE_CODE_MAP = {
     # Acceptance codes
-    "A0": ("acceptance", "Accepted - Voluntary Alignment"),
-    "A1": ("acceptance", "Accepted - Claims-Based Alignment"),
-    "A2": ("acceptance_ineligible", "Accepted but Ineligible for Performance Year"),
+    "A0": ("acceptance", "Accepted attestation; newly aligned beneficiary."),
+    "A1": (
+        "acceptance",
+        "Accepted attestation; beneficiary was already aligned to the same ACO during the current performance year.",
+    ),
+    "A2": (
+        "acceptance_ineligible",
+        "Accepted attestation; beneficiary was already aligned to the same ACO during the current performance year but previously lost eligibility, as such this beneficiary remains ineligible to be aligned for the remainder of this performance year.",
+    ),
     # Validation errors
-    "V0": ("validation_errors", "Invalid Signature"),
-    "V1": ("validation_errors", "Missing Required Data"),
-    "V2": ("validation_errors", "Signature Date Invalid"),
+    "V0": (
+        "validation_errors",
+        "Rejected because of a missing or invalid Medicare Beneficiary Identifier (MBI) that could not be matched to CMS data.",
+    ),
+    "V1": (
+        "validation_errors",
+        "Rejected because of a missing or invalid signature date (e.g., signature date before the ACO had access to SVA; signature date after submission of SVA file, signature date outside the provider start/end date window listed on the ACO's participant list).",
+    ),
+    "V2": (
+        "validation_errors",
+        "Rejected because the Tax Identification Number (TIN) or National Provider Identifier (NPI) is missing or not listed on the ACO's Participant Provider list.",
+    ),
     # Precedence issues
-    "P0": ("precedence_issues", "Duplicate Submission"),
-    "P1": ("precedence_issues", "Superseded by Later Submission"),
-    "P2": ("precedence_issues", "Already in Another ACO Model"),
+    "P0": (
+        "precedence_issues",
+        "Rejected because a duplicate attestation was submitted by the same ACO with the same or more recent signature date.",
+    ),
+    "P1": (
+        "precedence_issues",
+        "Rejected because a more recent attestation for the beneficiary took precedence outside the ACO.",
+    ),
+    "P2": (
+        "precedence_issues",
+        "Rejected because the beneficiary is participating in another model or ACO.",
+    ),
     # Eligibility issues
-    "E0": ("eligibility_issues", "Beneficiary Deceased"),
-    "E1": ("eligibility_issues", "Not Enrolled in Medicare Part A/B"),
-    "E2": ("eligibility_issues", "Enrolled in Medicare Advantage"),
-    "E3": ("eligibility_issues", "Outside ACO Service Area"),
-    "E4": ("eligibility_issues", "ESRD Status"),
-    "E5": ("eligibility_issues", "Hospice Care"),
+    "E0": (
+        "eligibility_issues",
+        "Rejected because the beneficiary is reported as deceased in CMS data.",
+    ),
+    "E1": (
+        "eligibility_issues",
+        "High Needs ACOs only: Rejected because the beneficiary does not meet the High Needs criteria.",
+    ),
+    "E2": (
+        "eligibility_issues",
+        "Rejected because the beneficiary is not enrolled in Medicare Part A or Part B in CMS data.",
+    ),
+    "E3": (
+        "eligibility_issues",
+        "Rejected because the beneficiary is not eligible for the model because of enrollment in Medicare Advantage in CMS data.",
+    ),
+    "E4": (
+        "eligibility_issues",
+        "Rejected because the beneficiary does not live within the ACOs Extended Service Area (but lives within the United States).",
+    ),
+    "E5": (
+        "eligibility_issues",
+        "Rejected because the beneficiary does not live within the United States.",
+    ),
 }
 
 
@@ -162,4 +204,3 @@ class ResponseCodeParserExpression:
             .otherwise(None)
             .alias("error_category"),
         ]
-
