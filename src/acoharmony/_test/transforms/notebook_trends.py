@@ -2,18 +2,11 @@
 
 from __future__ import annotations
 
-# Magic auto-import: brings in ALL exports from module under test
-from acoharmony._test._import_magic import auto_import
-
-
-@auto_import
-class _:
-    pass  # noqa: E701
-
 import polars as pl
 import pytest
 
-import acoharmony
+from acoharmony._transforms import _notebook_trends as notebook_trends
+from acoharmony._transforms._notebook_trends import calculate_alignment_trends_over_time
 
 
 class TestNotebookTrends:
@@ -21,7 +14,7 @@ class TestNotebookTrends:
 
     @pytest.mark.unit
     def test_import_module(self):
-        assert acoharmony._transforms._notebook_trends is not None
+        assert notebook_trends is not None
 
     @pytest.mark.unit
     def test_calculate_alignment_trends_exists(self):
@@ -39,22 +32,26 @@ class TestNotebookTrendsDeep:
 
     @pytest.mark.unit
     def test_trends_with_ym_columns(self):
-        df = pl.LazyFrame({
-            "ym_202401_reach": [True, False, True],
-            "ym_202401_mssp": [False, True, False],
-            "ym_202402_reach": [True, True, True],
-            "ym_202402_mssp": [False, False, True],
-        })
+        df = pl.LazyFrame(
+            {
+                "ym_202401_reach": [True, False, True],
+                "ym_202401_mssp": [False, True, False],
+                "ym_202402_reach": [True, True, True],
+                "ym_202402_mssp": [False, False, True],
+            }
+        )
         calculate_alignment_trends_over_time(df, ["202401", "202402"])
 
     @pytest.mark.unit
     def test_trends_count_distinct_beneficiaries(self):
-        df = pl.LazyFrame({
-            "current_mbi": ["M001", "M001", "M002", "M002", "M003"],
-            "processed_at": [1, 2, 1, 2, 2],
-            "ym_202401_reach": [True, True, False, False, False],
-            "ym_202401_mssp": [False, False, True, True, False],
-        })
+        df = pl.LazyFrame(
+            {
+                "current_mbi": ["M001", "M001", "M002", "M002", "M003"],
+                "processed_at": [1, 2, 1, 2, 2],
+                "ym_202401_reach": [True, True, False, False, False],
+                "ym_202401_mssp": [False, False, True, True, False],
+            }
+        )
 
         result = calculate_alignment_trends_over_time(df, ["202401"])
 
@@ -70,12 +67,14 @@ class TestNotebookTrendsDeep:
 
     @pytest.mark.unit
     def test_trends_keep_latest_duplicate_beneficiary_row(self):
-        df = pl.LazyFrame({
-            "current_mbi": ["M001", "M001", "M002"],
-            "processed_at": [1, 2, 2],
-            "ym_202401_reach": [True, False, False],
-            "ym_202401_mssp": [False, False, True],
-        })
+        df = pl.LazyFrame(
+            {
+                "current_mbi": ["M001", "M001", "M002"],
+                "processed_at": [1, 2, 2],
+                "ym_202401_reach": [True, False, False],
+                "ym_202401_mssp": [False, False, True],
+            }
+        )
 
         result = calculate_alignment_trends_over_time(df, ["202401"])
 
@@ -88,6 +87,25 @@ class TestNotebookTrendsDeep:
                 "Total Aligned": 1,
             }
         ]
+
+    @pytest.mark.unit
+    def test_trends_start_when_visible_program_series_have_data(self):
+        df = pl.LazyFrame(
+            {
+                "current_mbi": ["M001", "M002"],
+                "ym_202401_reach": [False, False],
+                "ym_202401_mssp": [True, False],
+                "ym_202402_reach": [True, False],
+                "ym_202402_mssp": [True, False],
+                "ym_202403_reach": [False, False],
+                "ym_202403_mssp": [False, False],
+            }
+        )
+
+        result = calculate_alignment_trends_over_time(df, ["202401", "202402", "202403"])
+
+        assert result is not None
+        assert result["year_month"].to_list() == ["2024-02"]
 
 
 # ---------------------------------------------------------------------------

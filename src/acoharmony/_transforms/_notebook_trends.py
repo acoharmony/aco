@@ -26,7 +26,9 @@ def _beneficiary_count_frame(df: pl.LazyFrame, schema: list[str]) -> pl.LazyFram
         return df
 
     beneficiary = pl.col(beneficiary_col)
-    valid_beneficiary = beneficiary.is_not_null() & (beneficiary.cast(pl.String).str.strip_chars() != "")
+    valid_beneficiary = beneficiary.is_not_null() & (
+        beneficiary.cast(pl.String).str.strip_chars() != ""
+    )
     count_df = df.filter(valid_beneficiary)
 
     freshness_col = next((col for col in _FRESHNESS_COLUMNS if col in schema), None)
@@ -36,7 +38,9 @@ def _beneficiary_count_frame(df: pl.LazyFrame, schema: list[str]) -> pl.LazyFram
     return count_df.unique(subset=[beneficiary_col], keep="last")
 
 
-def calculate_alignment_trends_over_time(df: pl.LazyFrame, year_months: list[str]) -> pl.DataFrame | None:
+def calculate_alignment_trends_over_time(
+    df: pl.LazyFrame, year_months: list[str]
+) -> pl.DataFrame | None:
     """
     Calculate alignment trends over time.
 
@@ -93,4 +97,22 @@ def calculate_alignment_trends_over_time(df: pl.LazyFrame, year_months: list[str
             }
         )
 
-    return pl.DataFrame(trend_data)
+    trends = pl.DataFrame(trend_data)
+    program_columns = [
+        column
+        for column in ("REACH", "MSSP")
+        if column in trends.columns and trends.select(pl.col(column).sum()).item() > 0
+    ]
+    if not program_columns:
+        program_columns = ["Total Aligned"] if "Total Aligned" in trends.columns else []
+
+    if program_columns:
+        active_rows = trends.with_row_index("_row").filter(
+            pl.all_horizontal([pl.col(column) > 0 for column in program_columns])
+        )
+        if not active_rows.is_empty():
+            first_row = int(active_rows["_row"][0])
+            last_row = int(active_rows["_row"][-1])
+            trends = trends.slice(first_row, last_row - first_row + 1)
+
+    return trends

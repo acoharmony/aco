@@ -81,6 +81,85 @@ class TestLoaders:
     def test_load_mailed_missing(self, tmp_path: Path) -> None:
         assert ConsolidatedAlignmentsPlugins().load_mailed(tmp_path).collect().is_empty()
 
+    @pytest.mark.unit
+    def test_load_sva_augments_stale_silver_with_newer_bronze_workbook(
+        self, tmp_path: Path
+    ) -> None:
+        openpyxl = pytest.importorskip("openpyxl")
+        silver = tmp_path / "silver"
+        bronze = tmp_path / "bronze"
+        silver.mkdir()
+        bronze.mkdir()
+        pl.DataFrame(
+            {
+                "aco_id": ["D0259"],
+                "bene_mbi": ["1AA2BB3CC44"],
+                "bene_first_name": ["Older"],
+                "bene_last_name": ["Batch"],
+                "bene_street_address": ["1 Main"],
+                "city": ["Detroit"],
+                "state": ["MI"],
+                "zip": ["48201"],
+                "provider_name": ["HarmonyCares"],
+                "sva_provider_name": ["Provider"],
+                "sva_npi": ["1111111111"],
+                "sva_tin": ["222222222"],
+                "sva_signature_date": [date(2026, 5, 1)],
+                "sva_response_code": [None],
+                "processed_at": [None],
+                "source_file": ["sva"],
+                "source_filename": ["D0259_D0259SVA20260513.xlsx"],
+                "file_date": [date(2026, 5, 13)],
+                "medallion_layer": ["silver"],
+            }
+        ).write_parquet(silver / "sva.parquet")
+
+        workbook = openpyxl.Workbook()
+        sheet = workbook.active
+        sheet.title = "SVA_DATA"
+        sheet.append(
+            [
+                "ACO ID",
+                "Beneficiary's MBI",
+                "Beneficiary's First Name",
+                "Beneficiary's Last Name",
+                "Beneficiary's Street Address",
+                "City",
+                "State",
+                "Zip",
+                "Provider Name/Primary place the Beneficiary receives care (as it appears on the signed SVA letter)",
+                "Name of Individual  Participant Provider associated w/ attestation",
+                "iNPI for Individual  Participant Provider (column J)",
+                "TIN for Individual Participant Provider (column J)",
+                "Signature Date on SVA letter",
+                "Response Code (CMS to fill out)",
+            ]
+        )
+        sheet.append(
+            [
+                "D0259",
+                "2DD3EE4FF55",
+                "Newer",
+                "Batch",
+                "2 Main",
+                "Atlanta",
+                "GA",
+                "30354",
+                "HarmonyCares",
+                "Provider",
+                1111111111,
+                222222222,
+                date(2026, 8, 1),
+                None,
+            ]
+        )
+        workbook.save(bronze / "D0259_D0259SVA20260812.xlsx")
+
+        out = ConsolidatedAlignmentsPlugins().load_sva(silver, bronze).collect()
+
+        assert out.select(pl.col("file_date").max()).item() == date(2026, 8, 12)
+        assert out.filter(pl.col("bene_mbi") == "2DD3EE4FF55").height == 1
+
 
 # ---------------------------------------------------------------------------
 # Filters / utilities
@@ -151,6 +230,24 @@ class TestExtractYearMonths:
         df = pl.LazyFrame({"x": [1]})
         out = ConsolidatedAlignmentsPlugins().extract_year_months(df)
         assert out == (None, [])
+
+    @pytest.mark.unit
+    def test_trims_empty_outer_alignment_months(self) -> None:
+        df = pl.LazyFrame(
+            {
+                "current_mbi": ["M1", "M2"],
+                "ym_202401_reach": [False, False],
+                "ym_202401_mssp": [False, False],
+                "ym_202402_reach": [True, False],
+                "ym_202402_mssp": [False, False],
+                "ym_202403_reach": [False, False],
+                "ym_202403_mssp": [False, False],
+            }
+        )
+
+        out = ConsolidatedAlignmentsPlugins().extract_year_months(df)
+
+        assert out == ("202402", ["202402"])
 
 
 class TestBasicStats:
