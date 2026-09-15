@@ -6,7 +6,10 @@ services:
     image: ghcr.io/acoharmony/marimo:latest
     pull_policy: build  # Always build locally unless pulled from GHCR
     container_name: marimo
-    user: "1002:1002"
+    # Rootless Docker maps container root back to the unprivileged host user.
+    # Running as UID 1002 makes bind-mounted notebook directories appear owned
+    # by root inside the container, which prevents Marimo autosave/export writes.
+    user: "0:0"
     stdin_open: true
     tty: true
     shm_size: '40gb'  # Increase shared memory for multiprocessing (default is 64MB)
